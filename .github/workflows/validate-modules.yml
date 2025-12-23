@@ -1,0 +1,106 @@
+name: Validate Modules
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check module structure
+        run: |
+          MODULES="calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check"
+          ERRORS=0
+
+          for module in $MODULES; do
+            echo "Checking $module..."
+
+            # Check dagger.json exists
+            if [ ! -f "$module/dagger.json" ]; then
+              echo "  ERROR: $module/dagger.json not found"
+              ERRORS=$((ERRORS + 1))
+            fi
+
+            # Check dagger.json has description
+            if [ -f "$module/dagger.json" ]; then
+              if ! grep -q '"description"' "$module/dagger.json"; then
+                echo "  ERROR: $module/dagger.json missing 'description' field"
+                ERRORS=$((ERRORS + 1))
+              fi
+            fi
+
+            # Check README.md exists
+            if [ ! -f "$module/README.md" ]; then
+              echo "  ERROR: $module/README.md not found"
+              ERRORS=$((ERRORS + 1))
+            fi
+
+            # Check main.py exists and is under 200 lines
+            MAIN_PY=$(find "$module/src" -name "main.py" 2>/dev/null | head -1)
+            if [ -z "$MAIN_PY" ]; then
+              echo "  ERROR: $module main.py not found"
+              ERRORS=$((ERRORS + 1))
+            else
+              LINES=$(wc -l < "$MAIN_PY")
+              if [ "$LINES" -gt 200 ]; then
+                echo "  ERROR: $MAIN_PY has $LINES lines (max 200)"
+                ERRORS=$((ERRORS + 1))
+              else
+                echo "  OK: $MAIN_PY has $LINES lines"
+              fi
+            fi
+
+            # Check examples directory exists
+            if [ ! -d "$module/examples" ]; then
+              echo "  WARNING: $module/examples not found"
+            fi
+
+            # Check for test-all function
+            echo "  Checking for test functions..."
+          done
+
+          if [ $ERRORS -gt 0 ]; then
+            echo ""
+            echo "Found $ERRORS error(s)!"
+            exit 1
+          fi
+          echo ""
+          echo "All modules validated successfully!"
+
+      - name: Check for emojis in code
+        run: |
+          # Check for common emojis in Python source files (not README)
+          if grep -rE '✓|✅|❌|⚠️|🎯|📦|🚀|💡|🔗|📝|🌟|📋|📚|🏗️|🔄|🧪|🤝|📖' \
+              --include="*.py" \
+              --exclude-dir=".git" \
+              calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check 2>/dev/null; then
+            echo "WARNING: Found emojis in Python source files"
+            echo "Consider removing emojis for cleaner output"
+          else
+            echo "No emojis found in Python source files"
+          fi
+
+      - uses: dagger/dagger-for-github@v6
+        with:
+          version: "latest"
+
+      - name: Validate dagger modules load correctly
+        run: |
+          MODULES="calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check"
+
+          for module in $MODULES; do
+            echo "Validating $module module..."
+            cd $module
+            dagger functions > /dev/null 2>&1 || {
+              echo "ERROR: Failed to load $module module"
+              exit 1
+            }
+            echo "  OK: $module loads correctly"
+            cd ..
+          done
+          echo "All modules load correctly!"

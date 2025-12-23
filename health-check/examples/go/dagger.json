@@ -1,0 +1,6 @@
+{
+  "name": "health-check-examples",
+  "engineVersion": "v0.19.7",
+  "sdk": "go",
+  "dependencies": ["../.."]
+}

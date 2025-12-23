@@ -1,0 +1,226 @@
+name: Test Modules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'calver/**'
+      - 'gcp-auth/**'
+      - 'gcp-artifact-registry/**'
+      - 'gcp-cloud-run/**'
+      - 'gcp-vertex-ai/**'
+      - 'gcp-firebase/**'
+      - 'health-check/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'calver/**'
+      - 'gcp-auth/**'
+      - 'gcp-artifact-registry/**'
+      - 'gcp-cloud-run/**'
+      - 'gcp-vertex-ai/**'
+      - 'gcp-firebase/**'
+      - 'health-check/**'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      calver: ${{ steps.filter.outputs.calver }}
+      gcp-auth: ${{ steps.filter.outputs.gcp-auth }}
+      gcp-artifact-registry: ${{ steps.filter.outputs.gcp-artifact-registry }}
+      gcp-cloud-run: ${{ steps.filter.outputs.gcp-cloud-run }}
+      gcp-vertex-ai: ${{ steps.filter.outputs.gcp-vertex-ai }}
+      gcp-firebase: ${{ steps.filter.outputs.gcp-firebase }}
+      health-check: ${{ steps.filter.outputs.health-check }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            calver:
+              - 'calver/**'
+            gcp-auth:
+              - 'gcp-auth/**'
+            gcp-artifact-registry:
+              - 'gcp-artifact-registry/**'
+            gcp-cloud-run:
+              - 'gcp-cloud-run/**'
+            gcp-vertex-ai:
+              - 'gcp-vertex-ai/**'
+            gcp-firebase:
+              - 'gcp-firebase/**'
+            health-check:
+              - 'health-check/**'
+
+  # Tests that don't require credentials
+  test-calver:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.calver == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dagger/dagger-for-github@v6
+        with:
+          version: "latest"
+      - name: Run calver tests
+        run: dagger -m calver call test-all
+
+  test-health-check:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.health-check == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dagger/dagger-for-github@v6
+        with:
+          version: "latest"
+      - name: Run health-check tests
+        run: dagger -m health-check call test-all
+
+  # Tests that require GCP credentials
+  test-gcp-auth:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.gcp-auth == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+      - uses: dagger/dagger-for-github@v6
+        with:
+          version: "latest"
+      - name: Run gcp-auth tests
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          dagger -m gcp-auth call test-all \
+            --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
+            --project-id="$GCP_PROJECT_ID"
+
+  test-gcp-artifact-registry:
+    needs: [detect-changes, test-gcp-auth]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.gcp-artifact-registry == 'true' &&
+      (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+      - uses: dagger/dagger-for-github@v6
+        with:
+          version: "latest"
+      - name: Run gcp-artifact-registry tests
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_REPOSITORY: ${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
+        run: |
+          dagger -m gcp-artifact-registry call test-all \
+            --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
+            --project-id="$GCP_PROJECT_ID" \
+            --repository="$GCP_REPOSITORY"
+
+  test-gcp-cloud-run:
+    needs: [detect-changes, test-gcp-auth]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.gcp-cloud-run == 'true' &&
+      (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+      - uses: dagger/dagger-for-github@v6
+        with:
+          version: "latest"
+      - name: Run gcp-cloud-run tests
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_CLOUD_RUN_SERVICE: ${{ secrets.GCP_CLOUD_RUN_SERVICE }}
+        run: |
+          dagger -m gcp-cloud-run call test-all \
+            --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
+            --project-id="$GCP_PROJECT_ID" \
+            --service-name="$GCP_CLOUD_RUN_SERVICE"
+
+  test-gcp-vertex-ai:
+    needs: [detect-changes, test-gcp-auth]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.gcp-vertex-ai == 'true' &&
+      (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+      - uses: dagger/dagger-for-github@v6
+        with:
+          version: "latest"
+      - name: Run gcp-vertex-ai tests
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          dagger -m gcp-vertex-ai call test-all \
+            --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
+            --project-id="$GCP_PROJECT_ID"
+
+  test-gcp-firebase:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.gcp-firebase == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dagger/dagger-for-github@v6
+        with:
+          version: "latest"
+      - name: Run gcp-firebase tests
+        run: |
+          # Create a minimal test project
+          mkdir -p /tmp/test-app
+          echo '{"name": "test-app", "scripts": {"build": "mkdir -p dist && echo test > dist/index.html"}}' > /tmp/test-app/package.json
+          dagger -m gcp-firebase call test-build --source=/tmp/test-app
+
+  # Summary job
+  test-summary:
+    needs:
+      - test-calver
+      - test-health-check
+      - test-gcp-auth
+      - test-gcp-artifact-registry
+      - test-gcp-cloud-run
+      - test-gcp-vertex-ai
+      - test-gcp-firebase
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check test results
+        run: |
+          echo "Test Results:"
+          echo "  calver: ${{ needs.test-calver.result }}"
+          echo "  health-check: ${{ needs.test-health-check.result }}"
+          echo "  gcp-auth: ${{ needs.test-gcp-auth.result }}"
+          echo "  gcp-artifact-registry: ${{ needs.test-gcp-artifact-registry.result }}"
+          echo "  gcp-cloud-run: ${{ needs.test-gcp-cloud-run.result }}"
+          echo "  gcp-vertex-ai: ${{ needs.test-gcp-vertex-ai.result }}"
+          echo "  gcp-firebase: ${{ needs.test-gcp-firebase.result }}"
+
+          if [[ "${{ needs.test-calver.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-health-check.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-gcp-auth.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-gcp-artifact-registry.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-gcp-cloud-run.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-gcp-vertex-ai.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-gcp-firebase.result }}" == "failure" ]]; then
+            echo "One or more tests failed!"
+            exit 1
+          fi
+          echo "All tests passed!"

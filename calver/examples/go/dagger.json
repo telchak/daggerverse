@@ -1,0 +1,17 @@
+{
+  "name": "calver-examples",
+  "engineVersion": "v0.19.7",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "calver",
+      "source": "../.."
+    },
+    {
+      "name": "gcp-artifact-registry",
+      "source": "../../../gcp-artifact-registry"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "gcp-vertex-ai",
+  "description": "Google Cloud Vertex AI operations for deploying and managing ML models",
+  "engineVersion": "v0.19.7",
+  "sdk": {
+    "source": "python"
+  },
+  "dependencies": [
+    {
+      "name": "gcp-auth",
+      "source": "../gcp-auth"
+    }
+  ]
+}

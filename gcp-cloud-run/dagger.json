@@ -1,0 +1,14 @@
+{
+  "name": "gcp-cloud-run",
+  "description": "Google Cloud Run deployment utilities for services and jobs",
+  "engineVersion": "v0.19.7",
+  "sdk": {
+    "source": "python"
+  },
+  "dependencies": [
+    {
+      "name": "gcp-auth",
+      "source": "../gcp-auth"
+    }
+  ]
+}

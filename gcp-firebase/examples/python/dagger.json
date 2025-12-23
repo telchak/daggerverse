@@ -1,0 +1,13 @@
+{
+  "name": "gcp-firebase-examples",
+  "engineVersion": "v0.19.7",
+  "sdk": {
+    "source": "python"
+  },
+  "dependencies": [
+    {
+      "name": "gcp-firebase",
+      "source": "../.."
+    }
+  ]
+}

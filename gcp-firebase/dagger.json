@@ -1,0 +1,8 @@
+{
+  "name": "gcp-firebase",
+  "description": "Firebase Hosting deployment utilities for web applications",
+  "engineVersion": "v0.19.7",
+  "sdk": {
+    "source": "python"
+  }
+}
