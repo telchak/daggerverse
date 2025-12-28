@@ -8,13 +8,13 @@ on:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: &runner-config depot-ubuntu-latest,dagger=0.19.8
     steps:
       - uses: actions/checkout@v4
 
       - name: Check module structure
         run: |
-          MODULES="calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check"
+          MODULES="calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check oidc tests"
           ERRORS=0
 
           for module in $MODULES; do
@@ -32,6 +32,12 @@ jobs:
                 echo "  ERROR: $module/dagger.json missing 'description' field"
                 ERRORS=$((ERRORS + 1))
               fi
+            fi
+
+            # Skip tests module for README and main.py checks (different structure)
+            if [ "$module" = "tests" ]; then
+              echo "  Skipping additional checks for tests module"
+              continue
             fi
 
             # Check README.md exists
@@ -60,7 +66,7 @@ jobs:
               echo "  WARNING: $module/examples not found"
             fi
 
-            # Check for test-all function
+            # Check for test functions
             echo "  Checking for test functions..."
           done
 
@@ -78,20 +84,16 @@ jobs:
           if grep -rE '✓|✅|❌|⚠️|🎯|📦|🚀|💡|🔗|📝|🌟|📋|📚|🏗️|🔄|🧪|🤝|📖' \
               --include="*.py" \
               --exclude-dir=".git" \
-              calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check 2>/dev/null; then
+              calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check oidc tests 2>/dev/null; then
             echo "WARNING: Found emojis in Python source files"
             echo "Consider removing emojis for cleaner output"
           else
             echo "No emojis found in Python source files"
           fi
 
-      - uses: dagger/dagger-for-github@v6
-        with:
-          version: "latest"
-
       - name: Validate dagger modules load correctly
         run: |
-          MODULES="calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check"
+          MODULES="calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check oidc tests"
 
           for module in $MODULES; do
             echo "Validating $module module..."
@@ -104,3 +106,5 @@ jobs:
             cd ..
           done
           echo "All modules load correctly!"
+        env:
+          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}

@@ -1,0 +1,42 @@
+{
+  "name": "tests",
+  "description": "Centralized test orchestration for all daggerverse modules",
+  "engineVersion": "v0.19.8",
+  "sdk": {
+    "source": "python"
+  },
+  "dependencies": [
+    {
+      "name": "calver",
+      "source": "../calver"
+    },
+    {
+      "name": "gcp-artifact-registry",
+      "source": "../gcp-artifact-registry"
+    },
+    {
+      "name": "gcp-auth",
+      "source": "../gcp-auth"
+    },
+    {
+      "name": "gcp-cloud-run",
+      "source": "../gcp-cloud-run"
+    },
+    {
+      "name": "gcp-firebase",
+      "source": "../gcp-firebase"
+    },
+    {
+      "name": "gcp-vertex-ai",
+      "source": "../gcp-vertex-ai"
+    },
+    {
+      "name": "health-check",
+      "source": "../health-check"
+    },
+    {
+      "name": "oidc",
+      "source": "../oidc"
+    }
+  ]
+}

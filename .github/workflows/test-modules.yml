@@ -11,6 +11,8 @@ on:
       - 'gcp-vertex-ai/**'
       - 'gcp-firebase/**'
       - 'health-check/**'
+      - 'oidc/**'
+      - 'tests/**'
   pull_request:
     branches: [main]
     paths:
@@ -21,8 +23,12 @@ on:
       - 'gcp-vertex-ai/**'
       - 'gcp-firebase/**'
       - 'health-check/**'
+      - 'oidc/**'
+      - 'tests/**'
 
 jobs:
+  # Define runner configuration once using YAML anchor
+  # Change the Dagger version in one place: &runner-config
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
@@ -33,6 +39,7 @@ jobs:
       gcp-vertex-ai: ${{ steps.filter.outputs.gcp-vertex-ai }}
       gcp-firebase: ${{ steps.filter.outputs.gcp-firebase }}
       health-check: ${{ steps.filter.outputs.health-check }}
+      oidc: ${{ steps.filter.outputs.oidc }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -41,64 +48,74 @@ jobs:
           filters: |
             calver:
               - 'calver/**'
+              - 'tests/**'
             gcp-auth:
               - 'gcp-auth/**'
+              - 'tests/**'
             gcp-artifact-registry:
               - 'gcp-artifact-registry/**'
+              - 'tests/**'
             gcp-cloud-run:
               - 'gcp-cloud-run/**'
+              - 'tests/**'
             gcp-vertex-ai:
               - 'gcp-vertex-ai/**'
+              - 'tests/**'
             gcp-firebase:
               - 'gcp-firebase/**'
+              - 'tests/**'
             health-check:
               - 'health-check/**'
+              - 'tests/**'
+            oidc:
+              - 'oidc/**'
+              - 'tests/**'
 
-  # Tests that don't require credentials
+  # Tests that don't require credentials - using Depot runners
   test-calver:
     needs: detect-changes
     if: needs.detect-changes.outputs.calver == 'true'
-    runs-on: ubuntu-latest
+    runs-on: &runner-config depot-ubuntu-latest,dagger=0.19.8
     steps:
       - uses: actions/checkout@v4
-      - uses: dagger/dagger-for-github@v6
-        with:
-          version: "latest"
       - name: Run calver tests
-        run: dagger -m calver call test-all
+        run: dagger -m tests call calver
+        env:
+          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-health-check:
     needs: detect-changes
     if: needs.detect-changes.outputs.health-check == 'true'
-    runs-on: ubuntu-latest
+    runs-on: *runner-config
     steps:
       - uses: actions/checkout@v4
-      - uses: dagger/dagger-for-github@v6
-        with:
-          version: "latest"
       - name: Run health-check tests
-        run: dagger -m health-check call test-all
+        run: dagger -m tests call health-check
+        env:
+          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   # Tests that require GCP credentials
   test-gcp-auth:
     needs: detect-changes
     if: needs.detect-changes.outputs.gcp-auth == 'true'
-    runs-on: ubuntu-latest
+    runs-on: *runner-config
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
-      - uses: dagger/dagger-for-github@v6
-        with:
-          version: "latest"
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          create_credentials_file: true
       - name: Run gcp-auth tests
-        env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
-          dagger -m gcp-auth call test-all \
-            --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-            --project-id="$GCP_PROJECT_ID"
+          dagger -m tests call gcp-auth \
+            --credentials=file:${GOOGLE_APPLICATION_CREDENTIALS} \
+            --project-id="${{ secrets.GCP_PROJECT_ID }}"
+        env:
+          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-gcp-artifact-registry:
     needs: [detect-changes, test-gcp-auth]
@@ -106,24 +123,25 @@ jobs:
       always() &&
       needs.detect-changes.outputs.gcp-artifact-registry == 'true' &&
       (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
-    runs-on: ubuntu-latest
+    runs-on: *runner-config
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
-      - uses: dagger/dagger-for-github@v6
-        with:
-          version: "latest"
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          create_credentials_file: true
       - name: Run gcp-artifact-registry tests
-        env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          GCP_REPOSITORY: ${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
         run: |
-          dagger -m gcp-artifact-registry call test-all \
-            --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-            --project-id="$GCP_PROJECT_ID" \
-            --repository="$GCP_REPOSITORY"
+          dagger -m tests call gcp-artifact-registry \
+            --credentials=file:${GOOGLE_APPLICATION_CREDENTIALS} \
+            --project-id="${{ secrets.GCP_PROJECT_ID }}" \
+            --repository="${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}"
+        env:
+          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-gcp-cloud-run:
     needs: [detect-changes, test-gcp-auth]
@@ -131,24 +149,30 @@ jobs:
       always() &&
       needs.detect-changes.outputs.gcp-cloud-run == 'true' &&
       (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
-    runs-on: ubuntu-latest
+    runs-on: *runner-config
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
-      - uses: dagger/dagger-for-github@v6
-        with:
-          version: "latest"
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          create_credentials_file: true
       - name: Run gcp-cloud-run tests
-        env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          GCP_CLOUD_RUN_SERVICE: ${{ secrets.GCP_CLOUD_RUN_SERVICE }}
         run: |
-          dagger -m gcp-cloud-run call test-all \
-            --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-            --project-id="$GCP_PROJECT_ID" \
-            --service-name="$GCP_CLOUD_RUN_SERVICE"
+          # Skip if no Cloud Run service configured
+          if [ -z "${{ secrets.GCP_CLOUD_RUN_SERVICE }}" ]; then
+            echo "SKIPPED: No GCP_CLOUD_RUN_SERVICE secret configured"
+            exit 0
+          fi
+          dagger -m tests call gcp-cloud-run \
+            --credentials=file:${GOOGLE_APPLICATION_CREDENTIALS} \
+            --project-id="${{ secrets.GCP_PROJECT_ID }}" \
+            --service-name="${{ secrets.GCP_CLOUD_RUN_SERVICE }}"
+        env:
+          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-gcp-vertex-ai:
     needs: [detect-changes, test-gcp-auth]
@@ -156,38 +180,39 @@ jobs:
       always() &&
       needs.detect-changes.outputs.gcp-vertex-ai == 'true' &&
       (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
-    runs-on: ubuntu-latest
+    runs-on: *runner-config
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
-      - uses: dagger/dagger-for-github@v6
-        with:
-          version: "latest"
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          create_credentials_file: true
       - name: Run gcp-vertex-ai tests
-        env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
-          dagger -m gcp-vertex-ai call test-all \
-            --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-            --project-id="$GCP_PROJECT_ID"
+          dagger -m tests call gcp-vertex-ai \
+            --credentials=file:${GOOGLE_APPLICATION_CREDENTIALS} \
+            --project-id="${{ secrets.GCP_PROJECT_ID }}"
+        env:
+          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-gcp-firebase:
     needs: detect-changes
     if: needs.detect-changes.outputs.gcp-firebase == 'true'
-    runs-on: ubuntu-latest
+    runs-on: *runner-config
     steps:
       - uses: actions/checkout@v4
-      - uses: dagger/dagger-for-github@v6
-        with:
-          version: "latest"
       - name: Run gcp-firebase tests
         run: |
           # Create a minimal test project
           mkdir -p /tmp/test-app
           echo '{"name": "test-app", "scripts": {"build": "mkdir -p dist && echo test > dist/index.html"}}' > /tmp/test-app/package.json
-          dagger -m gcp-firebase call test-build --source=/tmp/test-app
+          dagger -m tests call gcp-firebase --source=/tmp/test-app
+        env:
+          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   # Summary job
   test-summary:
