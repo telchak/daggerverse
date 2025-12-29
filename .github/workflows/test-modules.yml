@@ -1,6 +1,18 @@
 name: Test Modules
 
 on:
+  workflow_dispatch:
+    inputs:
+      run_all:
+        description: 'Run all tests (bypass change detection)'
+        required: false
+        default: false
+        type: boolean
+      skip_gcp_tests:
+        description: 'Skip GCP tests (requires credentials)'
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [main]
     paths:
@@ -72,7 +84,7 @@ jobs:
   # Tests that don't require credentials
   test-calver:
     needs: detect-changes
-    if: needs.detect-changes.outputs.calver == 'true'
+    if: needs.detect-changes.outputs.calver == 'true' || inputs.run_all == true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -86,7 +98,7 @@ jobs:
 
   test-health-check:
     needs: detect-changes
-    if: needs.detect-changes.outputs.health-check == 'true'
+    if: needs.detect-changes.outputs.health-check == 'true' || inputs.run_all == true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -101,7 +113,9 @@ jobs:
   # Tests that require GCP credentials
   test-gcp-auth:
     needs: detect-changes
-    if: needs.detect-changes.outputs.gcp-auth == 'true'
+    if: |
+      (needs.detect-changes.outputs.gcp-auth == 'true' || inputs.run_all == true) &&
+      inputs.skip_gcp_tests != true
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -125,8 +139,9 @@ jobs:
     needs: [detect-changes, test-gcp-auth]
     if: |
       always() &&
-      (needs.detect-changes.outputs.gcp-artifact-registry == 'true' || needs.detect-changes.outputs.gcp-auth == 'true') &&
-      (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
+      (needs.detect-changes.outputs.gcp-artifact-registry == 'true' || needs.detect-changes.outputs.gcp-auth == 'true' || inputs.run_all == true) &&
+      (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped') &&
+      inputs.skip_gcp_tests != true
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -150,8 +165,9 @@ jobs:
     needs: [detect-changes, test-gcp-auth]
     if: |
       always() &&
-      (needs.detect-changes.outputs.gcp-cloud-run == 'true' || needs.detect-changes.outputs.gcp-auth == 'true') &&
-      (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
+      (needs.detect-changes.outputs.gcp-cloud-run == 'true' || needs.detect-changes.outputs.gcp-auth == 'true' || inputs.run_all == true) &&
+      (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped') &&
+      inputs.skip_gcp_tests != true
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -175,8 +191,9 @@ jobs:
     needs: [detect-changes, test-gcp-auth]
     if: |
       always() &&
-      (needs.detect-changes.outputs.gcp-vertex-ai == 'true' || needs.detect-changes.outputs.gcp-auth == 'true') &&
-      (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
+      (needs.detect-changes.outputs.gcp-vertex-ai == 'true' || needs.detect-changes.outputs.gcp-auth == 'true' || inputs.run_all == true) &&
+      (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped') &&
+      inputs.skip_gcp_tests != true
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -200,7 +217,7 @@ jobs:
     needs: [detect-changes, test-gcp-auth]
     if: |
       always() &&
-      (needs.detect-changes.outputs.gcp-firebase == 'true' || needs.detect-changes.outputs.gcp-auth == 'true') &&
+      (needs.detect-changes.outputs.gcp-firebase == 'true' || needs.detect-changes.outputs.gcp-auth == 'true' || inputs.run_all == true) &&
       (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
