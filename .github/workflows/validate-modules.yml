@@ -8,7 +8,7 @@ on:
 
 jobs:
   validate:
-    runs-on: &runner-config depot-ubuntu-latest,dagger=0.19.8
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -91,6 +91,12 @@ jobs:
             echo "No emojis found in Python source files"
           fi
 
+      - name: Setup Dagger
+        uses: dagger/dagger-for-github@v8
+        with:
+          version: "0.19.8"
+          verb: version
+
       - name: Validate dagger modules load correctly
         run: |
           MODULES="calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check oidc tests"
@@ -106,5 +112,3 @@ jobs:
             cd ..
           done
           echo "All modules load correctly!"
-        env:
-          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
