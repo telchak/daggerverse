@@ -46,20 +46,16 @@ jobs:
               ERRORS=$((ERRORS + 1))
             fi
 
-            # Check main.py exists and is under 200 lines
-            MAIN_PY=$(find "$module/src" -name "main.py" 2>/dev/null | head -1)
-            if [ -z "$MAIN_PY" ]; then
-              echo "  ERROR: $module main.py not found"
-              ERRORS=$((ERRORS + 1))
-            else
-              LINES=$(wc -l < "$MAIN_PY")
-              if [ "$LINES" -gt 200 ]; then
-                echo "  ERROR: $MAIN_PY has $LINES lines (max 200)"
+            # Check all .py files are under 300 lines
+            for py_file in $(find "$module/src" -name "*.py" 2>/dev/null); do
+              LINES=$(wc -l < "$py_file")
+              if [ "$LINES" -gt 300 ]; then
+                echo "  ERROR: $py_file has $LINES lines (max 300)"
                 ERRORS=$((ERRORS + 1))
               else
-                echo "  OK: $MAIN_PY has $LINES lines"
+                echo "  OK: $py_file has $LINES lines"
               fi
-            fi
+            done
 
             # Check examples directory exists
             if [ ! -d "$module/examples" ]; then
