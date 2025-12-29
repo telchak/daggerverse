@@ -164,12 +164,12 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           create_credentials_file: true
       - name: Run gcp-cloud-run tests
+        if: ${{ vars.GCP_CLOUD_RUN_SERVICE != '' }}
         uses: dagger/dagger-for-github@v8.2.0
-        if: ${{ secrets.GCP_CLOUD_RUN_SERVICE != '' }}
         with:
           version: "0.19.8"
           module: tests
-          call: gcp-cloud-run --credentials=file:${{ env.GOOGLE_APPLICATION_CREDENTIALS }} --project-id=${{ secrets.GCP_PROJECT_ID }} --service-name=${{ secrets.GCP_CLOUD_RUN_SERVICE }}
+          call: gcp-cloud-run --credentials=file:${{ env.GOOGLE_APPLICATION_CREDENTIALS }} --project-id=${{ secrets.GCP_PROJECT_ID }} --service-name=${{ vars.GCP_CLOUD_RUN_SERVICE }}
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-gcp-vertex-ai:
