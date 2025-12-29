@@ -125,7 +125,7 @@ jobs:
     needs: [detect-changes, test-gcp-auth]
     if: |
       always() &&
-      needs.detect-changes.outputs.gcp-artifact-registry == 'true' &&
+      (needs.detect-changes.outputs.gcp-artifact-registry == 'true' || needs.detect-changes.outputs.gcp-auth == 'true') &&
       (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
@@ -150,7 +150,7 @@ jobs:
     needs: [detect-changes, test-gcp-auth]
     if: |
       always() &&
-      needs.detect-changes.outputs.gcp-cloud-run == 'true' &&
+      (needs.detect-changes.outputs.gcp-cloud-run == 'true' || needs.detect-changes.outputs.gcp-auth == 'true') &&
       (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
@@ -175,7 +175,7 @@ jobs:
     needs: [detect-changes, test-gcp-auth]
     if: |
       always() &&
-      needs.detect-changes.outputs.gcp-vertex-ai == 'true' &&
+      (needs.detect-changes.outputs.gcp-vertex-ai == 'true' || needs.detect-changes.outputs.gcp-auth == 'true') &&
       (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
@@ -200,7 +200,7 @@ jobs:
     needs: [detect-changes, test-gcp-auth]
     if: |
       always() &&
-      needs.detect-changes.outputs.gcp-firebase == 'true' &&
+      (needs.detect-changes.outputs.gcp-firebase == 'true' || needs.detect-changes.outputs.gcp-auth == 'true') &&
       (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
