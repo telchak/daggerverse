@@ -46,11 +46,10 @@ class Tests:
         self,
         credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
         project_id: Annotated[str, Doc("GCP project ID")],
-        service_name: Annotated[str, Doc("Cloud Run service name for testing")],
     ) -> str:
-        """Run gcp-cloud-run module tests (requires GCP credentials)."""
-        return await dag.gcp_cloud_run().test_all(
-            credentials=credentials, project_id=project_id, service_name=service_name
+        """Run gcp-cloud-run module CRUD tests (requires GCP credentials)."""
+        return await dag.gcp_cloud_run().test_crud(
+            credentials=credentials, project_id=project_id
         )
 
     @function
@@ -84,7 +83,6 @@ class Tests:
         credentials: Annotated[dagger.Secret | None, Doc("GCP credentials (optional)")] = None,
         project_id: Annotated[str, Doc("GCP project ID")] = "",
         artifact_registry_repository: Annotated[str, Doc("Artifact Registry repository")] = "",
-        cloud_run_service: Annotated[str, Doc("Cloud Run service name")] = "",
     ) -> str:
         """Run all module tests.
 
@@ -100,15 +98,11 @@ class Tests:
         if credentials and project_id:
             results.append(f"gcp-auth:\n{await self.gcp_auth(credentials, project_id)}")
             results.append(f"gcp-vertex-ai:\n{await self.gcp_vertex_ai(credentials, project_id)}")
+            results.append(f"gcp-cloud-run:\n{await self.gcp_cloud_run(credentials, project_id)}")
 
             if artifact_registry_repository:
                 results.append(
                     f"gcp-artifact-registry:\n{await self.gcp_artifact_registry(credentials, project_id, artifact_registry_repository)}"
-                )
-
-            if cloud_run_service:
-                results.append(
-                    f"gcp-cloud-run:\n{await self.gcp_cloud_run(credentials, project_id, cloud_run_service)}"
                 )
         else:
             results.append("gcp-auth: SKIPPED (no credentials)")

@@ -201,17 +201,93 @@ class GcpCloudRun:
             return False
 
     @function
+    async def test_crud(
+        self,
+        credentials: Annotated[dagger.Secret, Doc("GCP credentials")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> str:
+        """Run CRUD test: Create, Read, Update, Delete a test service."""
+        import time
+        results = []
+        service_name = f"dagger-test-{int(time.time())}"
+        test_image = "gcr.io/google-samples/hello-app:1.0"
+
+        try:
+            # CREATE
+            await self.deploy_service(
+                image=test_image,
+                service_name=service_name,
+                credentials=credentials,
+                project_id=project_id,
+                region=region,
+                allow_unauthenticated=True,
+            )
+            results.append(f"PASS: CREATE - deployed {service_name}")
+
+            # READ
+            exists = await self.service_exists(service_name, credentials, project_id, region)
+            if not exists:
+                raise Exception(f"Service {service_name} not found after deploy")
+            results.append("PASS: READ - service_exists returned True")
+
+            url = await self.get_service_url(service_name, credentials, project_id, region)
+            if not url:
+                raise Exception("get_service_url returned empty")
+            results.append(f"PASS: READ - get_service_url -> {url}")
+
+            # UPDATE
+            await self.deploy_service(
+                image=test_image,
+                service_name=service_name,
+                credentials=credentials,
+                project_id=project_id,
+                region=region,
+                allow_unauthenticated=True,
+                env_vars=["TEST_VAR=updated"],
+            )
+            results.append("PASS: UPDATE - redeployed with env var")
+
+            # DELETE
+            await self.delete_service(service_name, credentials, project_id, region)
+            results.append("PASS: DELETE - service deleted")
+
+            # Verify deletion
+            exists = await self.service_exists(service_name, credentials, project_id, region)
+            if exists:
+                results.append("WARN: Service still exists after delete")
+            else:
+                results.append("PASS: VERIFY - service no longer exists")
+
+        except Exception as e:
+            results.append(f"FAIL: {e}")
+            # Cleanup on failure
+            try:
+                await self.delete_service(service_name, credentials, project_id, region)
+                results.append(f"CLEANUP: deleted {service_name}")
+            except Exception:
+                pass
+            raise
+
+        return "\n".join(results)
+
+    @function
     async def test_all(
         self,
         credentials: Annotated[dagger.Secret, Doc("GCP credentials")],
         project_id: Annotated[str, Doc("GCP project ID")],
-        service_name: Annotated[str, Doc("Existing service name")],
+        service_name: Annotated[str, Doc("Existing service name")] = "",
     ) -> str:
-        """Run all tests (requires GCP credentials and existing service)."""
-        results = []
-        exists = await self.service_exists(service_name, credentials, project_id)
-        results.append(f"PASS: service_exists -> {exists}")
-        if exists:
-            url = await self.get_service_url(service_name, credentials, project_id)
-            results.append(f"PASS: get_service_url -> {url}")
-        return "\n".join(results)
+        """Run all tests. If no service_name provided, runs CRUD test."""
+        if service_name:
+            # Legacy: check existing service
+            results = []
+            exists = await self.service_exists(service_name, credentials, project_id)
+            results.append(f"PASS: service_exists -> {exists}")
+            if exists:
+                url = await self.get_service_url(service_name, credentials, project_id)
+                results.append(f"PASS: get_service_url -> {url}")
+            return "\n".join(results)
+        else:
+            # Run CRUD test
+            return await self.test_crud(credentials, project_id)
