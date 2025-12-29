@@ -185,18 +185,33 @@ class GcpAuth:
         self,
         credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
     ) -> str:
-        """Extract project ID from service account credentials."""
+        """Extract project ID from credentials (service account key or WIF)."""
+        # Try multiple extraction methods:
+        # 1. Direct project_id field (service account key)
+        # 2. From service_account_impersonation_url (WIF with SA impersonation)
+        script = '''
+project_id=$(echo "$GCP_CREDENTIALS" | jq -r '.project_id // empty')
+if [ -z "$project_id" ]; then
+  # Try extracting from service_account_impersonation_url for WIF credentials
+  # Format: ...serviceAccounts/sa@PROJECT.iam.gserviceaccount.com:...
+  sa_url=$(echo "$GCP_CREDENTIALS" | jq -r '.service_account_impersonation_url // empty')
+  if [ -n "$sa_url" ]; then
+    project_id=$(echo "$sa_url" | sed -n 's/.*@\\([^.]*\\)\\.iam\\.gserviceaccount\\.com.*/\\1/p')
+  fi
+fi
+echo "$project_id"
+'''
         output = await (
             dag.container()
             .from_("alpine:latest")
             .with_exec(["apk", "add", "--no-cache", "jq"])
             .with_secret_variable("GCP_CREDENTIALS", credentials)
-            .with_exec(["sh", "-c", "echo $GCP_CREDENTIALS | jq -r '.project_id'"])
+            .with_exec(["sh", "-c", script])
             .stdout()
         )
 
         project_id = output.strip()
-        if not project_id or project_id == "null":
+        if not project_id:
             raise ValueError("No project_id found in credentials")
 
         return project_id
