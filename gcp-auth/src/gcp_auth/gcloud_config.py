@@ -44,7 +44,30 @@ def authenticate_with_cred_file(
     cred_file_path: str = "/tmp/gcp-credentials.json",
 ) -> dagger.Container:
     """Authenticate gcloud using a credentials file."""
-    return container.with_exec([
-        "gcloud", "auth", "login",
-        f"--cred-file={cred_file_path}"
-    ])
+    return (
+        container
+        # Debug: verify credentials file content before auth
+        .with_exec(["sh", "-c", f"""
+            echo "DEBUG: Verifying credentials file at {cred_file_path}..."
+            if [ ! -f {cred_file_path} ]; then
+                echo "ERROR: Credentials file not found"
+                exit 1
+            fi
+            echo "DEBUG: File size: $(wc -c < {cred_file_path}) bytes"
+            echo "DEBUG: First 200 chars of credential_source section:"
+            grep -A5 '"credential_source"' {cred_file_path} | head -c 200
+            echo ""
+            if grep -q '"url": "https://' {cred_file_path}; then
+                echo "DEBUG: URL contains https:// - OK"
+            else
+                echo "ERROR: URL does not contain https://"
+                echo "DEBUG: Full file content:"
+                cat {cred_file_path}
+                exit 1
+            fi
+        """])
+        .with_exec([
+            "gcloud", "auth", "login",
+            f"--cred-file={cred_file_path}"
+        ])
+    )
