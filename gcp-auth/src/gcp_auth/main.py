@@ -264,12 +264,13 @@ class GcpAuth:
         project_id: Annotated[str, Doc("GCP project ID")],
         oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "europe-west9",
     ) -> str:
         """Run tests using GitHub Actions OIDC (no google-github-actions/auth needed)."""
         container = self.gcloud_container_from_github_actions(
             workload_identity_provider=workload_identity_provider, project_id=project_id,
             oidc_request_token=oidc_request_token, oidc_request_url=oidc_request_url,
-            service_account_email=service_account,
+            service_account_email=service_account, region=region,
         )
         email = await container.with_exec(
             ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]

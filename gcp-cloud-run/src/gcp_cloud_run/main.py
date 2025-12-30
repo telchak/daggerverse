@@ -205,7 +205,7 @@ class GcpCloudRun:
         self,
         credentials: Annotated[dagger.Secret, Doc("GCP credentials")],
         project_id: Annotated[str, Doc("GCP project ID")],
-        region: Annotated[str, Doc("GCP region")] = "us-central1",
+        region: Annotated[str, Doc("GCP region")] = "europe-west9",
     ) -> str:
         """Run CRUD test: Create, Read, Update, Delete a test service."""
         import time
