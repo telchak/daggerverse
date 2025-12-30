@@ -191,14 +191,12 @@ class GcpCloudRun:
     ) -> bool:
         """Check if a Cloud Run service exists."""
         gcloud = dag.gcp_auth().gcloud_container(credentials, project_id, region=region)
-        try:
-            result = await gcloud.with_exec([
-                "gcloud", "run", "services", "describe", service_name,
-                "--region", region, "--format", "value(metadata.name)",
-            ], expect_error=True).stdout()
-            return bool(result.strip())
-        except Exception:
-            return False
+        # Use shell to handle potential errors gracefully
+        result = await gcloud.with_exec([
+            "sh", "-c",
+            f"gcloud run services describe {service_name} --region {region} --format 'value(metadata.name)' 2>/dev/null || echo ''"
+        ]).stdout()
+        return bool(result.strip())
 
     @function
     async def test_crud(
@@ -340,7 +338,7 @@ class GcpCloudRun:
                 .with_exec([
                     "gcloud", "run", "services", "describe", service_name,
                     "--region", region, "--format", "value(metadata.name)",
-                ], expect_error=True)
+                ])
                 .stdout()
             )
             if not result.strip():
