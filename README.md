@@ -104,6 +104,20 @@ dagger -m tests call gcp-auth \
 
 Tests run automatically on push/PR via GitHub Actions. GCP tests use Workload Identity Federation for keyless authentication.
 
+### Validation Pipeline
+
+| Check | Type | Description |
+|-------|------|-------------|
+| dagger.json exists | Error | Required for all modules |
+| dagger.json has description | Error | Required for discoverability |
+| README.md exists | Error | Required documentation |
+| examples/ directory exists | Error | Required for usage examples |
+| Line count < 300 | Warning | Keep modules small |
+| Function docstrings | Warning | All public functions documented |
+| Emojis in code | Warning | Avoid emojis for clean output |
+| Module loads | Error | Validates module syntax |
+| Example modules load | Error | Validates examples work |
+
 ## Module Guidelines
 
 ### Design Principles
