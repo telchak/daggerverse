@@ -27,22 +27,14 @@ dagger install github.com/YOUR_ORG/daggerverse/MODULE_NAME
 ```
 daggerverse/
 ├── calver/              # Calendar versioning
-│   └── examples/        # Python, Go examples
 ├── gcp-auth/            # GCP authentication (base)
-│   └── examples/        # Python, Go, TypeScript examples
 ├── gcp-artifact-registry/
-│   └── examples/
 ├── gcp-cloud-run/
-│   └── examples/
 ├── gcp-vertex-ai/
-│   └── examples/
 ├── gcp-firebase/
-│   └── examples/
-└── health-check/
-    └── examples/
+├── health-check/
+└── tests/               # Centralized test suite
 ```
-
-Each module includes built-in `test-all` and individual test functions.
 
 ## Quick Start
 
@@ -76,35 +68,49 @@ dagger -m health-check call http \
   --path=/health
 ```
 
-## Running Tests
+## Testing
 
-Each module includes `test-all` and individual test functions:
+Tests are centralized in the `tests/` module. This keeps the main modules clean and tests the public API exactly as users would.
+
+### Run Tests Locally
 
 ```bash
-# From daggerverse/ directory
+# Tests without credentials
+dagger -m tests call calver
+dagger -m tests call health-check
 
-# Test calver (no credentials needed)
-dagger -m calver call test-all
-
-# Test health-check (no credentials needed)
-dagger -m health-check call test-all
-
-# Test GCP modules (requires credentials)
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json
-dagger -m gcp-auth call test-all \
-  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-  --project-id=my-project
+# GCP tests (require credentials)
+dagger -m tests call gcp-auth \
+  --workload-identity-provider="..." \
+  --service-account="..." \
+  --project-id="..." \
+  --oidc-token=env:TOKEN \
+  --oidc-url=env:URL
 ```
+
+### Test Coverage
+
+| Test | Credentials Required |
+|------|---------------------|
+| `calver` | No |
+| `health-check` | No |
+| `gcp-auth` | Yes (OIDC) |
+| `gcp-artifact-registry` | Yes (OIDC) |
+| `gcp-cloud-run` | Yes (OIDC) |
+| `gcp-vertex-ai` | Yes (OIDC) |
+| `gcp-firebase` | No (build only) |
+
+### CI
+
+Tests run automatically on push/PR via GitHub Actions. GCP tests use Workload Identity Federation for keyless authentication.
 
 ## Module Guidelines
 
 ### Design Principles
 
-- Keep modules under 200 lines
+- Keep modules small and focused
 - Single responsibility per module
 - Use `Doc` annotations for parameters
-- Provide examples for each module
-- Include tests with an `all()` function
 
 ### Naming Conventions
 
@@ -129,7 +135,7 @@ gcp-firebase (independent)
 
 1. Follow the established patterns
 2. Keep modules small and focused
-3. Add examples and tests
+3. Add tests to the `tests/` module
 4. Update documentation
 
 ## License
