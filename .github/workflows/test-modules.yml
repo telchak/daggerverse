@@ -134,6 +134,7 @@ jobs:
             --project-id=${{ secrets.GCP_PROJECT_ID }}
             --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
             --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
+            --region=europe-west9
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-gcp-artifact-registry:
@@ -189,6 +190,7 @@ jobs:
             --project-id=${{ secrets.GCP_PROJECT_ID }}
             --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
             --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
+            --region=europe-west9
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-gcp-vertex-ai:

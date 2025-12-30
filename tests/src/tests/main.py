@@ -28,6 +28,7 @@ class Tests:
         project_id: Annotated[str, Doc("GCP project ID")],
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> str:
         """Run gcp-auth module tests using GitHub Actions OIDC."""
         return await dag.gcp_auth().test_oidc(
@@ -36,6 +37,7 @@ class Tests:
             project_id=project_id,
             oidc_request_token=oidc_token,
             oidc_request_url=oidc_url,
+            region=region,
         )
 
     @function
@@ -67,6 +69,7 @@ class Tests:
         project_id: Annotated[str, Doc("GCP project ID")],
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> str:
         """Run gcp-cloud-run module CRUD tests using GitHub Actions OIDC."""
         credentials = dag.gcp_auth().oidc_credentials(
@@ -76,7 +79,7 @@ class Tests:
             service_account_email=service_account,
         )
         return await dag.gcp_cloud_run().test_crud(
-            credentials=credentials, project_id=project_id
+            credentials=credentials, project_id=project_id, region=region
         )
 
     @function
