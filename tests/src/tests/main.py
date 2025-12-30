@@ -118,7 +118,12 @@ class Tests:
 
         # Test get_image_uri (no credentials needed)
         ar = dag.gcp_artifact_registry()
-        uri = await ar.get_image_uri("test-project", "test-repo", "test-image", "v1.0.0")
+        uri = await ar.get_image_uri(
+            project_id="test-project",
+            repository="test-repo",
+            image_name="test-image",
+            tag="v1.0.0",
+        )
         expected = "us-central1-docker.pkg.dev/test-project/test-repo/test-image:v1.0.0"
         if uri != expected:
             raise ValueError(f"Expected {expected}, got {uri}")
