@@ -56,7 +56,7 @@ class Tests:
 
         # Test exec check
         alpine = dag.container().from_("alpine:latest")
-        await hc.exec_(alpine, command=["echo", "healthy"])
+        await hc.exec(alpine, command=["echo", "healthy"])
         results.append("PASS: Exec check")
 
         return "\n".join(results)
