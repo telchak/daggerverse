@@ -40,7 +40,7 @@ class GcpAuth:
         return configured
 
     @function
-    def oidc_credentials(
+    async def oidc_credentials(
         self,
         workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
         oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
@@ -54,7 +54,7 @@ class GcpAuth:
         """
         script = generate_credentials_script(workload_identity_provider, service_account_email)
 
-        return (
+        credentials_json = await (
             dag.container()
             .from_("alpine:latest")
             .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_TOKEN", oidc_request_token)
@@ -62,8 +62,8 @@ class GcpAuth:
             .with_exec(["sh", "-c", script])
             .with_exec(["cat", "/tmp/gcp-credentials.json"])
             .stdout()
-            .as_secret()
         )
+        return dag.set_secret("gcp-oidc-credentials", credentials_json)
 
     @function
     def with_oidc_token(
