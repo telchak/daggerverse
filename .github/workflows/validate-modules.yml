@@ -34,7 +34,7 @@ jobs:
               fi
             fi
 
-            # Skip tests module for README and main.py checks (different structure)
+            # Skip tests module for README and examples checks
             if [ "$module" = "tests" ]; then
               echo "  Skipping additional checks for tests module"
               continue
@@ -59,11 +59,9 @@ jobs:
 
             # Check examples directory exists
             if [ ! -d "$module/examples" ]; then
-              echo "  WARNING: $module/examples not found"
+              echo "  ERROR: $module/examples not found"
+              ERRORS=$((ERRORS + 1))
             fi
-
-            # Check for test functions
-            echo "  Checking for test functions..."
           done
 
           if [ $ERRORS -gt 0 ]; then
@@ -73,6 +71,51 @@ jobs:
           fi
           echo ""
           echo "All modules validated successfully!"
+
+      - name: Check function docstrings
+        run: |
+          echo "Checking function docstrings..."
+          WARNINGS=0
+
+          for py_file in $(find . -path "./*/src/*" -name "main.py" ! -path "./.git/*"); do
+            echo "Checking $py_file..."
+
+            # Find @function decorators not followed by a docstring
+            # This checks if a def line after @function has a docstring on the next non-empty line
+            python3 << EOF
+          import re
+          import sys
+
+          with open("$py_file") as f:
+              content = f.read()
+
+          # Pattern: @function decorator followed by def, check for docstring
+          pattern = r'@function\s*\n\s*(async\s+)?def\s+(\w+)\([^)]*\)[^:]*:\s*\n(\s*"""|\s*[^"\s])'
+
+          issues = []
+          for match in re.finditer(pattern, content):
+              func_name = match.group(2)
+              has_docstring = match.group(3).strip().startswith('"""')
+              if not has_docstring and not func_name.startswith('_'):
+                  issues.append(func_name)
+
+          if issues:
+              for func in issues:
+                  print(f"  WARNING: Function '{func}' missing docstring")
+              sys.exit(1)
+          else:
+              print("  OK: All public functions have docstrings")
+          EOF
+
+            if [ $? -ne 0 ]; then
+              WARNINGS=$((WARNINGS + 1))
+            fi
+          done
+
+          if [ $WARNINGS -gt 0 ]; then
+            echo ""
+            echo "::warning::Found $WARNINGS file(s) with missing function docstrings"
+          fi
 
       - name: Check for emojis in code
         run: |
@@ -108,3 +151,20 @@ jobs:
             cd ..
           done
           echo "All modules load correctly!"
+
+      - name: Validate example modules load correctly
+        run: |
+          echo "Validating example modules..."
+          EXAMPLES=$(find . -path "*/examples/python/dagger.json" ! -path "./.git/*" | xargs -I {} dirname {})
+
+          for example_dir in $EXAMPLES; do
+            echo "Validating $example_dir..."
+            cd "$example_dir"
+            dagger functions > /dev/null 2>&1 || {
+              echo "ERROR: Failed to load example module in $example_dir"
+              exit 1
+            }
+            echo "  OK: $example_dir loads correctly"
+            cd - > /dev/null
+          done
+          echo "All example modules load correctly!"
