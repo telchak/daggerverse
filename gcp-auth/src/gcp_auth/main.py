@@ -212,34 +212,18 @@ class GcpAuth:
         credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
     ) -> str:
         """Extract project ID from credentials (service account key or WIF)."""
-        # Try multiple extraction methods:
-        # 1. Direct project_id field (service account key)
-        # 2. From service_account_impersonation_url (WIF with SA impersonation)
-        script = '''
-project_id=$(echo "$GCP_CREDENTIALS" | jq -r '.project_id // empty')
-if [ -z "$project_id" ]; then
-  # Try extracting from service_account_impersonation_url for WIF credentials
-  # Format: ...serviceAccounts/sa@PROJECT.iam.gserviceaccount.com:...
-  sa_url=$(echo "$GCP_CREDENTIALS" | jq -r '.service_account_impersonation_url // empty')
-  if [ -n "$sa_url" ]; then
-    project_id=$(echo "$sa_url" | sed -n 's/.*@\\([^.]*\\)\\.iam\\.gserviceaccount\\.com.*/\\1/p')
-  fi
-fi
-echo "$project_id"
-'''
+        from .helpers import GET_PROJECT_ID_SCRIPT
         output = await (
             dag.container()
             .from_("alpine:latest")
             .with_exec(["apk", "add", "--no-cache", "jq"])
             .with_secret_variable("GCP_CREDENTIALS", credentials)
-            .with_exec(["sh", "-c", script])
+            .with_exec(["sh", "-c", GET_PROJECT_ID_SCRIPT])
             .stdout()
         )
-
         project_id = output.strip()
         if not project_id:
             raise ValueError("No project_id found in credentials")
-
         return project_id
 
     @function
@@ -267,18 +251,10 @@ echo "$project_id"
         project_id: Annotated[str, Doc("GCP project ID")],
     ) -> str:
         """Run all tests with pre-made credentials file."""
-        results = []
-
         email = await self.verify_credentials(credentials)
-        results.append(f"PASS: verify_credentials -> {email}")
-
         out = await self.gcloud_container(credentials, project_id).with_exec(["gcloud", "config", "get", "project"]).stdout()
-        results.append(f"PASS: gcloud_container -> {out.strip()}")
-
         pid = await self.get_project_id(credentials)
-        results.append(f"PASS: get_project_id -> {pid}")
-
-        return "\n".join(results)
+        return f"PASS: verify_credentials -> {email}\nPASS: gcloud_container -> {out.strip()}\nPASS: get_project_id -> {pid}"
 
     @function
     async def test_oidc(
@@ -290,31 +266,16 @@ echo "$project_id"
         oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
     ) -> str:
         """Run tests using GitHub Actions OIDC (no google-github-actions/auth needed)."""
-        results = []
-
-        # Test gcloud_container_from_github_actions
         container = self.gcloud_container_from_github_actions(
-            workload_identity_provider=workload_identity_provider,
-            project_id=project_id,
-            oidc_request_token=oidc_request_token,
-            oidc_request_url=oidc_request_url,
+            workload_identity_provider=workload_identity_provider, project_id=project_id,
+            oidc_request_token=oidc_request_token, oidc_request_url=oidc_request_url,
             service_account_email=service_account,
         )
-
-        # Verify authentication works
         email = await container.with_exec(
             ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
         ).stdout()
-        results.append(f"PASS: gcloud auth -> {email.strip()}")
-
-        # Verify project is set
-        out = await container.with_exec(["gcloud", "config", "get", "project"]).stdout()
-        results.append(f"PASS: gcloud project -> {out.strip()}")
-
-        # Test a simple GCP API call
-        out = await container.with_exec(
+        proj = await container.with_exec(["gcloud", "config", "get", "project"]).stdout()
+        desc = await container.with_exec(
             ["gcloud", "projects", "describe", project_id, "--format=value(projectId)"]
         ).stdout()
-        results.append(f"PASS: gcloud projects describe -> {out.strip()}")
-
-        return "\n".join(results)
+        return f"PASS: gcloud auth -> {email.strip()}\nPASS: gcloud project -> {proj.strip()}\nPASS: gcloud projects describe -> {desc.strip()}"
