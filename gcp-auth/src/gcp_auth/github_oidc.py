@@ -40,21 +40,33 @@ if [ -z "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
   exit 1
 fi
 
-# Build credential source URL
-CRED_URL="$ACTIONS_ID_TOKEN_REQUEST_URL&audience={audience}"
-AUTH_HEADER="bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+# Verify URL has https scheme
+case "$ACTIONS_ID_TOKEN_REQUEST_URL" in
+  https://*)
+    ;;
+  *)
+    echo "ERROR: ACTIONS_ID_TOKEN_REQUEST_URL does not start with https://" >&2
+    echo "URL value (first 50 chars): $(printf '%.50s' "$ACTIONS_ID_TOKEN_REQUEST_URL")" >&2
+    exit 1
+    ;;
+esac
 
-cat > /tmp/gcp-credentials.json << EOF
-{{
-  "type": "external_account",
-  "audience": "{audience}",
-  "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
-  "token_url": "https://sts.googleapis.com/v1/token",
-  "credential_source": {{
-    "url": "$CRED_URL",
-    "headers": {{"Authorization": "$AUTH_HEADER"}},
-    "format": {{"type": "json", "subject_token_field_name": "value"}}
-  }}{sa_impersonation}
-}}
-EOF
+# Build credential source URL - use explicit assignment
+OIDC_URL="$ACTIONS_ID_TOKEN_REQUEST_URL"
+OIDC_TOKEN="$ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+
+# Write JSON using a subshell with redirect to ensure proper variable expansion
+(
+echo '{{'
+echo '  "type": "external_account",'
+echo '  "audience": "{audience}",'
+echo '  "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",'
+echo '  "token_url": "https://sts.googleapis.com/v1/token",'
+echo '  "credential_source": {{'
+echo "    \\"url\\": \\"$OIDC_URL&audience={audience}\\","
+echo "    \\"headers\\": {{\\"Authorization\\": \\"bearer $OIDC_TOKEN\\"}},"
+echo '    "format": {{"type": "json", "subject_token_field_name": "value"}}'
+echo '  }}{sa_impersonation}'
+echo '}}'
+) > /tmp/gcp-credentials.json
 '''
