@@ -291,3 +291,113 @@ class GcpCloudRun:
         else:
             # Run CRUD test
             return await self.test_crud(credentials, project_id)
+
+    @function
+    async def test_crud_oidc(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> str:
+        """Run CRUD test using GitHub Actions OIDC directly."""
+        import time
+        results = []
+        service_name = f"dagger-test-{int(time.time())}"
+        test_image = "gcr.io/google-samples/hello-app:1.0"
+
+        # Create gcloud container once using OIDC (bypasses oidc_credentials)
+        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+            service_account_email=service_account,
+            region=region,
+        )
+
+        try:
+            # CREATE
+            await (
+                gcloud
+                .with_exec([
+                    "gcloud", "run", "deploy", service_name,
+                    "--image", test_image,
+                    "--region", region,
+                    "--port", "8080",
+                    "--allow-unauthenticated",
+                    "--quiet",
+                ])
+                .stdout()
+            )
+            results.append(f"PASS: CREATE - deployed {service_name}")
+
+            # READ - check if exists
+            result = await (
+                gcloud
+                .with_exec([
+                    "gcloud", "run", "services", "describe", service_name,
+                    "--region", region, "--format", "value(metadata.name)",
+                ], expect_error=True)
+                .stdout()
+            )
+            if not result.strip():
+                raise Exception(f"Service {service_name} not found after deploy")
+            results.append("PASS: READ - service exists")
+
+            # READ - get URL
+            url = await (
+                gcloud
+                .with_exec([
+                    "gcloud", "run", "services", "describe", service_name,
+                    "--region", region, "--format", "value(status.url)",
+                ])
+                .stdout()
+            )
+            results.append(f"PASS: READ - get_service_url -> {url.strip()}")
+
+            # UPDATE
+            await (
+                gcloud
+                .with_exec([
+                    "gcloud", "run", "deploy", service_name,
+                    "--image", test_image,
+                    "--region", region,
+                    "--set-env-vars", "TEST_VAR=updated",
+                    "--quiet",
+                ])
+                .stdout()
+            )
+            results.append("PASS: UPDATE - redeployed with env var")
+
+            # DELETE
+            await (
+                gcloud
+                .with_exec([
+                    "gcloud", "run", "services", "delete", service_name,
+                    "--region", region, "--quiet",
+                ])
+                .stdout()
+            )
+            results.append("PASS: DELETE - service deleted")
+
+        except Exception as e:
+            results.append(f"FAIL: {e}")
+            # Cleanup on failure
+            try:
+                await (
+                    gcloud
+                    .with_exec([
+                        "gcloud", "run", "services", "delete", service_name,
+                        "--region", region, "--quiet",
+                    ])
+                    .stdout()
+                )
+                results.append(f"CLEANUP: deleted {service_name}")
+            except Exception:
+                pass
+            raise
+
+        return "\n".join(results)

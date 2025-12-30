@@ -163,6 +163,7 @@ jobs:
             --repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
             --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
             --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
+            --region=europe-west9
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-gcp-cloud-run:
@@ -218,6 +219,7 @@ jobs:
             --project-id=${{ secrets.GCP_PROJECT_ID }}
             --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
             --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
+            --region=europe-west9
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-gcp-firebase:

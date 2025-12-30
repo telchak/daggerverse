@@ -49,16 +49,17 @@ class Tests:
         repository: Annotated[str, Doc("Artifact Registry repository name")],
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> str:
         """Run gcp-artifact-registry module tests using GitHub Actions OIDC."""
-        credentials = dag.gcp_auth().oidc_credentials(
+        return await dag.gcp_artifact_registry().test_all_oidc(
             workload_identity_provider=workload_identity_provider,
-            oidc_request_token=oidc_token,
-            oidc_request_url=oidc_url,
-            service_account_email=service_account,
-        )
-        return await dag.gcp_artifact_registry().test_all(
-            credentials=credentials, project_id=project_id, repository=repository
+            service_account=service_account,
+            project_id=project_id,
+            repository=repository,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
         )
 
     @function
@@ -72,14 +73,13 @@ class Tests:
         region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> str:
         """Run gcp-cloud-run module CRUD tests using GitHub Actions OIDC."""
-        credentials = dag.gcp_auth().oidc_credentials(
+        return await dag.gcp_cloud_run().test_crud_oidc(
             workload_identity_provider=workload_identity_provider,
-            oidc_request_token=oidc_token,
-            oidc_request_url=oidc_url,
-            service_account_email=service_account,
-        )
-        return await dag.gcp_cloud_run().test_crud(
-            credentials=credentials, project_id=project_id, region=region
+            service_account=service_account,
+            project_id=project_id,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
         )
 
     @function
@@ -90,15 +90,17 @@ class Tests:
         project_id: Annotated[str, Doc("GCP project ID")],
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> str:
         """Run gcp-vertex-ai module tests using GitHub Actions OIDC."""
-        credentials = dag.gcp_auth().oidc_credentials(
+        return await dag.gcp_vertex_ai().test_all_oidc(
             workload_identity_provider=workload_identity_provider,
-            oidc_request_token=oidc_token,
-            oidc_request_url=oidc_url,
-            service_account_email=service_account,
+            service_account=service_account,
+            project_id=project_id,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
         )
-        return await dag.gcp_vertex_ai().test_all(credentials=credentials, project_id=project_id)
 
     @function
     async def gcp_firebase(
@@ -125,6 +127,7 @@ class Tests:
         artifact_registry_repository: Annotated[str, Doc("Artifact Registry repository")] = "",
         oidc_token: Annotated[dagger.Secret | None, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")] = None,
         oidc_url: Annotated[dagger.Secret | None, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")] = None,
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> str:
         """Run all module tests.
 
@@ -138,13 +141,13 @@ class Tests:
 
         # Tests with OIDC
         if workload_identity_provider and service_account and project_id and oidc_token and oidc_url:
-            results.append(f"gcp-auth:\n{await self.gcp_auth(workload_identity_provider, service_account, project_id, oidc_token, oidc_url)}")
-            results.append(f"gcp-vertex-ai:\n{await self.gcp_vertex_ai(workload_identity_provider, service_account, project_id, oidc_token, oidc_url)}")
-            results.append(f"gcp-cloud-run:\n{await self.gcp_cloud_run(workload_identity_provider, service_account, project_id, oidc_token, oidc_url)}")
+            results.append(f"gcp-auth:\n{await self.gcp_auth(workload_identity_provider, service_account, project_id, oidc_token, oidc_url, region)}")
+            results.append(f"gcp-vertex-ai:\n{await self.gcp_vertex_ai(workload_identity_provider, service_account, project_id, oidc_token, oidc_url, region)}")
+            results.append(f"gcp-cloud-run:\n{await self.gcp_cloud_run(workload_identity_provider, service_account, project_id, oidc_token, oidc_url, region)}")
 
             if artifact_registry_repository:
                 results.append(
-                    f"gcp-artifact-registry:\n{await self.gcp_artifact_registry(workload_identity_provider, service_account, project_id, artifact_registry_repository, oidc_token, oidc_url)}"
+                    f"gcp-artifact-registry:\n{await self.gcp_artifact_registry(workload_identity_provider, service_account, project_id, artifact_registry_repository, oidc_token, oidc_url, region)}"
                 )
         else:
             results.append("gcp-auth: SKIPPED (no OIDC params)")

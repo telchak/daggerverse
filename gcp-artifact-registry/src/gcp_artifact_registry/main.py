@@ -193,3 +193,40 @@ class GcpArtifactRegistry:
         await self.list_images(project_id, repository, credentials)
         results.append(f"PASS: list_images -> {repository}")
         return "\n".join(results)
+
+    @function
+    async def test_all_oidc(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        repository: Annotated[str, Doc("Existing repository name")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> str:
+        """Run all tests using GitHub Actions OIDC directly."""
+        results = []
+        results.append(self.test_get_image_uri())
+
+        # Use gcloud_container_from_github_actions directly (bypasses oidc_credentials)
+        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+            service_account_email=service_account,
+            region=region,
+        )
+
+        await (
+            gcloud
+            .with_exec([
+                "gcloud", "artifacts", "docker", "images", "list",
+                f"{region}-docker.pkg.dev/{project_id}/{repository}",
+                "--format=table(IMAGE,TAGS,CREATE_TIME)",
+            ])
+            .stdout()
+        )
+        results.append(f"PASS: list_images -> {repository}")
+        return "\n".join(results)
