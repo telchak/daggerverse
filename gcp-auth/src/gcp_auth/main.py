@@ -40,6 +40,32 @@ class GcpAuth:
         return configured
 
     @function
+    def oidc_credentials(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+    ) -> dagger.Secret:
+        """Generate GCP credentials from GitHub Actions OIDC.
+
+        Returns a Secret containing the external_account credentials JSON
+        that can be used with other modules expecting credentials.
+        """
+        script = generate_credentials_script(workload_identity_provider, service_account_email)
+
+        return (
+            dag.container()
+            .from_("alpine:latest")
+            .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_TOKEN", oidc_request_token)
+            .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_URL", oidc_request_url)
+            .with_exec(["sh", "-c", script])
+            .with_exec(["cat", "/tmp/gcp-credentials.json"])
+            .stdout()
+            .as_secret()
+        )
+
+    @function
     def with_oidc_token(
         self,
         container: Annotated[dagger.Container, Doc("Container to configure")],
@@ -240,7 +266,7 @@ echo "$project_id"
         credentials: Annotated[dagger.Secret, Doc("GCP credentials")],
         project_id: Annotated[str, Doc("GCP project ID")],
     ) -> str:
-        """Run all tests (requires GCP credentials)."""
+        """Run all tests with pre-made credentials file."""
         results = []
 
         email = await self.verify_credentials(credentials)
@@ -251,5 +277,44 @@ echo "$project_id"
 
         pid = await self.get_project_id(credentials)
         results.append(f"PASS: get_project_id -> {pid}")
+
+        return "\n".join(results)
+
+    @function
+    async def test_oidc(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email to impersonate")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+    ) -> str:
+        """Run tests using GitHub Actions OIDC (no google-github-actions/auth needed)."""
+        results = []
+
+        # Test gcloud_container_from_github_actions
+        container = self.gcloud_container_from_github_actions(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_request_token,
+            oidc_request_url=oidc_request_url,
+            service_account_email=service_account,
+        )
+
+        # Verify authentication works
+        email = await container.with_exec(
+            ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
+        ).stdout()
+        results.append(f"PASS: gcloud auth -> {email.strip()}")
+
+        # Verify project is set
+        out = await container.with_exec(["gcloud", "config", "get", "project"]).stdout()
+        results.append(f"PASS: gcloud project -> {out.strip()}")
+
+        # Test a simple GCP API call
+        out = await container.with_exec(
+            ["gcloud", "projects", "describe", project_id, "--format=value(projectId)"]
+        ).stdout()
+        results.append(f"PASS: gcloud projects describe -> {out.strip()}")
 
         return "\n".join(results)

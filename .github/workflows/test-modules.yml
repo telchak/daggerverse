@@ -122,17 +122,18 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-          create_credentials_file: true
-      - name: Run gcp-auth tests
+      - name: Run gcp-auth OIDC tests
         uses: dagger/dagger-for-github@v8.2.0
         with:
           version: "0.19.8"
           module: tests
-          call: gcp-auth --credentials=file:${{ env.GOOGLE_APPLICATION_CREDENTIALS }} --project-id=${{ secrets.GCP_PROJECT_ID }}
+          call: >-
+            gcp-auth
+            --workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}
+            --project-id=${{ secrets.GCP_PROJECT_ID }}
+            --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
+            --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-gcp-artifact-registry:
@@ -148,17 +149,19 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-          create_credentials_file: true
       - name: Run gcp-artifact-registry tests
         uses: dagger/dagger-for-github@v8.2.0
         with:
           version: "0.19.8"
           module: tests
-          call: gcp-artifact-registry --credentials=file:${{ env.GOOGLE_APPLICATION_CREDENTIALS }} --project-id=${{ secrets.GCP_PROJECT_ID }} --repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
+          call: >-
+            gcp-artifact-registry
+            --workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}
+            --project-id=${{ secrets.GCP_PROJECT_ID }}
+            --repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
+            --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
+            --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-gcp-cloud-run:
@@ -174,17 +177,18 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-          create_credentials_file: true
       - name: Run gcp-cloud-run CRUD tests
         uses: dagger/dagger-for-github@v8.2.0
         with:
           version: "0.19.8"
           module: tests
-          call: gcp-cloud-run --credentials=file:${{ env.GOOGLE_APPLICATION_CREDENTIALS }} --project-id=${{ secrets.GCP_PROJECT_ID }}
+          call: >-
+            gcp-cloud-run
+            --workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}
+            --project-id=${{ secrets.GCP_PROJECT_ID }}
+            --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
+            --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-gcp-vertex-ai:
@@ -200,17 +204,18 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-          create_credentials_file: true
       - name: Run gcp-vertex-ai tests
         uses: dagger/dagger-for-github@v8.2.0
         with:
           version: "0.19.8"
           module: tests
-          call: gcp-vertex-ai --credentials=file:${{ env.GOOGLE_APPLICATION_CREDENTIALS }} --project-id=${{ secrets.GCP_PROJECT_ID }}
+          call: >-
+            gcp-vertex-ai
+            --workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}
+            --project-id=${{ secrets.GCP_PROJECT_ID }}
+            --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
+            --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   test-gcp-firebase:

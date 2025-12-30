@@ -23,20 +23,38 @@ class Tests:
     @function
     async def gcp_auth(
         self,
-        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
         project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
     ) -> str:
-        """Run gcp-auth module tests (requires GCP credentials)."""
-        return await dag.gcp_auth().test_all(credentials=credentials, project_id=project_id)
+        """Run gcp-auth module tests using GitHub Actions OIDC."""
+        return await dag.gcp_auth().test_oidc(
+            workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
+            project_id=project_id,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+        )
 
     @function
     async def gcp_artifact_registry(
         self,
-        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
         project_id: Annotated[str, Doc("GCP project ID")],
         repository: Annotated[str, Doc("Artifact Registry repository name")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
     ) -> str:
-        """Run gcp-artifact-registry module tests (requires GCP credentials)."""
+        """Run gcp-artifact-registry module tests using GitHub Actions OIDC."""
+        credentials = dag.gcp_auth().oidc_credentials(
+            workload_identity_provider=workload_identity_provider,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+            service_account_email=service_account,
+        )
         return await dag.gcp_artifact_registry().test_all(
             credentials=credentials, project_id=project_id, repository=repository
         )
@@ -44,10 +62,19 @@ class Tests:
     @function
     async def gcp_cloud_run(
         self,
-        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
         project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
     ) -> str:
-        """Run gcp-cloud-run module CRUD tests (requires GCP credentials)."""
+        """Run gcp-cloud-run module CRUD tests using GitHub Actions OIDC."""
+        credentials = dag.gcp_auth().oidc_credentials(
+            workload_identity_provider=workload_identity_provider,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+            service_account_email=service_account,
+        )
         return await dag.gcp_cloud_run().test_crud(
             credentials=credentials, project_id=project_id
         )
@@ -55,10 +82,19 @@ class Tests:
     @function
     async def gcp_vertex_ai(
         self,
-        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
         project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
     ) -> str:
-        """Run gcp-vertex-ai module tests (requires GCP credentials)."""
+        """Run gcp-vertex-ai module tests using GitHub Actions OIDC."""
+        credentials = dag.gcp_auth().oidc_credentials(
+            workload_identity_provider=workload_identity_provider,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+            service_account_email=service_account,
+        )
         return await dag.gcp_vertex_ai().test_all(credentials=credentials, project_id=project_id)
 
     @function
@@ -80,13 +116,16 @@ class Tests:
     @function
     async def all(
         self,
-        credentials: Annotated[dagger.Secret | None, Doc("GCP credentials (optional)")] = None,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")] = "",
+        service_account: Annotated[str, Doc("Service account email")] = "",
         project_id: Annotated[str, Doc("GCP project ID")] = "",
         artifact_registry_repository: Annotated[str, Doc("Artifact Registry repository")] = "",
+        oidc_token: Annotated[dagger.Secret | None, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")] = None,
+        oidc_url: Annotated[dagger.Secret | None, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")] = None,
     ) -> str:
         """Run all module tests.
 
-        Tests requiring credentials are skipped if credentials not provided.
+        Tests requiring OIDC are skipped if OIDC params not provided.
         """
         results = []
 
@@ -94,20 +133,20 @@ class Tests:
         results.append(f"calver:\n{await self.calver()}")
         results.append(f"health-check:\n{await self.health_check()}")
 
-        # Tests with credentials
-        if credentials and project_id:
-            results.append(f"gcp-auth:\n{await self.gcp_auth(credentials, project_id)}")
-            results.append(f"gcp-vertex-ai:\n{await self.gcp_vertex_ai(credentials, project_id)}")
-            results.append(f"gcp-cloud-run:\n{await self.gcp_cloud_run(credentials, project_id)}")
+        # Tests with OIDC
+        if workload_identity_provider and service_account and project_id and oidc_token and oidc_url:
+            results.append(f"gcp-auth:\n{await self.gcp_auth(workload_identity_provider, service_account, project_id, oidc_token, oidc_url)}")
+            results.append(f"gcp-vertex-ai:\n{await self.gcp_vertex_ai(workload_identity_provider, service_account, project_id, oidc_token, oidc_url)}")
+            results.append(f"gcp-cloud-run:\n{await self.gcp_cloud_run(workload_identity_provider, service_account, project_id, oidc_token, oidc_url)}")
 
             if artifact_registry_repository:
                 results.append(
-                    f"gcp-artifact-registry:\n{await self.gcp_artifact_registry(credentials, project_id, artifact_registry_repository)}"
+                    f"gcp-artifact-registry:\n{await self.gcp_artifact_registry(workload_identity_provider, service_account, project_id, artifact_registry_repository, oidc_token, oidc_url)}"
                 )
         else:
-            results.append("gcp-auth: SKIPPED (no credentials)")
-            results.append("gcp-artifact-registry: SKIPPED (no credentials)")
-            results.append("gcp-cloud-run: SKIPPED (no credentials)")
-            results.append("gcp-vertex-ai: SKIPPED (no credentials)")
+            results.append("gcp-auth: SKIPPED (no OIDC params)")
+            results.append("gcp-artifact-registry: SKIPPED (no OIDC params)")
+            results.append("gcp-cloud-run: SKIPPED (no OIDC params)")
+            results.append("gcp-vertex-ai: SKIPPED (no OIDC params)")
 
         return "\n\n".join(results)
