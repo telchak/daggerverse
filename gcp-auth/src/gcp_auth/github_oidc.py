@@ -28,17 +28,33 @@ def generate_credentials_script(
         )
         sa_impersonation = f',\n  "service_account_impersonation_url": "{sa_url}"'
 
-    return f'''cat > /tmp/gcp-credentials.json << INNEREOF
+    # Use explicit variable assignment to ensure proper expansion
+    return f'''
+# Verify env vars are set
+if [ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+  echo "ERROR: ACTIONS_ID_TOKEN_REQUEST_URL is not set" >&2
+  exit 1
+fi
+if [ -z "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+  echo "ERROR: ACTIONS_ID_TOKEN_REQUEST_TOKEN is not set" >&2
+  exit 1
+fi
+
+# Build credential source URL
+CRED_URL="$ACTIONS_ID_TOKEN_REQUEST_URL&audience={audience}"
+AUTH_HEADER="bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+
+cat > /tmp/gcp-credentials.json << EOF
 {{
   "type": "external_account",
   "audience": "{audience}",
   "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
   "token_url": "https://sts.googleapis.com/v1/token",
   "credential_source": {{
-    "url": "${{ACTIONS_ID_TOKEN_REQUEST_URL}}&audience={audience}",
-    "headers": {{"Authorization": "bearer ${{ACTIONS_ID_TOKEN_REQUEST_TOKEN}}"}},
+    "url": "$CRED_URL",
+    "headers": {{"Authorization": "$AUTH_HEADER"}},
     "format": {{"type": "json", "subject_token_field_name": "value"}}
   }}{sa_impersonation}
 }}
-INNEREOF
+EOF
 '''
