@@ -130,25 +130,3 @@ class GcpFirebase:
         msg = f"Could not extract preview URL from Firebase output:\n{output}"
         raise ValueError(msg)
 
-    @function
-    async def test_build(
-        self,
-        source: Annotated[dagger.Directory, Doc("Source with package.json")],
-    ) -> str:
-        """Test: Build a web application (no credentials needed)."""
-        dist = self.build(source=source)
-        entries = await dist.entries()
-        if len(entries) == 0:
-            raise ValueError("Build produced no output files")
-        return f"PASS: build -> {len(entries)} files"
-
-    @function
-    async def test_all(
-        self,
-        source: Annotated[dagger.Directory, Doc("Source with package.json")],
-    ) -> str:
-        """Run all tests."""
-        results = []
-        results.append(await self.test_build(source))
-        return "\n".join(results)
-

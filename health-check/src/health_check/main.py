@@ -82,33 +82,3 @@ class HealthCheck:
         if endpoint:
             return await self.http(container, port, endpoint, timeout)
         return await self.tcp(container, port, timeout)
-
-    @function
-    async def test_http(self) -> str:
-        """Test: HTTP health check with nginx."""
-        nginx = dag.container().from_("nginx:alpine")
-        await self.http(nginx, port=80, path="/")
-        return "PASS: HTTP check"
-
-    @function
-    async def test_tcp(self) -> str:
-        """Test: TCP health check with redis."""
-        redis = dag.container().from_("redis:alpine")
-        await self.tcp(redis, port=6379)
-        return "PASS: TCP check"
-
-    @function
-    async def test_exec(self) -> str:
-        """Test: Exec health check."""
-        alpine = dag.container().from_("alpine:latest")
-        await self.exec(alpine, command=["echo", "healthy"])
-        return "PASS: Exec check"
-
-    @function
-    async def test_all(self) -> str:
-        """Run all tests."""
-        results = []
-        results.append(await self.test_http())
-        results.append(await self.test_tcp())
-        results.append(await self.test_exec())
-        return "\n".join(results)
