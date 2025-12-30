@@ -61,6 +61,16 @@ class GcpAuth:
             .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_TOKEN", oidc_request_token)
             .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_URL", oidc_request_url)
             .with_exec(["sh", "-c", script])
+            # Debug: verify the URL in the JSON starts with https://
+            .with_exec(["sh", "-c", """
+                URL=$(jq -r '.credential_source.url' /tmp/gcp-credentials.json)
+                echo "DEBUG: credential_source.url starts with: $(echo "$URL" | head -c 30)"
+                if ! echo "$URL" | grep -q '^https://'; then
+                    echo "ERROR: URL does not start with https://"
+                    echo "Full URL: $URL"
+                    exit 1
+                fi
+            """])
             .with_exec(["cat", "/tmp/gcp-credentials.json"])
             .stdout()
         )
