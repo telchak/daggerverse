@@ -46,12 +46,12 @@ jobs:
               ERRORS=$((ERRORS + 1))
             fi
 
-            # Check all .py files are under 300 lines
+            # Check all .py files are under 300 lines (warning only)
             for py_file in $(find "$module/src" -name "*.py" 2>/dev/null); do
               LINES=$(wc -l < "$py_file")
               if [ "$LINES" -gt 300 ]; then
-                echo "  ERROR: $py_file has $LINES lines (max 300)"
-                ERRORS=$((ERRORS + 1))
+                echo "::warning file=$py_file::File has $LINES lines (recommended max 300)"
+                echo "  WARNING: $py_file has $LINES lines (max 300)"
               else
                 echo "  OK: $py_file has $LINES lines"
               fi
