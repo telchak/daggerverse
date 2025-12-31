@@ -15,7 +15,7 @@ on:
 
 env:
   SEMVER_MODULE: "./semver"
-  GITHUB_MODULE: "github.com/jumppad-labs/daggerverse/github"
+  CALVER_MODULE: "./calver"
 
 jobs:
   check-workflows:
@@ -26,25 +26,7 @@ jobs:
       actions: read
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
-      modules: ${{ steps.discover.outputs.modules }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-
-      - name: Discover modules
-        id: discover
-        run: |
-          # Find all dagger.json in root directories (exclude tests and nested examples)
-          MODULES=$(find . -maxdepth 2 -name "dagger.json" -not -path "./tests/*" | \
-            xargs -I {} dirname {} | \
-            sed 's|^\./||' | \
-            sort -u | \
-            jq -R -s -c 'split("\n") | map(select(length > 0))')
-
-          echo "Discovered modules: $MODULES"
-          echo "modules=$MODULES" >> $GITHUB_OUTPUT
-
       - name: Check if all required workflows passed
         id: check
         env:
@@ -73,17 +55,16 @@ jobs:
           echo "Both Validate Modules and Test Modules succeeded!"
           echo "should_release=true" >> $GITHUB_OUTPUT
 
-  release:
+  tag-modules:
     needs: check-workflows
-    if: ${{ needs.check-workflows.outputs.should_release == 'true' && needs.check-workflows.outputs.modules != '[]' }}
+    if: ${{ needs.check-workflows.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write
-    strategy:
-      fail-fast: false
-      matrix:
-        module: ${{ fromJson(needs.check-workflows.outputs.modules) }}
+    outputs:
+      tagged_modules: ${{ steps.tag.outputs.tagged_modules }}
+      all_versions: ${{ steps.tag.outputs.all_versions }}
+      has_changes: ${{ steps.tag.outputs.has_changes }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -97,107 +78,218 @@ jobs:
           verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
-      - name: Check for changes and get current version
-        id: check-changes
-        run: |
-          MODULE="${{ matrix.module }}"
-          TAG_PREFIX="${MODULE}/"
-
-          echo "Checking $MODULE for changes..."
-
-          # Get current version using semver module
-          CURRENT=$(dagger call -m ${{ env.SEMVER_MODULE }} current \
-            --source=. \
-            --tag-prefix="$TAG_PREFIX" \
-            --initial-version="0.0.0")
-          echo "current_version=$CURRENT" >> $GITHUB_OUTPUT
-
-          # Check if there are changes since last tag
-          if [ "$CURRENT" = "v0.0.0" ]; then
-            echo "No existing tags - will create initial release"
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-          else
-            CHANGED_PATHS=$(dagger call -m ${{ env.SEMVER_MODULE }} changed-paths \
-              --source=. \
-              --tag-prefix="$TAG_PREFIX")
-
-            # Check if any changes are in this module's directory
-            if echo "$CHANGED_PATHS" | grep -q "^${MODULE}/"; then
-              echo "Changes detected in $MODULE"
-              echo "has_changes=true" >> $GITHUB_OUTPUT
-            else
-              echo "No changes in $MODULE since $CURRENT"
-              echo "has_changes=false" >> $GITHUB_OUTPUT
-            fi
-          fi
-
-      - name: Calculate next version
-        id: next-version
-        if: steps.check-changes.outputs.has_changes == 'true'
-        run: |
-          MODULE="${{ matrix.module }}"
-          TAG_PREFIX="${MODULE}/"
-
-          NEXT=$(dagger call -m ${{ env.SEMVER_MODULE }} next \
-            --source=. \
-            --tag-prefix="$TAG_PREFIX" \
-            --initial-version="0.1.0")
-
-          echo "Next version for $MODULE: $NEXT"
-          echo "next_version=$NEXT" >> $GITHUB_OUTPUT
-          echo "tag=${TAG_PREFIX}${NEXT}" >> $GITHUB_OUTPUT
-
-      - name: Create and push tag
-        id: create-tag
-        if: steps.check-changes.outputs.has_changes == 'true' && inputs.dry_run != true
+      - name: Discover and tag changed modules
+        id: tag
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
-          MODULE="${{ matrix.module }}"
-          TAG_PREFIX="${MODULE}/"
+          # Discover all modules
+          MODULES=$(find . -maxdepth 2 -name "dagger.json" -not -path "./tests/*" | \
+            xargs -I {} dirname {} | \
+            sed 's|^\./||' | \
+            sort -u)
 
-          RESULT=$(dagger call -m ${{ env.SEMVER_MODULE }} release \
-            --source=. \
-            --tag-prefix="$TAG_PREFIX" \
-            --initial-version="0.1.0" \
-            --github-token=env:GITHUB_TOKEN)
+          echo "Discovered modules: $MODULES"
 
-          echo "Release result: $RESULT"
-          echo "result=$RESULT" >> $GITHUB_OUTPUT
+          TAGGED_MODULES=""
+          ALL_VERSIONS=""
+          HAS_CHANGES="false"
+
+          for MODULE in $MODULES; do
+            echo ""
+            echo "=== Processing $MODULE ==="
+            TAG_PREFIX="${MODULE}/"
+
+            # Get current version
+            CURRENT=$(dagger call -m ${{ env.SEMVER_MODULE }} current \
+              --source=. \
+              --tag-prefix="$TAG_PREFIX" \
+              --initial-version="0.0.0")
+
+            echo "Current version: $CURRENT"
+
+            # Check if there are changes
+            if [ "$CURRENT" = "v0.0.0" ]; then
+              echo "No existing tags - will create initial release"
+              NEEDS_TAG="true"
+            else
+              CHANGED_PATHS=$(dagger call -m ${{ env.SEMVER_MODULE }} changed-paths \
+                --source=. \
+                --tag-prefix="$TAG_PREFIX")
+
+              if echo "$CHANGED_PATHS" | grep -q "^${MODULE}/"; then
+                echo "Changes detected in $MODULE"
+                NEEDS_TAG="true"
+              else
+                echo "No changes in $MODULE since $CURRENT"
+                NEEDS_TAG="false"
+              fi
+            fi
+
+            if [ "$NEEDS_TAG" = "true" ]; then
+              HAS_CHANGES="true"
+
+              # Calculate next version
+              NEXT=$(dagger call -m ${{ env.SEMVER_MODULE }} next \
+                --source=. \
+                --tag-prefix="$TAG_PREFIX" \
+                --initial-version="0.1.0")
+
+              echo "Next version: $NEXT"
+              NEW_TAG="${TAG_PREFIX}${NEXT}"
+
+              if [ "$DRY_RUN" = "true" ]; then
+                echo "[DRY RUN] Would create tag: $NEW_TAG"
+              else
+                # Create and push tag using semver module
+                RESULT=$(dagger call -m ${{ env.SEMVER_MODULE }} release \
+                  --source=. \
+                  --tag-prefix="$TAG_PREFIX" \
+                  --initial-version="0.1.0" \
+                  --github-token=env:GITHUB_TOKEN)
+
+                echo "Tag result: $RESULT"
+              fi
+
+              TAGGED_MODULES="$TAGGED_MODULES $MODULE:$NEXT"
+              ALL_VERSIONS="$ALL_VERSIONS|$MODULE:$NEXT"
+            else
+              # Record current version for unchanged modules
+              ALL_VERSIONS="$ALL_VERSIONS|$MODULE:$CURRENT"
+            fi
+          done
+
+          # Clean up outputs
+          TAGGED_MODULES=$(echo "$TAGGED_MODULES" | xargs)
+          ALL_VERSIONS=$(echo "$ALL_VERSIONS" | sed 's/^|//')
+
+          echo ""
+          echo "=== Summary ==="
+          echo "Tagged modules: $TAGGED_MODULES"
+          echo "All versions: $ALL_VERSIONS"
+          echo "Has changes: $HAS_CHANGES"
+
+          echo "tagged_modules=$TAGGED_MODULES" >> $GITHUB_OUTPUT
+          echo "all_versions=$ALL_VERSIONS" >> $GITHUB_OUTPUT
+          echo "has_changes=$HAS_CHANGES" >> $GITHUB_OUTPUT
+
+  create-release:
+    needs: tag-modules
+    if: ${{ needs.tag-modules.outputs.has_changes == 'true' && inputs.dry_run != true }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Setup Dagger
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "0.19.8"
+          verb: version
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+      - name: Calculate calver version
+        id: calver
+        run: |
+          VERSION=$(dagger call -m ${{ env.CALVER_MODULE }} version --source=.)
+          echo "Calver version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          ALL_VERSIONS="${{ needs.tag-modules.outputs.all_versions }}"
+          TAGGED="${{ needs.tag-modules.outputs.tagged_modules }}"
+
+          # Create release notes
+          cat > /tmp/release-notes.md << 'NOTES_HEADER'
+          ## Module Versions
+
+          Install any module with:
+          ```bash
+          dagger install github.com/${{ github.repository }}/<module>@<version>
+          ```
+
+          | Module | Version | Status |
+          |--------|---------|--------|
+          NOTES_HEADER
+
+          # Parse all versions and add to table
+          echo "$ALL_VERSIONS" | tr '|' '\n' | while read -r entry; do
+            if [ -n "$entry" ]; then
+              MODULE=$(echo "$entry" | cut -d: -f1)
+              VERSION=$(echo "$entry" | cut -d: -f2)
+
+              # Check if this module was tagged in this release
+              if echo "$TAGGED" | grep -q "$MODULE:"; then
+                STATUS="**Updated**"
+              else
+                STATUS="Unchanged"
+              fi
+
+              echo "| \`$MODULE\` | \`$VERSION\` | $STATUS |" >> /tmp/release-notes.md
+            fi
+          done
+
+          echo "" >> /tmp/release-notes.md
+          echo "---" >> /tmp/release-notes.md
+          echo "" >> /tmp/release-notes.md
+          echo "_Release automatically generated from commit ${{ github.event.workflow_run.head_sha || github.sha }}_" >> /tmp/release-notes.md
+
+          cat /tmp/release-notes.md
 
       - name: Create GitHub Release
-        if: steps.check-changes.outputs.has_changes == 'true' && inputs.dry_run != true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          MODULE="${{ matrix.module }}"
-          TAG="${{ steps.next-version.outputs.tag }}"
-          VERSION="${{ steps.next-version.outputs.next_version }}"
-          OWNER="${{ github.repository_owner }}"
-          REPO="${{ github.event.repository.name }}"
-          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          VERSION="${{ steps.calver.outputs.version }}"
 
-          # Create empty directory for release (no assets)
-          mkdir -p /tmp/release-assets
+          # Check if release already exists
+          if gh release view "$VERSION" > /dev/null 2>&1; then
+            echo "Release $VERSION already exists, updating..."
+            gh release edit "$VERSION" \
+              --title "Release $VERSION" \
+              --notes-file /tmp/release-notes.md
+          else
+            echo "Creating release $VERSION..."
+            gh release create "$VERSION" \
+              --title "Release $VERSION" \
+              --notes-file /tmp/release-notes.md \
+              --target ${{ github.event.workflow_run.head_sha || github.sha }}
+          fi
 
-          dagger call -m ${{ env.GITHUB_MODULE }} \
-            --token=env:GITHUB_TOKEN \
-            create-release \
-            --owner="$OWNER" \
-            --repo="$REPO" \
-            --tag="$TAG" \
-            --sha="$SHA" \
-            --files=/tmp/release-assets
+          echo "Release created/updated: $VERSION"
 
-          echo "Created GitHub release: $TAG"
-
-      - name: Dry run summary
-        if: steps.check-changes.outputs.has_changes == 'true' && inputs.dry_run == true
+  summary:
+    needs: [tag-modules, create-release]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summary
         run: |
-          echo "[DRY RUN] Would release ${{ matrix.module }} ${{ steps.next-version.outputs.next_version }}"
-          echo "Tag: ${{ steps.next-version.outputs.tag }}"
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
-      - name: Skip summary
-        if: steps.check-changes.outputs.has_changes != 'true'
-        run: |
-          echo "Skipping ${{ matrix.module }} - no changes since ${{ steps.check-changes.outputs.current_version }}"
+          if [ "${{ needs.tag-modules.outputs.has_changes }}" = "true" ]; then
+            echo "### Tagged Modules" >> $GITHUB_STEP_SUMMARY
+            echo "${{ needs.tag-modules.outputs.tagged_modules }}" | tr ' ' '\n' | while read -r entry; do
+              if [ -n "$entry" ]; then
+                echo "- \`$entry\`" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+          else
+            echo "No modules needed tagging." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### All Module Versions" >> $GITHUB_STEP_SUMMARY
+          echo "${{ needs.tag-modules.outputs.all_versions }}" | tr '|' '\n' | while read -r entry; do
+            if [ -n "$entry" ]; then
+              echo "- \`$entry\`" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
