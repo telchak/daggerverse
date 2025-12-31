@@ -214,22 +214,8 @@ jobs:
                   continue
                 fi
 
-                NOTES=$(cat <<'NOTES_EOF'
-## Installation
-
-```bash
-dagger install github.com/${REPO}/${MODULE}@${VER}
-```
-
-## Changes
-
-See commits for details.
-NOTES_EOF
-)
-                NOTES="${NOTES//\$\{REPO\}/${{ github.repository }}}"
-                NOTES="${NOTES//\$\{MODULE\}/$module}"
-                NOTES="${NOTES//\$\{VER\}/$VERSION}"
-                NOTES="${NOTES} [View commits](https://github.com/${{ github.repository }}/commits/${LATEST_TAG})"
+                printf -v NOTES "## Installation\n\n    dagger install github.com/%s/%s@%s\n\n## Changes\n\nSee [commits](https://github.com/%s/commits/%s) for details." \
+                  "${{ github.repository }}" "$module" "$VERSION" "${{ github.repository }}" "$LATEST_TAG"
                 gh release create "$LATEST_TAG" \
                   --title "${module} ${VERSION}" \
                   --notes "$NOTES" \
