@@ -1,7 +1,13 @@
 {
   "name": "health-check-examples",
-  "engineVersion": "v0.19.7",
-  "sdk": "python",
-  "source": "src",
-  "dependencies": ["../.."]
+  "engineVersion": "v0.19.8",
+  "sdk": {
+    "source": "python"
+  },
+  "dependencies": [
+    {
+      "name": "health-check",
+      "source": "../.."
+    }
+  ]
 }
