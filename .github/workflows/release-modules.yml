@@ -1,7 +1,9 @@
 name: Release Modules
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Test Modules"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
     inputs:
@@ -12,7 +14,45 @@ on:
         type: boolean
 
 jobs:
+  check-workflows:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+    steps:
+      - name: Check if all required workflows passed
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger - proceeding with release"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Get the commit SHA from the triggering workflow
+          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
+          echo "Checking workflows for commit: $COMMIT_SHA"
+
+          # Check if Validate Modules succeeded for this commit
+          VALIDATE_STATUS=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/actions/workflows/validate-modules.yml/runs?head_sha=$COMMIT_SHA&status=success&per_page=1" \
+            --jq '.workflow_runs | length')
+
+          if [ "$VALIDATE_STATUS" = "0" ]; then
+            echo "Validate Modules has not succeeded for this commit yet"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Both Validate Modules and Test Modules succeeded!"
+          echo "should_release=true" >> $GITHUB_OUTPUT
+
   detect-and-release:
+    needs: check-workflows
+    if: ${{ needs.check-workflows.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -20,6 +60,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Full history for tags and commits
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.2.0
