@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run release (no tags created)'
+        type: boolean
+        default: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      modules: ${{ steps.find.outputs.modules }}
+      gcp_modules: ${{ steps.find.outputs.gcp_modules }}
+      non_gcp_modules: ${{ steps.find.outputs.non_gcp_modules }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find modules
+        id: find
+        run: |
+          MODULES=$(find . -maxdepth 2 -name "dagger.json" -not -path "./tests/*" | \
+            xargs -I {} dirname {} | sed 's|^\./||' | sort -u | \
+            jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "modules=$MODULES" >> $GITHUB_OUTPUT
+          echo "gcp_modules=$(echo "$MODULES" | jq -c '[.[] | select(startswith("gcp-"))]')" >> $GITHUB_OUTPUT
+          echo "non_gcp_modules=$(echo "$MODULES" | jq -c '[.[] | select(startswith("gcp-") | not)]')" >> $GITHUB_OUTPUT
+
+  validate:
+    needs: discover
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check module structure
+        run: |
+          for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
+            echo "Checking $module..."
+            [ -f "$module/dagger.json" ] || { echo "ERROR: $module/dagger.json missing"; exit 1; }
+            grep -q '"description"' "$module/dagger.json" || { echo "ERROR: $module missing description"; exit 1; }
+            [ "$module" = "tests" ] && continue
+            [ -f "$module/README.md" ] || { echo "ERROR: $module/README.md missing"; exit 1; }
+            [ -d "$module/examples" ] || { echo "ERROR: $module/examples missing"; exit 1; }
+          done
+          echo "All modules validated!"
+
+      - name: Setup Dagger
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "0.19.8"
+          verb: version
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+      - name: Verify modules load
+        run: |
+          for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
+            echo "Loading $module..."
+            cd $module && dagger functions > /dev/null && cd ..
+          done
+
+  test-non-gcp:
+    needs: [discover, validate]
+    if: needs.discover.outputs.non_gcp_modules != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJson(needs.discover.outputs.non_gcp_modules) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test ${{ matrix.module }}
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "0.19.8"
+          module: tests
+          call: ${{ matrix.module }}
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+  test-gcp:
+    needs: [discover, validate]
+    if: needs.discover.outputs.gcp_modules != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJson(needs.discover.outputs.gcp_modules) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test ${{ matrix.module }}
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "0.19.8"
+          module: tests
+          call: >-
+            ${{ matrix.module }}
+            --workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}
+            --project-id=${{ secrets.GCP_PROJECT_ID }}
+            --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
+            --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
+            --region=europe-west9
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+  release:
+    needs: [discover, test-non-gcp, test-gcp]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Dagger
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "0.19.8"
+          verb: version
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+      - name: Tag changed modules
+        if: inputs.dry_run != true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
+            echo "Processing $module..."
+            TAG=$(dagger call -m ./semver release \
+              --source=. \
+              --tag-prefix="${module}/" \
+              --initial-version="v0.1.0" \
+              --github-token=env:GITHUB_TOKEN)
+            echo "  Result: $TAG"
+          done
+
+      - name: Create release
+        if: inputs.dry_run != true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(dagger call -m ./calver version --source=.)
+
+          # Build release notes
+          NOTES="## Module Versions\n\n| Module | Version |\n|--------|---------|"
+          for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
+            VER=$(dagger call -m ./semver current --source=. --tag-prefix="${module}/" --initial-version="v0.0.0")
+            NOTES="$NOTES\n| $module | $VER |"
+          done
+
+          if gh release view "$VERSION" > /dev/null 2>&1; then
+            echo -e "$NOTES" | gh release edit "$VERSION" --notes-file -
+          else
+            echo -e "$NOTES" | gh release create "$VERSION" --title "Release $VERSION" --notes-file -
+          fi
