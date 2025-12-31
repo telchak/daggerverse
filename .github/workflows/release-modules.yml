@@ -8,10 +8,14 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Dry run (no tags created)'
+        description: 'Dry run (no tags/releases created)'
         required: false
         default: false
         type: boolean
+
+env:
+  SEMVER_MODULE: "./semver"
+  GITHUB_MODULE: "github.com/jumppad-labs/daggerverse/github"
 
 jobs:
   check-workflows:
@@ -31,11 +35,9 @@ jobs:
             exit 0
           fi
 
-          # Get the commit SHA from the triggering workflow
           COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
           echo "Checking workflows for commit: $COMMIT_SHA"
 
-          # Check if Validate Modules succeeded for this commit
           VALIDATE_STATUS=$(gh api \
             -H "Accept: application/vnd.github+json" \
             "/repos/${{ github.repository }}/actions/workflows/validate-modules.yml/runs?head_sha=$COMMIT_SHA&status=success&per_page=1" \
@@ -50,16 +52,30 @@ jobs:
           echo "Both Validate Modules and Test Modules succeeded!"
           echo "should_release=true" >> $GITHUB_OUTPUT
 
-  detect-and-release:
+  release:
     needs: check-workflows
     if: ${{ needs.check-workflows.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - calver
+          - gcp-auth
+          - gcp-artifact-registry
+          - gcp-cloud-run
+          - gcp-vertex-ai
+          - gcp-firebase
+          - health-check
+          - oidc
+          - semver
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for tags and commits
+          fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Dagger
@@ -69,157 +85,107 @@ jobs:
           verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
-      - name: Detect changed modules and release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+      - name: Check for changes and get current version
+        id: check-changes
         run: |
-          MODULES="calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check oidc semver"
-          RELEASED=""
-          SKIPPED=""
+          MODULE="${{ matrix.module }}"
+          TAG_PREFIX="${MODULE}/"
 
-          echo "Checking modules for changes..."
-          echo ""
+          echo "Checking $MODULE for changes..."
 
-          for module in $MODULES; do
-            echo "=== Checking $module ==="
+          # Get current version using semver module
+          CURRENT=$(dagger call -m ${{ env.SEMVER_MODULE }} current \
+            --source=. \
+            --tag-prefix="$TAG_PREFIX" \
+            --initial-version="0.0.0")
+          echo "current_version=$CURRENT" >> $GITHUB_OUTPUT
 
-            # Get the latest tag for this module
-            LATEST_TAG=$(git tag -l "${module}/v*" | sort -V | tail -n 1)
-
-            if [ -z "$LATEST_TAG" ]; then
-              echo "  No existing tags found"
-              RANGE="HEAD"
-              HAS_CHANGES="true"
-            else
-              echo "  Latest tag: $LATEST_TAG"
-              # Check if there are commits affecting this module since last tag
-              CHANGES=$(git log "${LATEST_TAG}..HEAD" --oneline -- "${module}/" | head -n 1)
-              if [ -z "$CHANGES" ]; then
-                echo "  No changes since $LATEST_TAG"
-                SKIPPED="$SKIPPED $module"
-                continue
-              fi
-              HAS_CHANGES="true"
-              echo "  Changes detected since $LATEST_TAG"
-            fi
-
-            if [ "$HAS_CHANGES" = "true" ]; then
-              # Analyze commits to determine bump type
-              echo "  Analyzing commits..."
-
-              if [ -z "$LATEST_TAG" ]; then
-                COMMITS=$(git log --format="%s" -- "${module}/")
-              else
-                COMMITS=$(git log "${LATEST_TAG}..HEAD" --format="%s" -- "${module}/")
-              fi
-
-              # Determine bump type from conventional commits
-              BUMP_TYPE="patch"
-              if echo "$COMMITS" | grep -qE "^(feat|fix|refactor|perf)(\([^)]+\))?!:|BREAKING CHANGE"; then
-                BUMP_TYPE="major"
-              elif echo "$COMMITS" | grep -qE "^feat(\([^)]+\))?:"; then
-                BUMP_TYPE="minor"
-              elif echo "$COMMITS" | grep -qE "^(fix|perf|refactor)(\([^)]+\))?:"; then
-                BUMP_TYPE="patch"
-              fi
-
-              echo "  Bump type: $BUMP_TYPE"
-
-              # Calculate next version
-              if [ -z "$LATEST_TAG" ]; then
-                NEXT_VERSION="v0.1.0"
-              else
-                CURRENT_VERSION="${LATEST_TAG#${module}/v}"
-                MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
-                MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
-                PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
-
-                case "$BUMP_TYPE" in
-                  major)
-                    MAJOR=$((MAJOR + 1))
-                    MINOR=0
-                    PATCH=0
-                    ;;
-                  minor)
-                    MINOR=$((MINOR + 1))
-                    PATCH=0
-                    ;;
-                  patch)
-                    PATCH=$((PATCH + 1))
-                    ;;
-                esac
-
-                NEXT_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
-              fi
-
-              NEW_TAG="${module}/${NEXT_VERSION}"
-              echo "  Next version: $NEW_TAG"
-
-              if [ "$DRY_RUN" = "true" ]; then
-                echo "  [DRY RUN] Would create tag: $NEW_TAG"
-                RELEASED="$RELEASED $NEW_TAG(dry-run)"
-              else
-                # Create and push tag
-                git config user.name "github-actions[bot]"
-                git config user.email "github-actions[bot]@users.noreply.github.com"
-
-                git tag -a "$NEW_TAG" -m "Release ${module} ${NEXT_VERSION}"
-                git push origin "$NEW_TAG"
-
-                echo "  Created tag: $NEW_TAG"
-                RELEASED="$RELEASED $NEW_TAG"
-              fi
-            fi
-
-            echo ""
-          done
-
-          echo "========================================"
-          echo "Summary:"
-          if [ -n "$RELEASED" ]; then
-            echo "  Released:$RELEASED"
+          # Check if there are changes since last tag
+          if [ "$CURRENT" = "v0.0.0" ]; then
+            echo "No existing tags - will create initial release"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
           else
-            echo "  Released: none"
-          fi
-          if [ -n "$SKIPPED" ]; then
-            echo "  Skipped (no changes):$SKIPPED"
+            CHANGED_PATHS=$(dagger call -m ${{ env.SEMVER_MODULE }} changed-paths \
+              --source=. \
+              --tag-prefix="$TAG_PREFIX")
+
+            # Check if any changes are in this module's directory
+            if echo "$CHANGED_PATHS" | grep -q "^${MODULE}/"; then
+              echo "Changes detected in $MODULE"
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+            else
+              echo "No changes in $MODULE since $CURRENT"
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+            fi
           fi
 
-      - name: Create GitHub Releases
-        if: ${{ inputs.dry_run != true }}
+      - name: Calculate next version
+        id: next-version
+        if: steps.check-changes.outputs.has_changes == 'true'
+        run: |
+          MODULE="${{ matrix.module }}"
+          TAG_PREFIX="${MODULE}/"
+
+          NEXT=$(dagger call -m ${{ env.SEMVER_MODULE }} next \
+            --source=. \
+            --tag-prefix="$TAG_PREFIX" \
+            --initial-version="0.1.0")
+
+          echo "Next version for $MODULE: $NEXT"
+          echo "next_version=$NEXT" >> $GITHUB_OUTPUT
+          echo "tag=${TAG_PREFIX}${NEXT}" >> $GITHUB_OUTPUT
+
+      - name: Create and push tag
+        id: create-tag
+        if: steps.check-changes.outputs.has_changes == 'true' && inputs.dry_run != true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get tags created in this run (pushed in last 5 minutes)
-          MODULES="calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check oidc semver"
+          MODULE="${{ matrix.module }}"
+          TAG_PREFIX="${MODULE}/"
 
-          for module in $MODULES; do
-            # Check if we just created a tag for this module
-            LATEST_TAG=$(git tag -l "${module}/v*" --sort=-creatordate | head -n 1)
+          RESULT=$(dagger call -m ${{ env.SEMVER_MODULE }} release \
+            --source=. \
+            --tag-prefix="$TAG_PREFIX" \
+            --initial-version="0.1.0" \
+            --github-token=env:GITHUB_TOKEN)
 
-            if [ -n "$LATEST_TAG" ]; then
-              # Check if this tag points to HEAD
-              TAG_COMMIT=$(git rev-list -n 1 "$LATEST_TAG" 2>/dev/null || echo "")
-              HEAD_COMMIT=$(git rev-parse HEAD)
+          echo "Release result: $RESULT"
+          echo "result=$RESULT" >> $GITHUB_OUTPUT
 
-              if [ "$TAG_COMMIT" = "$HEAD_COMMIT" ]; then
-                VERSION="${LATEST_TAG#${module}/}"
+      - name: Create GitHub Release
+        if: steps.check-changes.outputs.has_changes == 'true' && inputs.dry_run != true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          MODULE="${{ matrix.module }}"
+          TAG="${{ steps.next-version.outputs.tag }}"
+          VERSION="${{ steps.next-version.outputs.next_version }}"
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
 
-                echo "Creating release for $LATEST_TAG..."
+          # Create empty directory for release (no assets)
+          mkdir -p /tmp/release-assets
 
-                # Check if release already exists
-                if gh release view "$LATEST_TAG" > /dev/null 2>&1; then
-                  echo "  Release already exists, skipping"
-                  continue
-                fi
+          dagger call -m ${{ env.GITHUB_MODULE }} \
+            --token=env:GITHUB_TOKEN \
+            create-release \
+            --owner="$OWNER" \
+            --repo="$REPO" \
+            --tag="$TAG" \
+            --sha="$SHA" \
+            --files=/tmp/release-assets
 
-                printf -v NOTES "## Installation\n\n    dagger install github.com/%s/%s@%s\n\n## Changes\n\nSee [commits](https://github.com/%s/commits/%s) for details." \
-                  "${{ github.repository }}" "$module" "$VERSION" "${{ github.repository }}" "$LATEST_TAG"
-                gh release create "$LATEST_TAG" \
-                  --title "${module} ${VERSION}" \
-                  --notes "$NOTES" \
-                  --generate-notes || echo "  Failed to create release (may already exist)"
-              fi
-            fi
-          done
+          echo "Created GitHub release: $TAG"
+
+      - name: Dry run summary
+        if: steps.check-changes.outputs.has_changes == 'true' && inputs.dry_run == true
+        run: |
+          echo "[DRY RUN] Would release ${{ matrix.module }} ${{ steps.next-version.outputs.next_version }}"
+          echo "Tag: ${{ steps.next-version.outputs.tag }}"
+
+      - name: Skip summary
+        if: steps.check-changes.outputs.has_changes != 'true'
+        run: |
+          echo "Skipping ${{ matrix.module }} - no changes since ${{ steps.check-changes.outputs.current_version }}"

@@ -145,6 +145,67 @@ class Semver:
         return tag_name
 
     @function
+    async def bump(
+        self,
+        source: Annotated[dagger.Directory, Doc("Git repository")],
+        bump_type: Annotated[str, Doc("Bump type: major, minor, or patch")],
+        tag_prefix: Annotated[str, Doc("Tag prefix for monorepo")] = "",
+        initial_version: Annotated[str, Doc("Initial version if no tags exist")] = "0.1.0",
+    ) -> str:
+        """Calculate next version with explicit bump type (ignores commit analysis).
+
+        Use this for manual releases where you want to specify the exact bump type.
+        """
+        bt = BumpType[bump_type.upper()]
+        current = await self._get_latest_version(source, tag_prefix, initial_version)
+        next_version = current.bump(bt)
+        return str(next_version)
+
+    @function
+    async def tag(
+        self,
+        source: Annotated[dagger.Directory, Doc("Git repository")],
+        version: Annotated[str, Doc("Version to tag (e.g., 'v1.2.3' or '1.2.3')")],
+        github_token: Annotated[dagger.Secret, Doc("GitHub token for pushing tags")],
+        tag_prefix: Annotated[str, Doc("Tag prefix for monorepo")] = "",
+        dry_run: Annotated[bool, Doc("Calculate without creating tag")] = False,
+    ) -> str:
+        """Create and push a git tag with a specific version.
+
+        Use this for manual releases where you want to specify the exact version.
+        """
+        # Ensure version has 'v' prefix
+        if not version.startswith("v"):
+            version = f"v{version}"
+
+        tag_name = f"{tag_prefix}{version}"
+
+        if dry_run:
+            return f"[dry-run] Would create tag: {tag_name}"
+
+        # Check if tag already exists
+        existing = await self._tag_exists(source, tag_name)
+        if existing:
+            return f"Tag already exists: {tag_name}"
+
+        # Create and push the tag
+        await self._create_and_push_tag(source, tag_name, github_token)
+
+        return tag_name
+
+    async def _tag_exists(self, source: dagger.Directory, tag: str) -> bool:
+        """Check if a tag already exists."""
+        git = self._git_container(source)
+        try:
+            result = await (
+                git.with_exec(["git", "rev-parse", tag])
+                .stdout()
+            )
+            return bool(result.strip())
+        except Exception:
+            return False
+
+    @function
     async def changed_paths(
         self,
         source: Annotated[dagger.Directory, Doc("Git repository")],

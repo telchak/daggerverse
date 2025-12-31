@@ -30,131 +30,122 @@ on:
         required: false
         type: string
 
+env:
+  SEMVER_MODULE: "./semver"
+  GITHUB_MODULE: "github.com/jumppad-labs/daggerverse/github"
+
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Need full history for tags
-
-      - name: Validate module exists
-        run: |
-          if [ ! -d "${{ inputs.module }}" ]; then
-            echo "ERROR: Module '${{ inputs.module }}' does not exist"
-            exit 1
-          fi
-          if [ ! -f "${{ inputs.module }}/dagger.json" ]; then
-            echo "ERROR: Module '${{ inputs.module }}' is not a valid Dagger module"
-            exit 1
-          fi
-          echo "Module '${{ inputs.module }}' validated"
-
-      - name: Calculate next version
-        id: version
-        run: |
-          MODULE="${{ inputs.module }}"
-          VERSION_TYPE="${{ inputs.version_type }}"
-          VERSION_OVERRIDE="${{ inputs.version_override }}"
-
-          # If version override is provided, use it
-          if [ -n "$VERSION_OVERRIDE" ]; then
-            # Validate format
-            if ! echo "$VERSION_OVERRIDE" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-              echo "ERROR: Invalid version format. Use MAJOR.MINOR.PATCH (e.g., 1.2.3)"
-              exit 1
-            fi
-            NEXT_VERSION="$VERSION_OVERRIDE"
-            echo "Using override version: $NEXT_VERSION"
-          else
-            # Get latest tag for this module
-            LATEST_TAG=$(git tag -l "${MODULE}/v*" | sort -V | tail -n 1)
-
-            if [ -z "$LATEST_TAG" ]; then
-              # No existing tags, start at v0.1.0
-              NEXT_VERSION="0.1.0"
-              echo "No existing tags found, starting at v0.1.0"
-            else
-              # Extract version numbers
-              CURRENT_VERSION="${LATEST_TAG#${MODULE}/v}"
-              MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
-              MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
-              PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
-
-              echo "Current version: $CURRENT_VERSION"
-
-              # Bump version based on type
-              case "$VERSION_TYPE" in
-                major)
-                  MAJOR=$((MAJOR + 1))
-                  MINOR=0
-                  PATCH=0
-                  ;;
-                minor)
-                  MINOR=$((MINOR + 1))
-                  PATCH=0
-                  ;;
-                patch)
-                  PATCH=$((PATCH + 1))
-                  ;;
-              esac
-
-              NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-            fi
-          fi
-
-          TAG_NAME="${MODULE}/v${NEXT_VERSION}"
-          echo "Next version: $NEXT_VERSION"
-          echo "Tag name: $TAG_NAME"
-
-          # Check if tag already exists
-          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-            echo "ERROR: Tag $TAG_NAME already exists"
-            exit 1
-          fi
-
-          echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
-          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+          fetch-depth: 0
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.2.0
         with:
           version: "0.19.8"
           verb: version
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
       - name: Validate module loads
         run: |
-          cd ${{ inputs.module }}
-          dagger functions > /dev/null
+          MODULE="${{ inputs.module }}"
+          echo "Validating module: $MODULE"
+          dagger call -m "./${MODULE}" --help > /dev/null
           echo "Module validated successfully"
 
-      - name: Create and push tag
+      - name: Calculate next version
+        id: version
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          MODULE="${{ inputs.module }}"
+          TAG_PREFIX="${MODULE}/"
+          VERSION_TYPE="${{ inputs.version_type }}"
+          VERSION_OVERRIDE="${{ inputs.version_override }}"
 
-          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ inputs.module }} v${{ steps.version.outputs.version }}"
-          git push origin "${{ steps.version.outputs.tag }}"
+          if [ -n "$VERSION_OVERRIDE" ]; then
+            # Use override version directly
+            NEXT_VERSION="v${VERSION_OVERRIDE#v}"
+            echo "Using override version: $NEXT_VERSION"
+          else
+            # Use semver module to calculate next version with explicit bump type
+            NEXT_VERSION=$(dagger call -m ${{ env.SEMVER_MODULE }} bump \
+              --source=. \
+              --bump-type="$VERSION_TYPE" \
+              --tag-prefix="$TAG_PREFIX" \
+              --initial-version="0.1.0")
+            echo "Calculated next version: $NEXT_VERSION"
+          fi
 
-          echo "Created and pushed tag: ${{ steps.version.outputs.tag }}"
+          TAG_NAME="${TAG_PREFIX}${NEXT_VERSION}"
+          echo "Tag name: $TAG_NAME"
+
+          echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create and push tag
+        id: create-tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          MODULE="${{ inputs.module }}"
+          TAG_PREFIX="${MODULE}/"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          RESULT=$(dagger call -m ${{ env.SEMVER_MODULE }} tag \
+            --source=. \
+            --version="$VERSION" \
+            --tag-prefix="$TAG_PREFIX" \
+            --github-token=env:GITHUB_TOKEN)
+
+          echo "Tag result: $RESULT"
+
+          if echo "$RESULT" | grep -q "already exists"; then
+            echo "ERROR: Tag already exists"
+            exit 1
+          fi
+
+          echo "result=$RESULT" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: "${{ inputs.module }} v${{ steps.version.outputs.version }}"
-          body: |
-            ## ${{ inputs.module }} v${{ steps.version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          MODULE="${{ inputs.module }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          SHA="${{ github.sha }}"
 
-            ### Installation
+          # Create empty directory for release (no assets)
+          mkdir -p /tmp/release-assets
 
-            ```bash
-            dagger install github.com/${{ github.repository }}/${{ inputs.module }}@v${{ steps.version.outputs.version }}
-            ```
+          dagger call -m ${{ env.GITHUB_MODULE }} \
+            --token=env:GITHUB_TOKEN \
+            create-release \
+            --owner="$OWNER" \
+            --repo="$REPO" \
+            --tag="$TAG" \
+            --sha="$SHA" \
+            --files=/tmp/release-assets
 
-            ### Changes
+          echo "Created GitHub release: $TAG"
 
-            See [commits since last release](https://github.com/${{ github.repository }}/compare/${{ inputs.module }}/v${{ steps.version.outputs.version }}...HEAD) for details.
-          generate_release_notes: true
+      - name: Summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Module:** ${{ inputs.module }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "dagger install github.com/${{ github.repository }}/${{ inputs.module }}@${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
