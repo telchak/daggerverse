@@ -59,15 +59,15 @@ jobs:
 
       - name: Check all modules have tests
         run: |
-          # Get test function names from the tests module
+          # Get test function names from the tests module (skip header line, extract first column)
           cd tests
-          TEST_FUNCS=$(dagger functions 2>/dev/null | grep -E '^\s+\w' | awk '{print $1}' | tr '\n' ' ')
+          TEST_FUNCS=$(dagger functions 2>/dev/null | tail -n +2 | awk '{print $1}' | tr '\n' ' ')
           cd ..
+          echo "Available tests: $TEST_FUNCS"
 
           MISSING=""
           for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
-            # Convert module name to test function name (e.g., health-check -> health-check)
-            if ! echo "$TEST_FUNCS" | grep -qw "$module"; then
+            if ! echo " $TEST_FUNCS " | grep -q " $module "; then
               MISSING="$MISSING $module"
             fi
           done
