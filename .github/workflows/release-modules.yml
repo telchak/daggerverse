@@ -214,17 +214,25 @@ jobs:
                   continue
                 fi
 
-                gh release create "$LATEST_TAG" \
-                  --title "${module} ${VERSION}" \
-                  --notes "## Installation
+                NOTES=$(cat <<'NOTES_EOF'
+## Installation
 
-\`\`\`bash
-dagger install github.com/${{ github.repository }}/${module}@${VERSION}
-\`\`\`
+```bash
+dagger install github.com/${REPO}/${MODULE}@${VER}
+```
 
 ## Changes
 
-See [commits](https://github.com/${{ github.repository }}/commits/${LATEST_TAG}) for details." \
+See commits for details.
+NOTES_EOF
+)
+                NOTES="${NOTES//\$\{REPO\}/${{ github.repository }}}"
+                NOTES="${NOTES//\$\{MODULE\}/$module}"
+                NOTES="${NOTES//\$\{VER\}/$VERSION}"
+                NOTES="${NOTES} [View commits](https://github.com/${{ github.repository }}/commits/${LATEST_TAG})"
+                gh release create "$LATEST_TAG" \
+                  --title "${module} ${VERSION}" \
+                  --notes "$NOTES" \
                   --generate-notes || echo "  Failed to create release (may already exist)"
               fi
             fi
