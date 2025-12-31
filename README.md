@@ -14,6 +14,7 @@ A collection of small, independent, reusable Dagger modules for CI/CD pipelines.
 | **gcp-firebase** | Firebase Hosting deployment | None |
 | **health-check** | Container health checking | None |
 | **oidc** | OIDC token utilities | None |
+| **semver** | Semantic Versioning with Conventional Commits | None |
 
 ## Installation
 
@@ -42,6 +43,7 @@ daggerverse/
 ├── gcp-firebase/
 ├── health-check/
 ├── oidc/                # OIDC token utilities
+├── semver/              # Semantic versioning
 └── tests/               # Centralized test suite
 ```
 
@@ -153,6 +155,7 @@ calver (independent)
 health-check (independent)
 gcp-firebase (independent)
 oidc (independent)
+semver (independent)
 ```
 
 ## Publishing
@@ -169,25 +172,34 @@ gcp-auth/v1.2.3
 health-check/v0.5.0
 ```
 
-### Publishing a Module
+### Automatic Releases
 
-Use the **Publish Module** workflow in GitHub Actions:
+The **Release Modules** workflow runs on every push to main and:
+- Detects which modules have changes since their last tag
+- Analyzes commit messages using [Conventional Commits](https://www.conventionalcommits.org/)
+- Automatically determines version bump (major/minor/patch)
+- Creates tags and GitHub releases for changed modules
+
+Commit message format:
+
+| Commit Type | Version Bump |
+|-------------|--------------|
+| `feat:` | Minor |
+| `fix:`, `perf:`, `refactor:` | Patch |
+| `feat!:` or `BREAKING CHANGE:` | Major |
+
+### Manual Publishing
+
+Use the **Publish Module** workflow for manual releases:
 
 1. Go to Actions > Publish Module
 2. Select the module to publish
 3. Choose version bump type (major/minor/patch)
 4. Run the workflow
 
-The workflow will:
-- Calculate the next version from existing tags
-- Validate the module loads correctly
-- Create and push the version tag
-- Create a GitHub Release
-
 ### Manual Tagging
 
 ```bash
-# Create a version tag
 git tag -a calver/v1.0.0 -m "Release calver v1.0.0"
 git push origin calver/v1.0.0
 ```

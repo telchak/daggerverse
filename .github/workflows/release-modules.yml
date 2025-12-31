@@ -1,0 +1,190 @@
+name: Release Modules
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no tags created)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  detect-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for tags and commits
+
+      - name: Setup Dagger
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "0.19.8"
+          verb: version
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+      - name: Detect changed modules and release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          MODULES="calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check oidc semver"
+          RELEASED=""
+          SKIPPED=""
+
+          echo "Checking modules for changes..."
+          echo ""
+
+          for module in $MODULES; do
+            echo "=== Checking $module ==="
+
+            # Get the latest tag for this module
+            LATEST_TAG=$(git tag -l "${module}/v*" | sort -V | tail -n 1)
+
+            if [ -z "$LATEST_TAG" ]; then
+              echo "  No existing tags found"
+              RANGE="HEAD"
+              HAS_CHANGES="true"
+            else
+              echo "  Latest tag: $LATEST_TAG"
+              # Check if there are commits affecting this module since last tag
+              CHANGES=$(git log "${LATEST_TAG}..HEAD" --oneline -- "${module}/" | head -n 1)
+              if [ -z "$CHANGES" ]; then
+                echo "  No changes since $LATEST_TAG"
+                SKIPPED="$SKIPPED $module"
+                continue
+              fi
+              HAS_CHANGES="true"
+              echo "  Changes detected since $LATEST_TAG"
+            fi
+
+            if [ "$HAS_CHANGES" = "true" ]; then
+              # Analyze commits to determine bump type
+              echo "  Analyzing commits..."
+
+              if [ -z "$LATEST_TAG" ]; then
+                COMMITS=$(git log --format="%s" -- "${module}/")
+              else
+                COMMITS=$(git log "${LATEST_TAG}..HEAD" --format="%s" -- "${module}/")
+              fi
+
+              # Determine bump type from conventional commits
+              BUMP_TYPE="patch"
+              if echo "$COMMITS" | grep -qE "^(feat|fix|refactor|perf)(\([^)]+\))?!:|BREAKING CHANGE"; then
+                BUMP_TYPE="major"
+              elif echo "$COMMITS" | grep -qE "^feat(\([^)]+\))?:"; then
+                BUMP_TYPE="minor"
+              elif echo "$COMMITS" | grep -qE "^(fix|perf|refactor)(\([^)]+\))?:"; then
+                BUMP_TYPE="patch"
+              fi
+
+              echo "  Bump type: $BUMP_TYPE"
+
+              # Calculate next version
+              if [ -z "$LATEST_TAG" ]; then
+                NEXT_VERSION="v0.1.0"
+              else
+                CURRENT_VERSION="${LATEST_TAG#${module}/v}"
+                MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+                MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+                PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+
+                case "$BUMP_TYPE" in
+                  major)
+                    MAJOR=$((MAJOR + 1))
+                    MINOR=0
+                    PATCH=0
+                    ;;
+                  minor)
+                    MINOR=$((MINOR + 1))
+                    PATCH=0
+                    ;;
+                  patch)
+                    PATCH=$((PATCH + 1))
+                    ;;
+                esac
+
+                NEXT_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+              fi
+
+              NEW_TAG="${module}/${NEXT_VERSION}"
+              echo "  Next version: $NEW_TAG"
+
+              if [ "$DRY_RUN" = "true" ]; then
+                echo "  [DRY RUN] Would create tag: $NEW_TAG"
+                RELEASED="$RELEASED $NEW_TAG(dry-run)"
+              else
+                # Create and push tag
+                git config user.name "github-actions[bot]"
+                git config user.email "github-actions[bot]@users.noreply.github.com"
+
+                git tag -a "$NEW_TAG" -m "Release ${module} ${NEXT_VERSION}"
+                git push origin "$NEW_TAG"
+
+                echo "  Created tag: $NEW_TAG"
+                RELEASED="$RELEASED $NEW_TAG"
+              fi
+            fi
+
+            echo ""
+          done
+
+          echo "========================================"
+          echo "Summary:"
+          if [ -n "$RELEASED" ]; then
+            echo "  Released:$RELEASED"
+          else
+            echo "  Released: none"
+          fi
+          if [ -n "$SKIPPED" ]; then
+            echo "  Skipped (no changes):$SKIPPED"
+          fi
+
+      - name: Create GitHub Releases
+        if: ${{ inputs.dry_run != true }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get tags created in this run (pushed in last 5 minutes)
+          MODULES="calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check oidc semver"
+
+          for module in $MODULES; do
+            # Check if we just created a tag for this module
+            LATEST_TAG=$(git tag -l "${module}/v*" --sort=-creatordate | head -n 1)
+
+            if [ -n "$LATEST_TAG" ]; then
+              # Check if this tag points to HEAD
+              TAG_COMMIT=$(git rev-list -n 1 "$LATEST_TAG" 2>/dev/null || echo "")
+              HEAD_COMMIT=$(git rev-parse HEAD)
+
+              if [ "$TAG_COMMIT" = "$HEAD_COMMIT" ]; then
+                VERSION="${LATEST_TAG#${module}/}"
+
+                echo "Creating release for $LATEST_TAG..."
+
+                # Check if release already exists
+                if gh release view "$LATEST_TAG" > /dev/null 2>&1; then
+                  echo "  Release already exists, skipping"
+                  continue
+                fi
+
+                gh release create "$LATEST_TAG" \
+                  --title "${module} ${VERSION}" \
+                  --notes "## Installation
+
+\`\`\`bash
+dagger install github.com/${{ github.repository }}/${module}@${VERSION}
+\`\`\`
+
+## Changes
+
+See [commits](https://github.com/${{ github.repository }}/commits/${LATEST_TAG}) for details." \
+                  --generate-notes || echo "  Failed to create release (may already exist)"
+              fi
+            fi
+          done

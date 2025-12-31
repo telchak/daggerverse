@@ -16,6 +16,7 @@ on:
           - gcp-firebase
           - health-check
           - oidc
+          - semver
       version_type:
         description: 'Version bump type'
         required: true
