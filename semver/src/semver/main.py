@@ -127,6 +127,8 @@ class Semver:
         """Calculate next version and create a git tag.
 
         Returns the new version tag that was created (or would be created if dry_run).
+        If the current commit already has a matching tag, returns that tag (idempotent).
+        If the calculated tag already exists on a different commit, returns a message.
         """
         next_version = await self.next(source, tag_prefix, default_bump, initial_version)
         tag_name = f"{tag_prefix}{next_version}"
@@ -134,10 +136,15 @@ class Semver:
         if dry_run:
             return f"[dry-run] Would create tag: {tag_name}"
 
-        # Check if HEAD already has this tag
-        existing = await self._get_tag_for_head(source, tag_prefix)
-        if existing:
-            return f"HEAD already tagged: {existing}"
+        # Check if HEAD already has a tag with this prefix
+        existing_on_head = await self._get_tag_for_head(source, tag_prefix)
+        if existing_on_head:
+            return f"HEAD already tagged: {existing_on_head}"
+
+        # Check if the calculated tag already exists (on a different commit)
+        tag_exists = await self._tag_exists(source, tag_name)
+        if tag_exists:
+            return f"Tag already exists: {tag_name} (no new changes to release)"
 
         # Create and push the tag
         await self._create_and_push_tag(source, tag_name, github_token)
