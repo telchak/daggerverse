@@ -91,8 +91,18 @@ jobs:
       fail-fast: false
       matrix:
         module: ${{ fromJson(needs.discover.outputs.gcp_modules) }}
+        exclude:
+          - module: gcp-firebase  # doesn't need OIDC, tested separately
     steps:
       - uses: actions/checkout@v4
+      - name: Get module-specific args
+        id: args
+        run: |
+          if [ "${{ matrix.module }}" = "gcp-artifact-registry" ]; then
+            echo "extra=--repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}" >> $GITHUB_OUTPUT
+          else
+            echo "extra=" >> $GITHUB_OUTPUT
+          fi
       - name: Test ${{ matrix.module }}
         uses: dagger/dagger-for-github@v8.2.0
         with:
@@ -106,11 +116,32 @@ jobs:
             --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
             --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
             --region=europe-west9
+            ${{ steps.args.outputs.extra }}
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+  test-gcp-firebase:
+    needs: [discover, validate]
+    if: contains(fromJson(needs.discover.outputs.gcp_modules), 'gcp-firebase')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create test app
+        run: |
+          mkdir -p /tmp/test-app
+          echo '{"name":"test","scripts":{"build":"mkdir -p dist && echo test > dist/index.html"}}' > /tmp/test-app/package.json
+          echo '{"name":"test","lockfileVersion":3,"packages":{"":{"name":"test"}}}' > /tmp/test-app/package-lock.json
+      - name: Test gcp-firebase
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "0.19.8"
+          module: tests
+          call: gcp-firebase --source=/tmp/test-app
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   release:
-    needs: [discover, test-non-gcp, test-gcp]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [discover, test-non-gcp, test-gcp, test-gcp-firebase]
+    if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !contains(needs.*.result, 'failure')
+
     runs-on: ubuntu-latest
     permissions:
       contents: write
