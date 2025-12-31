@@ -276,6 +276,58 @@ class Tests:
         return "\n".join(results)
 
     @function
+    async def oidc(
+        self,
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        audience: Annotated[str, Doc("Audience for the token")] = "https://iam.googleapis.com",
+    ) -> str:
+        """Run oidc module tests using GitHub Actions OIDC."""
+        results = []
+
+        # Test github_token - fetch a real OIDC token
+        token = dag.oidc().github_token(
+            request_token=oidc_token,
+            request_url=oidc_url,
+            audience=audience,
+        )
+
+        # Test token_claims - decode the token we just got
+        claims = await dag.oidc().token_claims(token=token)
+        if "iss" not in claims or "aud" not in claims:
+            raise ValueError(f"Token missing expected claims: {claims}")
+        results.append("PASS: github_token + token_claims")
+
+        return "\n".join(results)
+
+    @function
+    async def semver(
+        self,
+        source: Annotated[dagger.Directory, Doc("Git repository with tags")],
+    ) -> str:
+        """Run semver module tests."""
+        results = []
+        sv = dag.semver()
+
+        # Test current version
+        current = await sv.current(source=source, initial_version="v0.0.0")
+        results.append(f"PASS: current -> {current}")
+
+        # Test bump
+        bumped = await sv.bump(source=source, bump_type="patch", initial_version="v1.0.0")
+        if not bumped.startswith("v1.0."):
+            raise ValueError(f"Expected v1.0.x, got {bumped}")
+        results.append(f"PASS: bump patch -> {bumped}")
+
+        # Test bump_type detection
+        bump_type = await sv.bump_type(source=source)
+        if bump_type not in ["none", "patch", "minor", "major"]:
+            raise ValueError(f"Invalid bump_type: {bump_type}")
+        results.append(f"PASS: bump_type -> {bump_type}")
+
+        return "\n".join(results)
+
+    @function
     async def all_no_credentials(self) -> str:
         """Run all tests that don't require credentials."""
         results = []

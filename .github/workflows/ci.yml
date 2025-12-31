@@ -17,8 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       modules: ${{ steps.find.outputs.modules }}
-      gcp_modules: ${{ steps.find.outputs.gcp_modules }}
-      non_gcp_modules: ${{ steps.find.outputs.non_gcp_modules }}
     steps:
       - uses: actions/checkout@v4
       - name: Find modules
@@ -28,14 +26,13 @@ jobs:
             xargs -I {} dirname {} | sed 's|^\./||' | sort -u | \
             jq -R -s -c 'split("\n") | map(select(length > 0))')
           echo "modules=$MODULES" >> $GITHUB_OUTPUT
-          echo "gcp_modules=$(echo "$MODULES" | jq -c '[.[] | select(startswith("gcp-"))]')" >> $GITHUB_OUTPUT
-          echo "non_gcp_modules=$(echo "$MODULES" | jq -c '[.[] | select(startswith("gcp-") | not)]')" >> $GITHUB_OUTPUT
 
   validate:
     needs: discover
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Check module structure
         run: |
           for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
@@ -46,7 +43,6 @@ jobs:
             [ -f "$module/README.md" ] || { echo "ERROR: $module/README.md missing"; exit 1; }
             [ -d "$module/examples" ] || { echo "ERROR: $module/examples missing"; exit 1; }
           done
-          echo "All modules validated!"
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.2.0
@@ -58,34 +54,32 @@ jobs:
       - name: Verify modules load
         run: |
           for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
-            echo "Loading $module..."
             cd $module && dagger functions > /dev/null && cd ..
           done
 
-  test-non-gcp:
-    needs: [discover, validate]
-    if: needs.discover.outputs.non_gcp_modules != '[]'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        module: ${{ fromJson(needs.discover.outputs.non_gcp_modules) }}
-        exclude:
-          - module: oidc   # needs real OIDC tokens
-          - module: semver # needs git repo with tags
-    steps:
-      - uses: actions/checkout@v4
-      - name: Test ${{ matrix.module }}
-        uses: dagger/dagger-for-github@v8.2.0
-        with:
-          version: "0.19.8"
-          module: tests
-          call: ${{ matrix.module }}
-          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+      - name: Check all modules have tests
+        run: |
+          # Get test function names from the tests module
+          cd tests
+          TEST_FUNCS=$(dagger functions 2>/dev/null | grep -E '^\s+\w' | awk '{print $1}' | tr '\n' ' ')
+          cd ..
 
-  test-gcp:
+          MISSING=""
+          for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
+            # Convert module name to test function name (e.g., health-check -> health-check)
+            if ! echo "$TEST_FUNCS" | grep -qw "$module"; then
+              MISSING="$MISSING $module"
+            fi
+          done
+
+          if [ -n "$MISSING" ]; then
+            echo "ERROR: Missing tests for:$MISSING"
+            exit 1
+          fi
+          echo "All modules have tests!"
+
+  test:
     needs: [discover, validate]
-    if: needs.discover.outputs.gcp_modules != '[]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -93,19 +87,48 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: ${{ fromJson(needs.discover.outputs.gcp_modules) }}
-        exclude:
-          - module: gcp-firebase  # doesn't need OIDC, tested separately
+        module: ${{ fromJson(needs.discover.outputs.modules) }}
     steps:
       - uses: actions/checkout@v4
-      - name: Get module-specific args
-        id: args
+        with:
+          fetch-depth: 0  # needed for semver tests
+
+      - name: Setup test environment
+        id: setup
         run: |
-          if [ "${{ matrix.module }}" = "gcp-artifact-registry" ]; then
-            echo "extra=--repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}" >> $GITHUB_OUTPUT
-          else
-            echo "extra=" >> $GITHUB_OUTPUT
-          fi
+          MODULE="${{ matrix.module }}"
+
+          # Module-specific args
+          case "$MODULE" in
+            gcp-artifact-registry)
+              echo "args=--repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}" >> $GITHUB_OUTPUT
+              echo "needs_gcp=true" >> $GITHUB_OUTPUT
+              ;;
+            gcp-firebase)
+              mkdir -p /tmp/test-app
+              echo '{"name":"test","scripts":{"build":"mkdir -p dist && echo test > dist/index.html"}}' > /tmp/test-app/package.json
+              echo '{"name":"test","lockfileVersion":3,"packages":{"":{"name":"test"}}}' > /tmp/test-app/package-lock.json
+              echo "args=--source=/tmp/test-app" >> $GITHUB_OUTPUT
+              echo "needs_gcp=false" >> $GITHUB_OUTPUT
+              ;;
+            gcp-*)
+              echo "args=" >> $GITHUB_OUTPUT
+              echo "needs_gcp=true" >> $GITHUB_OUTPUT
+              ;;
+            oidc)
+              echo "args=--oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL" >> $GITHUB_OUTPUT
+              echo "needs_gcp=false" >> $GITHUB_OUTPUT
+              ;;
+            semver)
+              echo "args=--source=." >> $GITHUB_OUTPUT
+              echo "needs_gcp=false" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "args=" >> $GITHUB_OUTPUT
+              echo "needs_gcp=false" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
       - name: Test ${{ matrix.module }}
         uses: dagger/dagger-for-github@v8.2.0
         with:
@@ -113,38 +136,13 @@ jobs:
           module: tests
           call: >-
             ${{ matrix.module }}
-            --workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}
-            --project-id=${{ secrets.GCP_PROJECT_ID }}
-            --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
-            --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
-            --region=europe-west9
-            ${{ steps.args.outputs.extra }}
-          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-
-  test-gcp-firebase:
-    needs: [discover, validate]
-    if: contains(fromJson(needs.discover.outputs.gcp_modules), 'gcp-firebase')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Create test app
-        run: |
-          mkdir -p /tmp/test-app
-          echo '{"name":"test","scripts":{"build":"mkdir -p dist && echo test > dist/index.html"}}' > /tmp/test-app/package.json
-          echo '{"name":"test","lockfileVersion":3,"packages":{"":{"name":"test"}}}' > /tmp/test-app/package-lock.json
-      - name: Test gcp-firebase
-        uses: dagger/dagger-for-github@v8.2.0
-        with:
-          version: "0.19.8"
-          module: tests
-          call: gcp-firebase --source=/tmp/test-app
+            ${{ steps.setup.outputs.needs_gcp == 'true' && format('--workload-identity-provider={0} --service-account={1} --project-id={2} --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL --region=europe-west9', secrets.GCP_WORKLOAD_IDENTITY_PROVIDER, secrets.GCP_SERVICE_ACCOUNT, secrets.GCP_PROJECT_ID) || '' }}
+            ${{ steps.setup.outputs.args }}
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   release:
-    needs: [discover, test-non-gcp, test-gcp, test-gcp-firebase]
-    if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !contains(needs.*.result, 'failure')
-
+    needs: [discover, test]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
