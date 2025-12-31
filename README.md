@@ -13,13 +13,21 @@ A collection of small, independent, reusable Dagger modules for CI/CD pipelines.
 | **gcp-vertex-ai** | Vertex AI model deployment | gcp-auth |
 | **gcp-firebase** | Firebase Hosting deployment | None |
 | **health-check** | Container health checking | None |
+| **oidc** | OIDC token utilities | None |
 
 ## Installation
 
-Install modules from GitHub:
+Install modules with a specific version:
 
 ```bash
-dagger install github.com/YOUR_ORG/daggerverse/MODULE_NAME
+dagger install github.com/YOUR_ORG/daggerverse/calver@v1.0.0
+dagger install github.com/YOUR_ORG/daggerverse/gcp-auth@v1.0.0
+```
+
+Or use the latest from main (not recommended for production):
+
+```bash
+dagger install github.com/YOUR_ORG/daggerverse/calver
 ```
 
 ## Architecture
@@ -33,6 +41,7 @@ daggerverse/
 ├── gcp-vertex-ai/
 ├── gcp-firebase/
 ├── health-check/
+├── oidc/                # OIDC token utilities
 └── tests/               # Centralized test suite
 ```
 
@@ -143,6 +152,44 @@ gcp-auth (base)
 calver (independent)
 health-check (independent)
 gcp-firebase (independent)
+oidc (independent)
+```
+
+## Publishing
+
+Modules are versioned independently using semantic versioning (`vMAJOR.MINOR.PATCH`).
+
+### Version Tags
+
+Each module has its own version tags prefixed with the module name:
+
+```
+calver/v1.0.0
+gcp-auth/v1.2.3
+health-check/v0.5.0
+```
+
+### Publishing a Module
+
+Use the **Publish Module** workflow in GitHub Actions:
+
+1. Go to Actions > Publish Module
+2. Select the module to publish
+3. Choose version bump type (major/minor/patch)
+4. Run the workflow
+
+The workflow will:
+- Calculate the next version from existing tags
+- Validate the module loads correctly
+- Create and push the version tag
+- Create a GitHub Release
+
+### Manual Tagging
+
+```bash
+# Create a version tag
+git tag -a calver/v1.0.0 -m "Release calver v1.0.0"
+git push origin calver/v1.0.0
 ```
 
 ## Contributing

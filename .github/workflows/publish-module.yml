@@ -1,0 +1,159 @@
+name: Publish Module
+
+on:
+  workflow_dispatch:
+    inputs:
+      module:
+        description: 'Module to publish'
+        required: true
+        type: choice
+        options:
+          - calver
+          - gcp-auth
+          - gcp-artifact-registry
+          - gcp-cloud-run
+          - gcp-vertex-ai
+          - gcp-firebase
+          - health-check
+          - oidc
+      version_type:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      version_override:
+        description: 'Override version (e.g., 1.2.3) - leave empty for auto-increment'
+        required: false
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for tags
+
+      - name: Validate module exists
+        run: |
+          if [ ! -d "${{ inputs.module }}" ]; then
+            echo "ERROR: Module '${{ inputs.module }}' does not exist"
+            exit 1
+          fi
+          if [ ! -f "${{ inputs.module }}/dagger.json" ]; then
+            echo "ERROR: Module '${{ inputs.module }}' is not a valid Dagger module"
+            exit 1
+          fi
+          echo "Module '${{ inputs.module }}' validated"
+
+      - name: Calculate next version
+        id: version
+        run: |
+          MODULE="${{ inputs.module }}"
+          VERSION_TYPE="${{ inputs.version_type }}"
+          VERSION_OVERRIDE="${{ inputs.version_override }}"
+
+          # If version override is provided, use it
+          if [ -n "$VERSION_OVERRIDE" ]; then
+            # Validate format
+            if ! echo "$VERSION_OVERRIDE" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "ERROR: Invalid version format. Use MAJOR.MINOR.PATCH (e.g., 1.2.3)"
+              exit 1
+            fi
+            NEXT_VERSION="$VERSION_OVERRIDE"
+            echo "Using override version: $NEXT_VERSION"
+          else
+            # Get latest tag for this module
+            LATEST_TAG=$(git tag -l "${MODULE}/v*" | sort -V | tail -n 1)
+
+            if [ -z "$LATEST_TAG" ]; then
+              # No existing tags, start at v0.1.0
+              NEXT_VERSION="0.1.0"
+              echo "No existing tags found, starting at v0.1.0"
+            else
+              # Extract version numbers
+              CURRENT_VERSION="${LATEST_TAG#${MODULE}/v}"
+              MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+              MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+              PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+
+              echo "Current version: $CURRENT_VERSION"
+
+              # Bump version based on type
+              case "$VERSION_TYPE" in
+                major)
+                  MAJOR=$((MAJOR + 1))
+                  MINOR=0
+                  PATCH=0
+                  ;;
+                minor)
+                  MINOR=$((MINOR + 1))
+                  PATCH=0
+                  ;;
+                patch)
+                  PATCH=$((PATCH + 1))
+                  ;;
+              esac
+
+              NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            fi
+          fi
+
+          TAG_NAME="${MODULE}/v${NEXT_VERSION}"
+          echo "Next version: $NEXT_VERSION"
+          echo "Tag name: $TAG_NAME"
+
+          # Check if tag already exists
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "ERROR: Tag $TAG_NAME already exists"
+            exit 1
+          fi
+
+          echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Setup Dagger
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "0.19.8"
+          verb: version
+
+      - name: Validate module loads
+        run: |
+          cd ${{ inputs.module }}
+          dagger functions > /dev/null
+          echo "Module validated successfully"
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ inputs.module }} v${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+          echo "Created and pushed tag: ${{ steps.version.outputs.tag }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "${{ inputs.module }} v${{ steps.version.outputs.version }}"
+          body: |
+            ## ${{ inputs.module }} v${{ steps.version.outputs.version }}
+
+            ### Installation
+
+            ```bash
+            dagger install github.com/${{ github.repository }}/${{ inputs.module }}@v${{ steps.version.outputs.version }}
+            ```
+
+            ### Changes
+
+            See [commits since last release](https://github.com/${{ github.repository }}/compare/${{ inputs.module }}/v${{ steps.version.outputs.version }}...HEAD) for details.
+          generate_release_notes: true
