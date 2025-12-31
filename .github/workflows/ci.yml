@@ -70,6 +70,9 @@ jobs:
       fail-fast: false
       matrix:
         module: ${{ fromJson(needs.discover.outputs.non_gcp_modules) }}
+        exclude:
+          - module: oidc   # needs real OIDC tokens
+          - module: semver # needs git repo with tags
     steps:
       - uses: actions/checkout@v4
       - name: Test ${{ matrix.module }}
