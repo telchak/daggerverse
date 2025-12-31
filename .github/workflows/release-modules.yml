@@ -21,6 +21,9 @@ jobs:
   check-workflows:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: read
+      actions: read
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
       modules: ${{ steps.discover.outputs.modules }}
