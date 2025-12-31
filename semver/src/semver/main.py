@@ -355,6 +355,13 @@ class Semver:
         """Create and push a git tag."""
         git = self._git_container(source)
 
+        # Configure git identity for creating annotated tags
+        git = (
+            git
+            .with_exec(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"])
+            .with_exec(["git", "config", "user.name", "github-actions[bot]"])
+        )
+
         # Create annotated tag
         git = await git.with_exec(["git", "tag", "-a", tag, "-m", f"Release {tag}"]).sync()
 
