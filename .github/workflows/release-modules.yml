@@ -23,7 +23,25 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
+      modules: ${{ steps.discover.outputs.modules }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Discover modules
+        id: discover
+        run: |
+          # Find all dagger.json in root directories (exclude tests and nested examples)
+          MODULES=$(find . -maxdepth 2 -name "dagger.json" -not -path "./tests/*" | \
+            xargs -I {} dirname {} | \
+            sed 's|^\./||' | \
+            sort -u | \
+            jq -R -s -c 'split("\n") | map(select(length > 0))')
+
+          echo "Discovered modules: $MODULES"
+          echo "modules=$MODULES" >> $GITHUB_OUTPUT
+
       - name: Check if all required workflows passed
         id: check
         env:
@@ -54,7 +72,7 @@ jobs:
 
   release:
     needs: check-workflows
-    if: ${{ needs.check-workflows.outputs.should_release == 'true' }}
+    if: ${{ needs.check-workflows.outputs.should_release == 'true' && needs.check-workflows.outputs.modules != '[]' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -62,16 +80,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module:
-          - calver
-          - gcp-auth
-          - gcp-artifact-registry
-          - gcp-cloud-run
-          - gcp-vertex-ai
-          - gcp-firebase
-          - health-check
-          - oidc
-          - semver
+        module: ${{ fromJson(needs.check-workflows.outputs.modules) }}
     steps:
       - uses: actions/checkout@v4
         with:

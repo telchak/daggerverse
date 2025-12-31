@@ -12,26 +12,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Discover modules
+        id: discover
+        run: |
+          # Find all dagger.json in root directories (depth 2 to catch module/dagger.json)
+          MODULES=$(find . -maxdepth 2 -name "dagger.json" | \
+            xargs -I {} dirname {} | \
+            sed 's|^\./||' | \
+            sort -u | \
+            tr '\n' ' ')
+
+          echo "Discovered modules: $MODULES"
+          echo "modules=$MODULES" >> $GITHUB_OUTPUT
+
       - name: Check module structure
         run: |
-          MODULES="calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check oidc semver tests"
+          MODULES="${{ steps.discover.outputs.modules }}"
           ERRORS=0
 
           for module in $MODULES; do
             echo "Checking $module..."
 
-            # Check dagger.json exists
+            # Check dagger.json exists (should always be true since we discovered it)
             if [ ! -f "$module/dagger.json" ]; then
               echo "  ERROR: $module/dagger.json not found"
               ERRORS=$((ERRORS + 1))
+              continue
             fi
 
             # Check dagger.json has description
-            if [ -f "$module/dagger.json" ]; then
-              if ! grep -q '"description"' "$module/dagger.json"; then
-                echo "  ERROR: $module/dagger.json missing 'description' field"
-                ERRORS=$((ERRORS + 1))
-              fi
+            if ! grep -q '"description"' "$module/dagger.json"; then
+              echo "  ERROR: $module/dagger.json missing 'description' field"
+              ERRORS=$((ERRORS + 1))
             fi
 
             # Skip tests module for README and examples checks
@@ -81,7 +93,6 @@ jobs:
             echo "Checking $py_file..."
 
             # Find @function decorators not followed by a docstring
-            # This checks if a def line after @function has a docstring on the next non-empty line
             python3 << EOF
           import re
           import sys
@@ -119,11 +130,13 @@ jobs:
 
       - name: Check for emojis in code
         run: |
+          MODULES="${{ steps.discover.outputs.modules }}"
+
           # Check for common emojis in Python source files (not README)
           if grep -rE '✓|✅|❌|⚠️|🎯|📦|🚀|💡|🔗|📝|🌟|📋|📚|🏗️|🔄|🧪|🤝|📖' \
               --include="*.py" \
               --exclude-dir=".git" \
-              calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check oidc semver tests 2>/dev/null; then
+              $MODULES 2>/dev/null; then
             echo "WARNING: Found emojis in Python source files"
             echo "Consider removing emojis for cleaner output"
           else
@@ -135,10 +148,11 @@ jobs:
         with:
           version: "0.19.8"
           verb: version
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
       - name: Validate dagger modules load correctly
         run: |
-          MODULES="calver gcp-auth gcp-artifact-registry gcp-cloud-run gcp-vertex-ai gcp-firebase health-check oidc semver tests"
+          MODULES="${{ steps.discover.outputs.modules }}"
 
           for module in $MODULES; do
             echo "Validating $module module..."

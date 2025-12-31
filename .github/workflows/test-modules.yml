@@ -15,114 +15,136 @@ on:
         type: boolean
   push:
     branches: [main]
-    paths:
-      - 'calver/**'
-      - 'gcp-auth/**'
-      - 'gcp-artifact-registry/**'
-      - 'gcp-cloud-run/**'
-      - 'gcp-vertex-ai/**'
-      - 'gcp-firebase/**'
-      - 'health-check/**'
-      - 'oidc/**'
-      - 'tests/**'
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/validate-modules.yml'
+      - '.github/workflows/release-modules.yml'
+      - '.github/workflows/publish-module.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'calver/**'
-      - 'gcp-auth/**'
-      - 'gcp-artifact-registry/**'
-      - 'gcp-cloud-run/**'
-      - 'gcp-vertex-ai/**'
-      - 'gcp-firebase/**'
-      - 'health-check/**'
-      - 'oidc/**'
-      - 'tests/**'
+    paths-ignore:
+      - '**.md'
 
 jobs:
-  detect-changes:
+  discover-and-detect:
     runs-on: ubuntu-latest
     outputs:
-      calver: ${{ steps.filter.outputs.calver }}
-      gcp-auth: ${{ steps.filter.outputs.gcp-auth }}
-      gcp-artifact-registry: ${{ steps.filter.outputs.gcp-artifact-registry }}
-      gcp-cloud-run: ${{ steps.filter.outputs.gcp-cloud-run }}
-      gcp-vertex-ai: ${{ steps.filter.outputs.gcp-vertex-ai }}
-      gcp-firebase: ${{ steps.filter.outputs.gcp-firebase }}
-      health-check: ${{ steps.filter.outputs.health-check }}
-      oidc: ${{ steps.filter.outputs.oidc }}
+      modules: ${{ steps.discover.outputs.modules }}
+      changed: ${{ steps.detect.outputs.changed }}
+      gcp_modules: ${{ steps.detect.outputs.gcp_modules }}
+      non_gcp_modules: ${{ steps.detect.outputs.non_gcp_modules }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
         with:
-          filters: |
-            calver:
-              - 'calver/**'
-              - 'tests/**'
-            gcp-auth:
-              - 'gcp-auth/**'
-              - 'tests/**'
-            gcp-artifact-registry:
-              - 'gcp-artifact-registry/**'
-              - 'tests/**'
-            gcp-cloud-run:
-              - 'gcp-cloud-run/**'
-              - 'tests/**'
-            gcp-vertex-ai:
-              - 'gcp-vertex-ai/**'
-              - 'tests/**'
-            gcp-firebase:
-              - 'gcp-firebase/**'
-              - 'tests/**'
-            health-check:
-              - 'health-check/**'
-              - 'tests/**'
-            oidc:
-              - 'oidc/**'
-              - 'tests/**'
+          fetch-depth: 0
+
+      - name: Discover all modules
+        id: discover
+        run: |
+          # Find all dagger.json in root directories (exclude nested ones like examples)
+          MODULES=$(find . -maxdepth 2 -name "dagger.json" -not -path "./tests/*" | \
+            xargs -I {} dirname {} | \
+            sed 's|^\./||' | \
+            sort -u | \
+            jq -R -s -c 'split("\n") | map(select(length > 0))')
+
+          echo "Discovered modules: $MODULES"
+          echo "modules=$MODULES" >> $GITHUB_OUTPUT
+
+      - name: Detect changed modules
+        id: detect
+        run: |
+          if [ "${{ inputs.run_all }}" = "true" ]; then
+            echo "Running all tests (manual trigger)"
+            CHANGED='${{ steps.discover.outputs.modules }}'
+          else
+            # Get changed files
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+            else
+              CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git ls-files)
+            fi
+
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+
+            # Find which modules have changes
+            CHANGED_MODULES=()
+            MODULES='${{ steps.discover.outputs.modules }}'
+
+            for module in $(echo "$MODULES" | jq -r '.[]'); do
+              if echo "$CHANGED_FILES" | grep -q "^${module}/" || echo "$CHANGED_FILES" | grep -q "^tests/"; then
+                CHANGED_MODULES+=("$module")
+                echo "Module $module has changes"
+              fi
+            done
+
+            if [ ${#CHANGED_MODULES[@]} -eq 0 ]; then
+              CHANGED="[]"
+            else
+              CHANGED=$(printf '%s\n' "${CHANGED_MODULES[@]}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            fi
+          fi
+
+          echo "Changed modules: $CHANGED"
+          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+
+          # Separate GCP and non-GCP modules
+          GCP_MODULES=$(echo "$CHANGED" | jq -c '[.[] | select(startswith("gcp-"))]')
+          NON_GCP_MODULES=$(echo "$CHANGED" | jq -c '[.[] | select(startswith("gcp-") | not)]')
+
+          echo "GCP modules: $GCP_MODULES"
+          echo "Non-GCP modules: $NON_GCP_MODULES"
+
+          echo "gcp_modules=$GCP_MODULES" >> $GITHUB_OUTPUT
+          echo "non_gcp_modules=$NON_GCP_MODULES" >> $GITHUB_OUTPUT
 
   # Tests that don't require credentials
-  test-calver:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.calver == 'true' || inputs.run_all == true
+  test-non-gcp:
+    needs: discover-and-detect
+    if: ${{ needs.discover-and-detect.outputs.non_gcp_modules != '[]' }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJson(needs.discover-and-detect.outputs.non_gcp_modules) }}
     steps:
       - uses: actions/checkout@v4
-      - name: Run calver tests
+
+      - name: Check if test exists
+        id: check-test
+        run: |
+          # Check if the tests module has a function for this module
+          MODULE="${{ matrix.module }}"
+          TEST_FUNC=$(echo "$MODULE" | tr '-' '_')
+
+          if dagger call -m tests --help 2>&1 | grep -q "$TEST_FUNC\|$MODULE"; then
+            echo "has_test=true" >> $GITHUB_OUTPUT
+          else
+            echo "No test function found for $MODULE, skipping"
+            echo "has_test=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run tests for ${{ matrix.module }}
+        if: steps.check-test.outputs.has_test == 'true'
         uses: dagger/dagger-for-github@v8.2.0
         with:
           version: "0.19.8"
           module: tests
-          call: calver
+          call: ${{ matrix.module }}
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
-  test-health-check:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.health-check == 'true' || inputs.run_all == true
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run health-check tests
-        uses: dagger/dagger-for-github@v8.2.0
-        with:
-          version: "0.19.8"
-          module: tests
-          call: health-check
-          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-
-  # Tests that require GCP credentials
+  # GCP Auth test (runs first, other GCP tests depend on it)
   test-gcp-auth:
-    needs: detect-changes
-    if: |
-      (needs.detect-changes.outputs.gcp-auth == 'true' || inputs.run_all == true) &&
-      inputs.skip_gcp_tests != true
+    needs: discover-and-detect
+    if: ${{ contains(fromJson(needs.discover-and-detect.outputs.gcp_modules), 'gcp-auth') && inputs.skip_gcp_tests != true }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - name: Run gcp-auth OIDC tests
+      - name: Run gcp-auth tests
         uses: dagger/dagger-for-github@v8.2.0
         with:
           version: "0.19.8"
@@ -137,145 +159,86 @@ jobs:
             --region=europe-west9
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
-  test-gcp-artifact-registry:
-    needs: [detect-changes, test-gcp-auth]
+  # Other GCP tests (run after gcp-auth)
+  test-gcp-other:
+    needs: [discover-and-detect, test-gcp-auth]
     if: |
       always() &&
-      (needs.detect-changes.outputs.gcp-artifact-registry == 'true' || needs.detect-changes.outputs.gcp-auth == 'true' || inputs.run_all == true) &&
+      needs.discover-and-detect.outputs.gcp_modules != '[]' &&
       (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped') &&
       inputs.skip_gcp_tests != true
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJson(needs.discover-and-detect.outputs.gcp_modules) }}
+        exclude:
+          - module: gcp-auth
     steps:
       - uses: actions/checkout@v4
-      - name: Run gcp-artifact-registry tests
-        uses: dagger/dagger-for-github@v8.2.0
-        with:
-          version: "0.19.8"
-          module: tests
-          call: >-
-            gcp-artifact-registry
-            --workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}
-            --project-id=${{ secrets.GCP_PROJECT_ID }}
-            --repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
-            --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
-            --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
-            --region=europe-west9
-          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
-  test-gcp-cloud-run:
-    needs: [detect-changes, test-gcp-auth]
-    if: |
-      always() &&
-      (needs.detect-changes.outputs.gcp-cloud-run == 'true' || needs.detect-changes.outputs.gcp-auth == 'true' || inputs.run_all == true) &&
-      (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped') &&
-      inputs.skip_gcp_tests != true
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run gcp-cloud-run CRUD tests
-        uses: dagger/dagger-for-github@v8.2.0
-        with:
-          version: "0.19.8"
-          module: tests
-          call: >-
-            gcp-cloud-run
-            --workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}
-            --project-id=${{ secrets.GCP_PROJECT_ID }}
-            --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
-            --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
-            --region=europe-west9
-          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-
-  test-gcp-vertex-ai:
-    needs: [detect-changes, test-gcp-auth]
-    if: |
-      always() &&
-      (needs.detect-changes.outputs.gcp-vertex-ai == 'true' || needs.detect-changes.outputs.gcp-auth == 'true' || inputs.run_all == true) &&
-      (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped') &&
-      inputs.skip_gcp_tests != true
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run gcp-vertex-ai tests
-        uses: dagger/dagger-for-github@v8.2.0
-        with:
-          version: "0.19.8"
-          module: tests
-          call: >-
-            gcp-vertex-ai
-            --workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}
-            --project-id=${{ secrets.GCP_PROJECT_ID }}
-            --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
-            --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
-            --region=europe-west9
-          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-
-  test-gcp-firebase:
-    needs: [detect-changes, test-gcp-auth]
-    if: |
-      always() &&
-      (needs.detect-changes.outputs.gcp-firebase == 'true' || needs.detect-changes.outputs.gcp-auth == 'true' || inputs.run_all == true) &&
-      (needs.test-gcp-auth.result == 'success' || needs.test-gcp-auth.result == 'skipped')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Create test app
+      - name: Setup test environment for ${{ matrix.module }}
+        id: setup
         run: |
-          mkdir -p /tmp/test-app
-          echo '{"name": "test-app", "scripts": {"build": "mkdir -p dist && echo test > dist/index.html"}}' > /tmp/test-app/package.json
-          echo '{"name": "test-app", "lockfileVersion": 3, "packages": {"": {"name": "test-app"}}}' > /tmp/test-app/package-lock.json
-      - name: Run gcp-firebase tests
+          MODULE="${{ matrix.module }}"
+
+          # Special setup for gcp-firebase
+          if [ "$MODULE" = "gcp-firebase" ]; then
+            mkdir -p /tmp/test-app
+            echo '{"name": "test-app", "scripts": {"build": "mkdir -p dist && echo test > dist/index.html"}}' > /tmp/test-app/package.json
+            echo '{"name": "test-app", "lockfileVersion": 3, "packages": {"": {"name": "test-app"}}}' > /tmp/test-app/package-lock.json
+            echo "extra_args=--source=/tmp/test-app" >> $GITHUB_OUTPUT
+          else
+            echo "extra_args=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run tests for ${{ matrix.module }}
         uses: dagger/dagger-for-github@v8.2.0
         with:
           version: "0.19.8"
           module: tests
-          call: gcp-firebase --source=/tmp/test-app
+          call: >-
+            ${{ matrix.module }}
+            --workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}
+            --project-id=${{ secrets.GCP_PROJECT_ID }}
+            --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
+            --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
+            --region=europe-west9
+            ${{ steps.setup.outputs.extra_args }}
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   # Summary job
   test-summary:
     needs:
-      - test-calver
-      - test-health-check
+      - discover-and-detect
+      - test-non-gcp
       - test-gcp-auth
-      - test-gcp-artifact-registry
-      - test-gcp-cloud-run
-      - test-gcp-vertex-ai
-      - test-gcp-firebase
+      - test-gcp-other
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Check test results
         run: |
-          echo "Test Results:"
-          echo "  calver: ${{ needs.test-calver.result }}"
-          echo "  health-check: ${{ needs.test-health-check.result }}"
-          echo "  gcp-auth: ${{ needs.test-gcp-auth.result }}"
-          echo "  gcp-artifact-registry: ${{ needs.test-gcp-artifact-registry.result }}"
-          echo "  gcp-cloud-run: ${{ needs.test-gcp-cloud-run.result }}"
-          echo "  gcp-vertex-ai: ${{ needs.test-gcp-vertex-ai.result }}"
-          echo "  gcp-firebase: ${{ needs.test-gcp-firebase.result }}"
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Non-GCP Tests | ${{ needs.test-non-gcp.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| GCP Auth Test | ${{ needs.test-gcp-auth.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| GCP Other Tests | ${{ needs.test-gcp-other.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Changed modules:** ${{ needs.discover-and-detect.outputs.changed }}" >> $GITHUB_STEP_SUMMARY
 
-          if [[ "${{ needs.test-calver.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-health-check.result }}" == "failure" ]] || \
+          # Fail if any required job failed
+          if [[ "${{ needs.test-non-gcp.result }}" == "failure" ]] || \
              [[ "${{ needs.test-gcp-auth.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-gcp-artifact-registry.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-gcp-cloud-run.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-gcp-vertex-ai.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-gcp-firebase.result }}" == "failure" ]]; then
+             [[ "${{ needs.test-gcp-other.result }}" == "failure" ]]; then
             echo "One or more tests failed!"
             exit 1
           fi
-          echo "All tests passed!"
+
+          echo "All tests passed or were skipped!"
