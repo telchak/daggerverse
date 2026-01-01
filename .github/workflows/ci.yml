@@ -115,10 +115,6 @@ jobs:
               echo "args=" >> $GITHUB_OUTPUT
               echo "needs_gcp=true" >> $GITHUB_OUTPUT
               ;;
-            oidc)
-              echo "args=--oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL" >> $GITHUB_OUTPUT
-              echo "needs_gcp=false" >> $GITHUB_OUTPUT
-              ;;
             semver)
               echo "args=--source=." >> $GITHUB_OUTPUT
               echo "needs_gcp=false" >> $GITHUB_OUTPUT
