@@ -37,6 +37,10 @@
     {
       "name": "oidc",
       "source": "../oidc"
+    },
+    {
+      "name": "semver",
+      "source": "../semver"
     }
   ]
 }

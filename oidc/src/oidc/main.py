@@ -11,7 +11,7 @@ class Oidc:
     """Universal OIDC token handling for various CI/CD providers."""
 
     @function
-    def github_token(
+    async def github_token(
         self,
         request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
@@ -31,7 +31,7 @@ curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
     | jq -r '.value'
 '''
 
-        return (
+        token_value = await (
             dag.container()
             .from_("alpine:latest")
             .with_exec(["apk", "add", "--no-cache", "curl", "jq"])
@@ -39,8 +39,8 @@ curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_URL", request_url)
             .with_exec(["sh", "-c", script])
             .stdout()
-            .as_secret()
         )
+        return dag.set_secret("oidc-token", token_value.strip())
 
     @function
     def gitlab_token(
