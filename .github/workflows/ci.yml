@@ -174,7 +174,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=$(dagger call -m ./calver version --source=.)
+          VERSION=$(dagger call -m ./calver generate --source=.)
 
           # Build release notes
           NOTES="## Module Versions\n\n| Module | Version |\n|--------|---------|"
