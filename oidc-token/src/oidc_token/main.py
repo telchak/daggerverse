@@ -1,4 +1,4 @@
-"""OIDC Module - Universal OIDC token handling for CI/CD providers."""
+"""OIDC Token Module - Universal OIDC token handling for CI/CD providers."""
 
 from typing import Annotated
 
@@ -7,7 +7,7 @@ from dagger import Doc, dag, function, object_type
 
 
 @object_type
-class Oidc:
+class OidcToken:
     """Universal OIDC token handling for various CI/CD providers."""
 
     @function

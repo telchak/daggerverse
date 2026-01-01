@@ -165,16 +165,16 @@ jobs:
 
 ---
 
-### Using with the `oidc` Module (Multi-CI Support)
+### Using with the `oidc-token` Module (Multi-CI Support)
 
-For maximum flexibility across CI providers, use the `oidc` module to get tokens:
+For maximum flexibility across CI providers, use the `oidc-token` module to get tokens:
 
 ```yaml
-# GitHub Actions - using oidc module
+# GitHub Actions - using oidc-token module
 - name: Deploy with Dagger
   run: |
-    # Get OIDC token using the oidc module
-    TOKEN=$(dagger call -m ../oidc github-token \
+    # Get OIDC token using the oidc-token module
+    TOKEN=$(dagger call -m ../oidc-token github-token \
       --request-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
       --request-url=env:ACTIONS_ID_TOKEN_REQUEST_URL \
       --audience="//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider")
@@ -187,7 +187,7 @@ For maximum flexibility across CI providers, use the `oidc` module to get tokens
       with-exec --args="gcloud","version"
 ```
 
-This approach works with any CI provider supported by the `oidc` module (GitHub, GitLab, CircleCI).
+This approach works with any CI provider supported by the `oidc-token` module (GitHub, GitLab, CircleCI).
 
 ---
 

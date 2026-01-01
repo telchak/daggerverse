@@ -13,7 +13,7 @@ A collection of small, independent, reusable Dagger modules for CI/CD pipelines.
 | **gcp-vertex-ai** | Vertex AI model deployment | gcp-auth |
 | **gcp-firebase** | Firebase Hosting deployment | None |
 | **health-check** | Container health checking | None |
-| **oidc** | OIDC token utilities | None |
+| **oidc-token** | OIDC token utilities | None |
 | **semver** | Semantic Versioning with Conventional Commits | None |
 
 ## Installation
@@ -42,7 +42,7 @@ daggerverse/
 ├── gcp-vertex-ai/
 ├── gcp-firebase/
 ├── health-check/
-├── oidc/                # OIDC token utilities
+├── oidc-token/          # OIDC token utilities
 ├── semver/              # Semantic versioning
 └── tests/               # Centralized test suite
 ```
@@ -154,7 +154,7 @@ gcp-auth (base)
 calver (independent)
 health-check (independent)
 gcp-firebase (independent)
-oidc (independent)
+oidc-token (independent)
 semver (independent)
 ```
 

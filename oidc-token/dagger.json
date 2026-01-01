@@ -1,5 +1,5 @@
 {
-  "name": "oidc",
+  "name": "oidc-token",
   "description": "OIDC token utilities for CI/CD authentication with cloud providers",
   "engineVersion": "v0.19.8",
   "sdk": {

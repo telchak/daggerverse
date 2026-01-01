@@ -1,4 +1,4 @@
-"""Examples for using the oidc Dagger module."""
+"""Examples for using the oidc-token Dagger module."""
 
 from typing import Annotated
 
@@ -8,7 +8,7 @@ from dagger import Doc, dag, function, object_type
 
 @object_type
 class OidcExamples:
-    """Usage examples for oidc module."""
+    """Usage examples for oidc-token module."""
 
     @function
     def github_oidc_to_gcp(
@@ -22,7 +22,7 @@ class OidcExamples:
         Use this in a GitHub Actions workflow with `id-token: write` permission
         to get a token for authenticating with GCP via Workload Identity Federation.
         """
-        return dag.oidc().github_token(
+        return dag.oidc_token().github_token(
             request_token=request_token,
             request_url=request_url,
             audience=workload_identity_provider,
@@ -38,7 +38,7 @@ class OidcExamples:
         GitLab provides the JWT directly as an environment variable.
         Configure `id_tokens` in your .gitlab-ci.yml to use this.
         """
-        return dag.oidc().gitlab_token(ci_job_jwt=ci_job_jwt)
+        return dag.oidc_token().gitlab_token(ci_job_jwt=ci_job_jwt)
 
     @function
     async def debug_token_claims(
@@ -50,4 +50,4 @@ class OidcExamples:
         Useful for troubleshooting Workload Identity Federation issues
         by inspecting the token's issuer, subject, and audience claims.
         """
-        return await dag.oidc().token_claims(token=token)
+        return await dag.oidc_token().token_claims(token=token)

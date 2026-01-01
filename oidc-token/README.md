@@ -1,4 +1,4 @@
-# OIDC - Dagger Module
+# OIDC Token - Dagger Module
 
 Universal OIDC token handling for CI/CD providers.
 
@@ -78,7 +78,7 @@ jobs:
       - name: Deploy
         run: |
           # Get OIDC token and use with gcp-auth
-          dagger call -m oidc github-token \
+          dagger call -m oidc-token github-token \
             --request-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
             --request-url=env:ACTIONS_ID_TOKEN_REQUEST_URL \
             --audience="//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/github" \

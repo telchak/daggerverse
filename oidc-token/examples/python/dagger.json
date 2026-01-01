@@ -1,12 +1,12 @@
 {
-  "name": "oidc-examples",
+  "name": "oidc-token-examples",
   "engineVersion": "v0.19.8",
   "sdk": {
     "source": "python"
   },
   "dependencies": [
     {
-      "name": "oidc",
+      "name": "oidc-token",
       "source": "../.."
     }
   ]

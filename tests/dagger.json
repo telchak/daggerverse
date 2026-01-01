@@ -35,8 +35,8 @@
       "source": "../health-check"
     },
     {
-      "name": "oidc",
-      "source": "../oidc"
+      "name": "oidc-token",
+      "source": "../oidc-token"
     },
     {
       "name": "semver",
