@@ -98,30 +98,35 @@ jobs:
         run: |
           MODULE="${{ matrix.module }}"
 
-          # Module-specific args
+          # Determine if module needs GCP credentials (passed via constructor)
           case "$MODULE" in
             gcp-artifact-registry)
-              echo "args=--repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}" >> $GITHUB_OUTPUT
               echo "needs_gcp=true" >> $GITHUB_OUTPUT
+              echo "constructor_args=--artifact-registry-repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}" >> $GITHUB_OUTPUT
+              echo "func_args=" >> $GITHUB_OUTPUT
               ;;
             gcp-firebase)
               mkdir -p /tmp/test-app
               echo '{"name":"test","scripts":{"build":"mkdir -p dist && echo test > dist/index.html"}}' > /tmp/test-app/package.json
               echo '{"name":"test","lockfileVersion":3,"packages":{"":{"name":"test"}}}' > /tmp/test-app/package-lock.json
-              echo "args=--source=/tmp/test-app" >> $GITHUB_OUTPUT
               echo "needs_gcp=false" >> $GITHUB_OUTPUT
+              echo "constructor_args=" >> $GITHUB_OUTPUT
+              echo "func_args=--source=/tmp/test-app" >> $GITHUB_OUTPUT
               ;;
             gcp-*)
-              echo "args=" >> $GITHUB_OUTPUT
               echo "needs_gcp=true" >> $GITHUB_OUTPUT
+              echo "constructor_args=" >> $GITHUB_OUTPUT
+              echo "func_args=" >> $GITHUB_OUTPUT
               ;;
             semver)
-              echo "args=--source=." >> $GITHUB_OUTPUT
               echo "needs_gcp=false" >> $GITHUB_OUTPUT
+              echo "constructor_args=" >> $GITHUB_OUTPUT
+              echo "func_args=--source=." >> $GITHUB_OUTPUT
               ;;
             *)
-              echo "args=" >> $GITHUB_OUTPUT
               echo "needs_gcp=false" >> $GITHUB_OUTPUT
+              echo "constructor_args=" >> $GITHUB_OUTPUT
+              echo "func_args=" >> $GITHUB_OUTPUT
               ;;
           esac
 
@@ -131,9 +136,10 @@ jobs:
           version: "0.19.8"
           module: tests
           call: >-
-            ${{ matrix.module }}
             ${{ steps.setup.outputs.needs_gcp == 'true' && format('--workload-identity-provider={0} --service-account={1} --project-id={2} --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL --region=europe-west9', secrets.GCP_WORKLOAD_IDENTITY_PROVIDER, secrets.GCP_SERVICE_ACCOUNT, secrets.GCP_PROJECT_ID) || '' }}
-            ${{ steps.setup.outputs.args }}
+            ${{ steps.setup.outputs.constructor_args }}
+            ${{ matrix.module }}
+            ${{ steps.setup.outputs.func_args }}
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   release:
