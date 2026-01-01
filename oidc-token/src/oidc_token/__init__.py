@@ -11,4 +11,4 @@ Supported CI Providers:
 - CircleCI (via CIRCLE_OIDC_TOKEN env var)
 """
 
-from .main import Oidc as Oidc
+from .main import OidcToken as OidcToken
