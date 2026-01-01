@@ -177,7 +177,7 @@ jobs:
           # Fetch tags created by the previous step
           git fetch --tags
 
-          VERSION=$(dagger call -m ./calver generate --source=.)
+          VERSION=$(dagger call -m ./calver generate --source=. --format="vYYYY.MM.MICRO")
 
           # Build release notes
           NOTES="## Module Versions\n\n| Module | Version |\n|--------|---------|"
