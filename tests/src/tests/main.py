@@ -266,8 +266,10 @@ class Tests:
         project_id: Annotated[str, Doc("GCP project ID")],
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region (unused, for CI compatibility)")] = "us-central1",
     ) -> str:
         """Run gcp-firebase module tests using GitHub Actions OIDC."""
+        _ = region  # Firebase Hosting is global, region not used
         results = []
         channel_id = f"dagger-test-{int(time.time())}"
 
