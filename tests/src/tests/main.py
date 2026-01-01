@@ -317,18 +317,21 @@ class Tests:
         results = []
         sv = dag.semver()
 
+        # Use a test-specific prefix to avoid conflicts with calver tags
+        prefix = "test-semver/"
+
         # Test current version
-        current = await sv.current(source=source, initial_version="v0.0.0")
+        current = await sv.current(source=source, tag_prefix=prefix, initial_version="v0.0.0")
         results.append(f"PASS: current -> {current}")
 
         # Test bump
-        bumped = await sv.bump(source=source, bump_type="patch", initial_version="v1.0.0")
+        bumped = await sv.bump(source=source, tag_prefix=prefix, bump_type="patch", initial_version="v1.0.0")
         if not bumped.startswith("v1.0."):
             raise ValueError(f"Expected v1.0.x, got {bumped}")
         results.append(f"PASS: bump patch -> {bumped}")
 
         # Test bump_type detection
-        bump_type = await sv.bump_type(source=source)
+        bump_type = await sv.bump_type(source=source, tag_prefix=prefix)
         if bump_type not in ["none", "patch", "minor", "major"]:
             raise ValueError(f"Invalid bump_type: {bump_type}")
         results.append(f"PASS: bump_type -> {bump_type}")
