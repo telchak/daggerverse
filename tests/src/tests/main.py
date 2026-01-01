@@ -16,15 +16,15 @@ class Tests:
     """
 
     # GCP credentials (optional - only needed for GCP tests)
-    workload_identity_provider: Annotated[str, Doc("WIF provider resource name")] = ""
-    service_account: Annotated[str, Doc("Service account email")] = ""
-    project_id: Annotated[str, Doc("GCP project ID")] = ""
-    oidc_token: Annotated[dagger.Secret | None, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")] = None
-    oidc_url: Annotated[dagger.Secret | None, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")] = None
-    region: Annotated[str, Doc("GCP region")] = "us-central1"
+    workload_identity_provider: str = ""
+    service_account: str = ""
+    project_id: str = ""
+    oidc_token: dagger.Secret | None = None
+    oidc_url: dagger.Secret | None = None
+    region: str = "us-central1"
 
     # Module-specific test params
-    artifact_registry_repository: Annotated[str, Doc("Artifact Registry repository name")] = ""
+    artifact_registry_repository: str = ""
 
     def _has_gcp_credentials(self) -> bool:
         """Check if GCP credentials are configured."""
