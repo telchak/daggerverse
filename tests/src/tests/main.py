@@ -9,49 +9,7 @@ from dagger import Doc, dag, function, object_type
 
 @object_type
 class Tests:
-    """Test orchestration for daggerverse modules.
-
-    GCP credentials can be provided via constructor for tests that need them.
-    Tests that don't require GCP credentials will work without them.
-    """
-
-    # GCP credentials (optional - only needed for GCP tests)
-    workload_identity_provider: str = ""
-    service_account: str = ""
-    project_id: str = ""
-    oidc_token: dagger.Secret | None = None
-    oidc_url: dagger.Secret | None = None
-    region: str = "us-central1"
-
-    # Module-specific test params
-    artifact_registry_repository: str = ""
-
-    def _has_gcp_credentials(self) -> bool:
-        """Check if GCP credentials are configured."""
-        return bool(
-            self.workload_identity_provider
-            and self.service_account
-            and self.project_id
-            and self.oidc_token
-            and self.oidc_url
-        )
-
-    def _get_gcloud(self) -> dagger.Container:
-        """Get authenticated gcloud container.
-
-        Raises ValueError if GCP credentials are not configured.
-        """
-        if not self._has_gcp_credentials():
-            raise ValueError("GCP credentials not configured. Pass them via constructor.")
-
-        return dag.gcp_auth().gcloud_container_from_github_actions(
-            workload_identity_provider=self.workload_identity_provider,
-            project_id=self.project_id,
-            oidc_request_token=self.oidc_token,
-            oidc_request_url=self.oidc_url,
-            service_account_email=self.service_account,
-            region=self.region,
-        )
+    """Test orchestration for daggerverse modules."""
 
     @function
     async def calver(self) -> str:
@@ -104,13 +62,27 @@ class Tests:
         return "\n".join(results)
 
     @function
-    async def gcp_auth(self) -> str:
-        """Run gcp-auth module tests.
-
-        Requires GCP credentials via constructor.
-        """
+    async def gcp_auth(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> str:
+        """Run gcp-auth module tests using GitHub Actions OIDC."""
         results = []
-        gcloud = self._get_gcloud()
+
+        # Get authenticated gcloud container
+        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+            service_account_email=service_account,
+            region=region,
+        )
 
         # Test auth list
         email = await gcloud.with_exec(
@@ -124,18 +96,24 @@ class Tests:
 
         # Test projects describe
         desc = await gcloud.with_exec(
-            ["gcloud", "projects", "describe", self.project_id, "--format=value(projectId)"]
+            ["gcloud", "projects", "describe", project_id, "--format=value(projectId)"]
         ).stdout()
         results.append(f"PASS: gcloud projects describe -> {desc.strip()}")
 
         return "\n".join(results)
 
     @function
-    async def gcp_artifact_registry(self) -> str:
-        """Run gcp-artifact-registry module tests.
-
-        Requires GCP credentials via constructor and artifact_registry_repository.
-        """
+    async def gcp_artifact_registry(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        repository: Annotated[str, Doc("Artifact Registry repository name")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> str:
+        """Run gcp-artifact-registry module tests using GitHub Actions OIDC."""
         results = []
 
         # Test get_image_uri (no credentials needed)
@@ -152,42 +130,60 @@ class Tests:
         results.append(f"PASS: get_image_uri -> {uri}")
 
         # Test list_images with OIDC
-        if not self.artifact_registry_repository:
-            raise ValueError("artifact_registry_repository not configured via constructor")
+        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+            service_account_email=service_account,
+            region=region,
+        )
 
-        gcloud = self._get_gcloud()
         await gcloud.with_exec([
             "gcloud", "artifacts", "docker", "images", "list",
-            f"{self.region}-docker.pkg.dev/{self.project_id}/{self.artifact_registry_repository}",
+            f"{region}-docker.pkg.dev/{project_id}/{repository}",
             "--format=table(IMAGE,TAGS,CREATE_TIME)",
         ]).stdout()
-        results.append(f"PASS: list_images -> {self.artifact_registry_repository}")
+        results.append(f"PASS: list_images -> {repository}")
 
         return "\n".join(results)
 
     @function
-    async def gcp_cloud_run(self) -> str:
-        """Run gcp-cloud-run module CRUD tests.
-
-        Requires GCP credentials via constructor.
-        """
+    async def gcp_cloud_run(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> str:
+        """Run gcp-cloud-run module CRUD tests using GitHub Actions OIDC."""
         results = []
         service_name = f"dagger-test-{int(time.time())}"
         test_image = "gcr.io/google-samples/hello-app:1.0"
-        gcloud = self._get_gcloud()
+
+        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+            service_account_email=service_account,
+            region=region,
+        )
 
         try:
             # CREATE
             await gcloud.with_exec([
                 "gcloud", "run", "deploy", service_name, "--image", test_image,
-                "--region", self.region, "--port", "8080", "--allow-unauthenticated", "--quiet",
+                "--region", region, "--port", "8080", "--allow-unauthenticated", "--quiet",
             ]).stdout()
             results.append(f"PASS: CREATE - deployed {service_name}")
 
             # READ - check exists
             result = await gcloud.with_exec([
                 "gcloud", "run", "services", "describe", service_name,
-                "--region", self.region, "--format", "value(metadata.name)",
+                "--region", region, "--format", "value(metadata.name)",
             ]).stdout()
             if not result.strip():
                 raise Exception(f"Service {service_name} not found after deploy")
@@ -196,20 +192,20 @@ class Tests:
             # READ - get URL
             url = await gcloud.with_exec([
                 "gcloud", "run", "services", "describe", service_name,
-                "--region", self.region, "--format", "value(status.url)",
+                "--region", region, "--format", "value(status.url)",
             ]).stdout()
             results.append(f"PASS: READ - get_service_url -> {url.strip()}")
 
             # UPDATE
             await gcloud.with_exec([
                 "gcloud", "run", "deploy", service_name, "--image", test_image,
-                "--region", self.region, "--set-env-vars", "TEST_VAR=updated", "--quiet",
+                "--region", region, "--set-env-vars", "TEST_VAR=updated", "--quiet",
             ]).stdout()
             results.append("PASS: UPDATE - redeployed with env var")
 
             # DELETE
             await gcloud.with_exec([
-                "gcloud", "run", "services", "delete", service_name, "--region", self.region, "--quiet",
+                "gcloud", "run", "services", "delete", service_name, "--region", region, "--quiet",
             ]).stdout()
             results.append("PASS: DELETE - service deleted")
 
@@ -217,7 +213,7 @@ class Tests:
             results.append(f"FAIL: {e}")
             try:
                 await gcloud.with_exec([
-                    "gcloud", "run", "services", "delete", service_name, "--region", self.region, "--quiet",
+                    "gcloud", "run", "services", "delete", service_name, "--region", region, "--quiet",
                 ]).stdout()
                 results.append(f"CLEANUP: deleted {service_name}")
             except Exception:
@@ -227,23 +223,36 @@ class Tests:
         return "\n".join(results)
 
     @function
-    async def gcp_vertex_ai(self) -> str:
-        """Run gcp-vertex-ai module tests.
-
-        Requires GCP credentials via constructor.
-        """
+    async def gcp_vertex_ai(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> str:
+        """Run gcp-vertex-ai module tests using GitHub Actions OIDC."""
         results = []
-        gcloud = self._get_gcloud()
+
+        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+            service_account_email=service_account,
+            region=region,
+        )
 
         # Test list models
         await gcloud.with_exec([
-            "gcloud", "ai", "models", "list", f"--region={self.region}",
+            "gcloud", "ai", "models", "list", f"--region={region}",
         ]).stdout()
         results.append("PASS: list_models")
 
         # Test list endpoints
         await gcloud.with_exec([
-            "gcloud", "ai", "endpoints", "list", f"--region={self.region}",
+            "gcloud", "ai", "endpoints", "list", f"--region={region}",
         ]).stdout()
         results.append("PASS: list_endpoints")
 
@@ -333,22 +342,4 @@ class Tests:
         results.append(f"calver:\n{await self.calver()}")
         results.append(f"health-check:\n{await self.health_check()}")
         results.append(f"oidc-token:\n{await self.oidc_token()}")
-        return "\n\n".join(results)
-
-    @function
-    async def all_gcp(self) -> str:
-        """Run all GCP tests.
-
-        Requires GCP credentials via constructor.
-        """
-        results = []
-        results.append(f"gcp-auth:\n{await self.gcp_auth()}")
-        results.append(f"gcp-vertex-ai:\n{await self.gcp_vertex_ai()}")
-        results.append(f"gcp-cloud-run:\n{await self.gcp_cloud_run()}")
-
-        if self.artifact_registry_repository:
-            results.append(f"gcp-artifact-registry:\n{await self.gcp_artifact_registry()}")
-        else:
-            results.append("gcp-artifact-registry: SKIPPED (no repository configured)")
-
         return "\n\n".join(results)
