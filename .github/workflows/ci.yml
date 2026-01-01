@@ -105,11 +105,8 @@ jobs:
               echo "needs_gcp=true" >> $GITHUB_OUTPUT
               ;;
             gcp-firebase)
-              mkdir -p /tmp/test-app
-              echo '{"name":"test","scripts":{"build":"mkdir -p dist && echo test > dist/index.html"}}' > /tmp/test-app/package.json
-              echo '{"name":"test","lockfileVersion":3,"packages":{"":{"name":"test"}}}' > /tmp/test-app/package-lock.json
-              echo "args=--source=/tmp/test-app" >> $GITHUB_OUTPUT
-              echo "needs_gcp=false" >> $GITHUB_OUTPUT
+              echo "args=" >> $GITHUB_OUTPUT
+              echo "needs_gcp=true" >> $GITHUB_OUTPUT
               ;;
             gcp-*)
               echo "args=" >> $GITHUB_OUTPUT

@@ -15,6 +15,7 @@ dagger install github.com/YOUR_ORG/daggerverse/gcp-firebase
 | `build` | Build web application and return dist directory |
 | `deploy` | Build and deploy to Firebase Hosting |
 | `deploy-preview` | Deploy to a preview channel |
+| `delete-channel` | Delete a preview channel |
 
 ## Usage
 
@@ -39,6 +40,15 @@ dagger call deploy-preview \
   --expires=7d
 ```
 
+### Delete Preview Channel
+
+```bash
+dagger call delete-channel \
+  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
+  --project-id=my-firebase-project \
+  --channel-id=pr-123
+```
+
 ### Python Example
 
 ```python
@@ -59,6 +69,13 @@ preview_url = await dag.gcp_firebase().deploy_preview(
     channel_id="pr-123",
     source=source_dir,
     expires="7d",
+)
+
+# Delete preview channel
+await dag.gcp_firebase().delete_channel(
+    credentials=credentials,
+    project_id="my-firebase-project",
+    channel_id="pr-123",
 )
 ```
 

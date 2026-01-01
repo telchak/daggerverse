@@ -130,3 +130,26 @@ class GcpFirebase:
         msg = f"Could not extract preview URL from Firebase output:\n{output}"
         raise ValueError(msg)
 
+    @function
+    async def delete_channel(
+        self,
+        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials (JSON)")],
+        project_id: Annotated[str, Doc("Firebase project ID")],
+        channel_id: Annotated[str, Doc("Preview channel ID to delete")],
+        site: Annotated[str | None, Doc("Firebase Hosting site (defaults to project ID)")] = None,
+        node_version: Annotated[str, Doc("Node.js version")] = "20",
+    ) -> str:
+        """Delete a Firebase Hosting preview channel."""
+        site_name = site or project_id
+        return await (
+            self._base_container(credentials, node_version)
+            .with_exec([
+                "firebase", "hosting:channel:delete", channel_id,
+                "--site", site_name,
+                "--project", project_id,
+                "--non-interactive",
+                "--force",
+            ])
+            .stdout()
+        )
+

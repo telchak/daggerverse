@@ -261,17 +261,81 @@ class Tests:
     @function
     async def gcp_firebase(
         self,
-        source: Annotated[dagger.Directory, Doc("Test app source directory")],
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
     ) -> str:
-        """Run gcp-firebase module tests."""
+        """Run gcp-firebase module tests using GitHub Actions OIDC."""
         results = []
+        channel_id = f"dagger-test-{int(time.time())}"
 
-        # Test build (no credentials needed)
-        dist = dag.gcp_firebase().build(source=source)
+        # Get credentials from OIDC
+        credentials = await dag.gcp_auth().oidc_credentials(
+            workload_identity_provider=workload_identity_provider,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+            service_account_email=service_account,
+        )
+
+        # Clone hello-dagger-template from GitHub
+        source = (
+            dag.git("https://github.com/dagger/hello-dagger-template.git")
+            .branch("main")
+            .tree()
+        )
+
+        # Add firebase.json for hosting configuration
+        firebase_json = """{
+  "hosting": {
+    "public": "dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+  }
+}"""
+        source = source.with_new_file("firebase.json", firebase_json)
+
+        # Test build
+        dist = dag.gcp_firebase().build(source=source, build_command="npm run build-only")
         entries = await dist.entries()
         if len(entries) == 0:
             raise ValueError("Build produced no output files")
         results.append(f"PASS: build -> {len(entries)} files")
+
+        try:
+            # Test deploy_preview
+            preview_url = await dag.gcp_firebase().deploy_preview(
+                credentials=credentials,
+                project_id=project_id,
+                channel_id=channel_id,
+                source=source,
+                build_command="npm run build-only",
+            )
+            if not preview_url.startswith("https://"):
+                raise ValueError(f"Invalid preview URL: {preview_url}")
+            results.append(f"PASS: deploy_preview -> {preview_url}")
+
+            # Test delete_channel
+            await dag.gcp_firebase().delete_channel(
+                credentials=credentials,
+                project_id=project_id,
+                channel_id=channel_id,
+            )
+            results.append("PASS: delete_channel")
+
+        except Exception as e:
+            results.append(f"FAIL: {e}")
+            # Cleanup on failure
+            try:
+                await dag.gcp_firebase().delete_channel(
+                    credentials=credentials,
+                    project_id=project_id,
+                    channel_id=channel_id,
+                )
+                results.append(f"CLEANUP: deleted channel {channel_id}")
+            except Exception:
+                pass
+            raise
 
         return "\n".join(results)
 
