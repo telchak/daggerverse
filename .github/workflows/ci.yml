@@ -161,6 +161,20 @@ jobs:
         run: |
           for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
             echo "Processing $module..."
+
+            # Get latest tag for this module
+            LATEST_TAG=$(git tag -l "${module}/v*" --sort=-v:refname | head -n1)
+
+            # Skip if no changes since last tag
+            if [ -n "$LATEST_TAG" ]; then
+              if ! git diff --quiet "$LATEST_TAG" HEAD -- "$module/"; then
+                echo "  Changes detected since $LATEST_TAG"
+              else
+                echo "  No changes since $LATEST_TAG, skipping"
+                continue
+              fi
+            fi
+
             TAG=$(dagger call -m ./semver release \
               --source=. \
               --tag-prefix="${module}/" \
