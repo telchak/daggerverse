@@ -81,8 +81,14 @@ curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
 
         Note: This only decodes the payload, it does not verify the signature.
         """
+        # JWT uses base64url encoding without padding, need to convert to standard base64
         script = '''
-echo "$OIDC_TOKEN" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
+PAYLOAD=$(echo "$OIDC_TOKEN" | cut -d'.' -f2)
+# Add padding if needed
+MOD=$((${#PAYLOAD} % 4))
+if [ $MOD -eq 2 ]; then PAYLOAD="${PAYLOAD}=="; elif [ $MOD -eq 3 ]; then PAYLOAD="${PAYLOAD}="; fi
+# Convert base64url to base64 and decode
+echo "$PAYLOAD" | tr '_-' '/+' | base64 -d | jq .
 '''
         return await (
             dag.container()
