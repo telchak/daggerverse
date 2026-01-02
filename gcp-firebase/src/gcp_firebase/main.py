@@ -22,15 +22,19 @@ class GcpFirebase:
         credentials: dagger.Secret,
         node_version: str = "20",
     ) -> dagger.Container:
-        """Create a base container with Node.js and Firebase CLI, authenticated with GCP credentials."""
+        """Create a base container with Node.js, gcloud, and Firebase CLI, authenticated with GCP credentials."""
         credentials_path = "/tmp/gcp-credentials.json"
+        # Use gcloud SDK image and add Node.js for Firebase CLI
+        # This ensures proper authentication with Workload Identity Federation
         return (
             dag.container()
-            .from_(f"node:{node_version}-alpine")
-            .with_exec(["apk", "add", "--no-cache", "openjdk17-jre"])  # Required for Firebase Functions emulator/deploy
+            .from_("google/cloud-sdk:alpine")
+            .with_exec(["apk", "add", "--no-cache", f"nodejs~={node_version}", "npm", "openjdk17-jre"])
             .with_exec(["npm", "install", "-g", "firebase-tools"])
             .with_mounted_secret(credentials_path, credentials)
             .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", credentials_path)
+            # Authenticate gcloud with the credentials file (supports WIF)
+            .with_exec(["gcloud", "auth", "login", "--cred-file", credentials_path, "--quiet"])
         )
 
     @function
