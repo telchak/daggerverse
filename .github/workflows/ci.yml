@@ -194,12 +194,14 @@ jobs:
 
       - name: Test summary
         if: always()
+        env:
+          TEST_OUTPUT: ${{ steps.test.outputs.output }}
         run: |
           echo "## Test: ${{ matrix.module }}" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.test.outcome }}" == "success" ]; then
             echo ":white_check_mark: **PASSED**" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "${{ steps.test.outputs.output }}" >> $GITHUB_STEP_SUMMARY
+            echo "$TEST_OUTPUT" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
           else
             echo ":x: **FAILED**" >> $GITHUB_STEP_SUMMARY
