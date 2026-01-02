@@ -37,16 +37,23 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Cache Dagger Engine
+        id: cache-dagger
         uses: actions/cache@v4
         with:
           path: /tmp/dagger-engine.tar
           key: dagger-engine-${{ env.DAGGER_VERSION }}
 
-      - name: Load cached Dagger Engine
+      - name: Load or Pull Dagger Engine
         run: |
+          IMAGE="registry.dagger.io/engine:v${{ env.DAGGER_VERSION }}"
           if [ -f /tmp/dagger-engine.tar ]; then
             echo "Loading cached Dagger engine..."
             docker load < /tmp/dagger-engine.tar
+          else
+            echo "Pulling Dagger engine..."
+            docker pull "$IMAGE"
+            echo "Saving to cache..."
+            docker save "$IMAGE" > /tmp/dagger-engine.tar
           fi
 
       - name: Setup Dagger
@@ -55,14 +62,6 @@ jobs:
           version: ${{ env.DAGGER_VERSION }}
           verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-
-      - name: Save Dagger Engine to cache
-        if: always()
-        run: |
-          if [ ! -f /tmp/dagger-engine.tar ]; then
-            echo "Saving Dagger engine to cache..."
-            docker save registry.dagger.io/engine:v${{ env.DAGGER_VERSION }} > /tmp/dagger-engine.tar
-          fi
 
       - name: Validate modules
         run: |
@@ -179,16 +178,23 @@ jobs:
           create_credentials_file: true
 
       - name: Cache Dagger Engine
+        id: cache-dagger
         uses: actions/cache@v4
         with:
           path: /tmp/dagger-engine.tar
           key: dagger-engine-${{ env.DAGGER_VERSION }}
 
-      - name: Load cached Dagger Engine
+      - name: Load or Pull Dagger Engine
         run: |
+          IMAGE="registry.dagger.io/engine:v${{ env.DAGGER_VERSION }}"
           if [ -f /tmp/dagger-engine.tar ]; then
             echo "Loading cached Dagger engine..."
             docker load < /tmp/dagger-engine.tar
+          else
+            echo "Pulling Dagger engine..."
+            docker pull "$IMAGE"
+            echo "Saving to cache..."
+            docker save "$IMAGE" > /tmp/dagger-engine.tar
           fi
 
       - name: Setup Dagger
@@ -197,14 +203,6 @@ jobs:
           version: ${{ env.DAGGER_VERSION }}
           verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-
-      - name: Save Dagger Engine to cache
-        if: always()
-        run: |
-          if [ ! -f /tmp/dagger-engine.tar ]; then
-            echo "Saving Dagger engine to cache..."
-            docker save registry.dagger.io/engine:v${{ env.DAGGER_VERSION }} > /tmp/dagger-engine.tar
-          fi
 
       - name: Test ${{ matrix.module }}
         id: test
@@ -267,16 +265,23 @@ jobs:
           fetch-depth: 0
 
       - name: Cache Dagger Engine
+        id: cache-dagger
         uses: actions/cache@v4
         with:
           path: /tmp/dagger-engine.tar
           key: dagger-engine-${{ env.DAGGER_VERSION }}
 
-      - name: Load cached Dagger Engine
+      - name: Load or Pull Dagger Engine
         run: |
+          IMAGE="registry.dagger.io/engine:v${{ env.DAGGER_VERSION }}"
           if [ -f /tmp/dagger-engine.tar ]; then
             echo "Loading cached Dagger engine..."
             docker load < /tmp/dagger-engine.tar
+          else
+            echo "Pulling Dagger engine..."
+            docker pull "$IMAGE"
+            echo "Saving to cache..."
+            docker save "$IMAGE" > /tmp/dagger-engine.tar
           fi
 
       - name: Setup Dagger
@@ -285,14 +290,6 @@ jobs:
           version: ${{ env.DAGGER_VERSION }}
           verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-
-      - name: Save Dagger Engine to cache
-        if: always()
-        run: |
-          if [ ! -f /tmp/dagger-engine.tar ]; then
-            echo "Saving Dagger engine to cache..."
-            docker save registry.dagger.io/engine:v${{ env.DAGGER_VERSION }} > /tmp/dagger-engine.tar
-          fi
 
       - name: Tag changed modules
         if: inputs.dry_run != true
