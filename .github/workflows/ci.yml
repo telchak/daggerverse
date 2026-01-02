@@ -12,9 +12,6 @@ on:
         type: boolean
         default: false
 
-env:
-  DAGGER_VERSION: "0.19.8"
-
 jobs:
   discover:
     runs-on: ubuntu-latest
@@ -36,30 +33,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache Dagger Engine
-        id: cache-dagger
-        uses: actions/cache@v4
-        with:
-          path: /tmp/dagger-engine.tar
-          key: dagger-engine-${{ env.DAGGER_VERSION }}
-
-      - name: Load or Pull Dagger Engine
-        run: |
-          IMAGE="registry.dagger.io/engine:v${{ env.DAGGER_VERSION }}"
-          if [ -f /tmp/dagger-engine.tar ]; then
-            echo "Loading cached Dagger engine..."
-            docker load < /tmp/dagger-engine.tar
-          else
-            echo "Pulling Dagger engine..."
-            docker pull "$IMAGE"
-            echo "Saving to cache..."
-            docker save "$IMAGE" > /tmp/dagger-engine.tar
-          fi
-
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.2.0
         with:
-          version: ${{ env.DAGGER_VERSION }}
+          version: "0.19.8"
           verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
@@ -177,30 +154,10 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           create_credentials_file: true
 
-      - name: Cache Dagger Engine
-        id: cache-dagger
-        uses: actions/cache@v4
-        with:
-          path: /tmp/dagger-engine.tar
-          key: dagger-engine-${{ env.DAGGER_VERSION }}
-
-      - name: Load or Pull Dagger Engine
-        run: |
-          IMAGE="registry.dagger.io/engine:v${{ env.DAGGER_VERSION }}"
-          if [ -f /tmp/dagger-engine.tar ]; then
-            echo "Loading cached Dagger engine..."
-            docker load < /tmp/dagger-engine.tar
-          else
-            echo "Pulling Dagger engine..."
-            docker pull "$IMAGE"
-            echo "Saving to cache..."
-            docker save "$IMAGE" > /tmp/dagger-engine.tar
-          fi
-
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.2.0
         with:
-          version: ${{ env.DAGGER_VERSION }}
+          version: "0.19.8"
           verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
@@ -264,30 +221,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Cache Dagger Engine
-        id: cache-dagger
-        uses: actions/cache@v4
-        with:
-          path: /tmp/dagger-engine.tar
-          key: dagger-engine-${{ env.DAGGER_VERSION }}
-
-      - name: Load or Pull Dagger Engine
-        run: |
-          IMAGE="registry.dagger.io/engine:v${{ env.DAGGER_VERSION }}"
-          if [ -f /tmp/dagger-engine.tar ]; then
-            echo "Loading cached Dagger engine..."
-            docker load < /tmp/dagger-engine.tar
-          else
-            echo "Pulling Dagger engine..."
-            docker pull "$IMAGE"
-            echo "Saving to cache..."
-            docker save "$IMAGE" > /tmp/dagger-engine.tar
-          fi
-
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.2.0
         with:
-          version: ${{ env.DAGGER_VERSION }}
+          version: "0.19.8"
           verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
