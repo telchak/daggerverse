@@ -12,6 +12,9 @@ on:
         type: boolean
         default: false
 
+env:
+  DAGGER_VERSION: "0.19.8"
+
 jobs:
   discover:
     runs-on: ubuntu-latest
@@ -33,12 +36,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache Dagger Engine
+        uses: actions/cache@v4
+        with:
+          path: /tmp/dagger-engine.tar
+          key: dagger-engine-${{ env.DAGGER_VERSION }}
+
+      - name: Load cached Dagger Engine
+        run: |
+          if [ -f /tmp/dagger-engine.tar ]; then
+            echo "Loading cached Dagger engine..."
+            docker load < /tmp/dagger-engine.tar
+          fi
+
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.2.0
         with:
-          version: "0.19.8"
+          version: ${{ env.DAGGER_VERSION }}
           verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+      - name: Save Dagger Engine to cache
+        if: always()
+        run: |
+          if [ ! -f /tmp/dagger-engine.tar ]; then
+            echo "Saving Dagger engine to cache..."
+            docker save registry.dagger.io/engine:v${{ env.DAGGER_VERSION }} > /tmp/dagger-engine.tar
+          fi
 
       - name: Validate modules
         run: |
@@ -154,12 +178,33 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           create_credentials_file: true
 
+      - name: Cache Dagger Engine
+        uses: actions/cache@v4
+        with:
+          path: /tmp/dagger-engine.tar
+          key: dagger-engine-${{ env.DAGGER_VERSION }}
+
+      - name: Load cached Dagger Engine
+        run: |
+          if [ -f /tmp/dagger-engine.tar ]; then
+            echo "Loading cached Dagger engine..."
+            docker load < /tmp/dagger-engine.tar
+          fi
+
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.2.0
         with:
-          version: "0.19.8"
+          version: ${{ env.DAGGER_VERSION }}
           verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+      - name: Save Dagger Engine to cache
+        if: always()
+        run: |
+          if [ ! -f /tmp/dagger-engine.tar ]; then
+            echo "Saving Dagger engine to cache..."
+            docker save registry.dagger.io/engine:v${{ env.DAGGER_VERSION }} > /tmp/dagger-engine.tar
+          fi
 
       - name: Test ${{ matrix.module }}
         id: test
@@ -221,12 +266,33 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cache Dagger Engine
+        uses: actions/cache@v4
+        with:
+          path: /tmp/dagger-engine.tar
+          key: dagger-engine-${{ env.DAGGER_VERSION }}
+
+      - name: Load cached Dagger Engine
+        run: |
+          if [ -f /tmp/dagger-engine.tar ]; then
+            echo "Loading cached Dagger engine..."
+            docker load < /tmp/dagger-engine.tar
+          fi
+
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.2.0
         with:
-          version: "0.19.8"
+          version: ${{ env.DAGGER_VERSION }}
           verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+      - name: Save Dagger Engine to cache
+        if: always()
+        run: |
+          if [ ! -f /tmp/dagger-engine.tar ]; then
+            echo "Saving Dagger engine to cache..."
+            docker save registry.dagger.io/engine:v${{ env.DAGGER_VERSION }} > /tmp/dagger-engine.tar
+          fi
 
       - name: Tag changed modules
         if: inputs.dry_run != true
