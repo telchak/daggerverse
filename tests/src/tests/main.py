@@ -261,25 +261,15 @@ class Tests:
     @function
     async def gcp_firebase(
         self,
-        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
-        service_account: Annotated[str, Doc("Service account email")],
+        credentials: Annotated[dagger.Secret, Doc("GCP credentials JSON file")],
         project_id: Annotated[str, Doc("GCP project ID")],
-        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
-        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
-        region: Annotated[str, Doc("GCP region (unused, for CI compatibility)")] = "us-central1",
     ) -> str:
-        """Run gcp-firebase module tests using GitHub Actions OIDC."""
-        _ = region  # Firebase Hosting is global, region not used
+        """Run gcp-firebase module tests.
+
+        Requires pre-authenticated credentials from google-github-actions/auth.
+        """
         results = []
         channel_id = f"dagger-test-{int(time.time())}"
-
-        # Get credentials from OIDC
-        credentials = dag.gcp_auth().oidc_credentials(
-            workload_identity_provider=workload_identity_provider,
-            oidc_request_token=oidc_token,
-            oidc_request_url=oidc_url,
-            service_account_email=service_account,
-        )
 
         # Clone hello-dagger-template from GitHub
         source = (
