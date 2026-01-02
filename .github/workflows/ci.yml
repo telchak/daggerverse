@@ -136,49 +136,30 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           create_credentials_file: true
 
-      - name: Setup Dagger
+      - name: Test ${{ matrix.module }} (with GCP auth action)
+        if: steps.setup.outputs.needs_gcp_auth_action == 'true'
         uses: dagger/dagger-for-github@v8.2.0
         with:
           version: "0.19.8"
-          verb: version
+          module: tests
+          call: >-
+            ${{ matrix.module }}
+            --credentials=file:${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+            --project-id=${{ secrets.GCP_PROJECT_ID }}
+            ${{ steps.setup.outputs.args }}
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
       - name: Test ${{ matrix.module }}
-        env:
-          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-        run: |
-          # Build the dagger call command
-          MODULE="${{ matrix.module }}"
-          ARGS="${{ steps.setup.outputs.args }}"
-
-          if [ "${{ steps.setup.outputs.needs_gcp_auth_action }}" == "true" ]; then
-            # Firebase uses google-github-actions/auth credentials
-            OUTPUT=$(dagger call -m tests "$MODULE" \
-              --credentials="file:$GOOGLE_APPLICATION_CREDENTIALS" \
-              --project-id="${{ secrets.GCP_PROJECT_ID }}" \
-              $ARGS)
-          elif [ "${{ steps.setup.outputs.needs_gcp }}" == "true" ]; then
-            # Other GCP modules use OIDC directly
-            OUTPUT=$(dagger call -m tests "$MODULE" \
-              --workload-identity-provider="${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}" \
-              --service-account="${{ secrets.GCP_SERVICE_ACCOUNT }}" \
-              --project-id="${{ secrets.GCP_PROJECT_ID }}" \
-              --oidc-token="env:ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-              --oidc-url="env:ACTIONS_ID_TOKEN_REQUEST_URL" \
-              --region="europe-west9" \
-              $ARGS)
-          else
-            OUTPUT=$(dagger call -m tests "$MODULE" $ARGS)
-          fi
-
-          # Print to logs
-          echo "$OUTPUT"
-
-          # Write to GitHub Actions summary
-          echo "## $MODULE" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$OUTPUT" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+        if: steps.setup.outputs.needs_gcp_auth_action != 'true'
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "0.19.8"
+          module: tests
+          call: >-
+            ${{ matrix.module }}
+            ${{ steps.setup.outputs.needs_gcp == 'true' && format('--workload-identity-provider={0} --service-account={1} --project-id={2} --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL --region=europe-west9', secrets.GCP_WORKLOAD_IDENTITY_PROVIDER, secrets.GCP_SERVICE_ACCOUNT, secrets.GCP_PROJECT_ID) || '' }}
+            ${{ steps.setup.outputs.args }}
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
   release:
     needs: [discover, test]
