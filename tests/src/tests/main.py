@@ -274,7 +274,7 @@ class Tests:
         channel_id = f"dagger-test-{int(time.time())}"
 
         # Get credentials from OIDC
-        credentials = await dag.gcp_auth().oidc_credentials(
+        credentials = dag.gcp_auth().oidc_credentials(
             workload_identity_provider=workload_identity_provider,
             oidc_request_token=oidc_token,
             oidc_request_url=oidc_url,
