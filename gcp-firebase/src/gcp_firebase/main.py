@@ -141,8 +141,12 @@ class GcpFirebase:
     ) -> str:
         """Delete a Firebase Hosting preview channel."""
         site_name = site or project_id
+        # Firebase CLI requires firebase.json even for channel deletion
+        minimal_firebase_json = '{"hosting": {"public": "."}}'
         return await (
             self._base_container(credentials, node_version)
+            .with_workdir("/tmp/firebase")
+            .with_new_file("/tmp/firebase/firebase.json", minimal_firebase_json)
             .with_exec([
                 "firebase", "hosting:channel:delete", channel_id,
                 "--site", site_name,
