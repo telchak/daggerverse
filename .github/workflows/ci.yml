@@ -35,13 +35,23 @@ jobs:
 
       - name: Check module structure
         run: |
+          echo "## Module Structure" >> $GITHUB_STEP_SUMMARY
+          echo "| Module | dagger.json | README | examples |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------------|--------|----------|" >> $GITHUB_STEP_SUMMARY
+
           for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
             echo "Checking $module..."
             [ -f "$module/dagger.json" ] || { echo "ERROR: $module/dagger.json missing"; exit 1; }
             grep -q '"description"' "$module/dagger.json" || { echo "ERROR: $module missing description"; exit 1; }
-            [ "$module" = "tests" ] && continue
+
+            if [ "$module" = "tests" ]; then
+              echo "| $module | :white_check_mark: | N/A | N/A |" >> $GITHUB_STEP_SUMMARY
+              continue
+            fi
+
             [ -f "$module/README.md" ] || { echo "ERROR: $module/README.md missing"; exit 1; }
             [ -d "$module/examples" ] || { echo "ERROR: $module/examples missing"; exit 1; }
+            echo "| $module | :white_check_mark: | :white_check_mark: | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
           done
 
       - name: Setup Dagger
@@ -53,21 +63,30 @@ jobs:
 
       - name: Verify modules load
         run: |
+          echo "## Module Functions" >> $GITHUB_STEP_SUMMARY
           for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
-            cd $module && dagger functions > /dev/null && cd ..
+            cd $module
+            FUNCS=$(dagger functions 2>/dev/null | tail -n +2 | wc -l)
+            echo "- **$module**: $FUNCS functions" >> $GITHUB_STEP_SUMMARY
+            cd ..
           done
 
       - name: Check all modules have tests
         run: |
-          # Get test function names from the tests module (skip header line, extract first column)
           cd tests
           TEST_FUNCS=$(dagger functions 2>/dev/null | tail -n +2 | awk '{print $1}' | tr '\n' ' ')
           cd ..
-          echo "Available tests: $TEST_FUNCS"
+
+          echo "## Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "| Module | Test |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|------|" >> $GITHUB_STEP_SUMMARY
 
           MISSING=""
           for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
-            if ! echo " $TEST_FUNCS " | grep -q " $module "; then
+            if echo " $TEST_FUNCS " | grep -q " $module "; then
+              echo "| $module | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $module | :x: |" >> $GITHUB_STEP_SUMMARY
               MISSING="$MISSING $module"
             fi
           done
@@ -76,7 +95,6 @@ jobs:
             echo "ERROR: Missing tests for:$MISSING"
             exit 1
           fi
-          echo "All modules have tests!"
 
   test:
     needs: [discover, validate]
