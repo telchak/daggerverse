@@ -271,24 +271,15 @@ class Tests:
         results = []
         channel_id = f"dagger-test-{int(time.time())}"
 
-        # Clone hello-dagger-template from GitHub
+        # Clone firebase-dagger-template from GitHub (already has firebase.json configured)
         source = (
-            dag.git("https://github.com/dagger/hello-dagger-template.git")
+            dag.git("https://github.com/telchak/firebase-dagger-template.git")
             .branch("main")
             .tree()
         )
 
-        # Add firebase.json for hosting configuration
-        firebase_json = """{
-  "hosting": {
-    "public": "dist",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
-  }
-}"""
-        source = source.with_new_file("firebase.json", firebase_json)
-
         # Test build
-        dist = dag.gcp_firebase().build(source=source, build_command="npm run build-only")
+        dist = dag.gcp_firebase().build(source=source)
         entries = await dist.entries()
         if len(entries) == 0:
             raise ValueError("Build produced no output files")
@@ -301,7 +292,6 @@ class Tests:
                 project_id=project_id,
                 channel_id=channel_id,
                 source=source,
-                build_command="npm run build-only",
             )
             if not preview_url.startswith("https://"):
                 raise ValueError(f"Invalid preview URL: {preview_url}")
