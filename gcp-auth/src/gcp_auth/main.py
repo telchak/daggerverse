@@ -106,7 +106,6 @@ class GcpAuth:
 
         return (
             container
-            .with_exec(["sh", "-c", "apk add --no-cache jq 2>/dev/null || apt-get update && apt-get install -y jq 2>/dev/null || true"])
             .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_TOKEN", oidc_request_token)
             .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_URL", oidc_request_url)
             .with_exec(["sh", "-c", script])

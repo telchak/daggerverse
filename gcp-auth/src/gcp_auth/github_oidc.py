@@ -68,44 +68,23 @@ def generate_credentials_script(
             f"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/"
             f"{service_account_email}:generateAccessToken"
         )
-        sa_impersonation = f',"service_account_impersonation_url":"{sa_url}"'
+        sa_impersonation = f',\n  "service_account_impersonation_url": "{sa_url}"'
 
-    # Use jq to properly construct JSON with variable substitution
-    return f'''
-# Verify env vars are set
-if [ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
-  echo "ERROR: ACTIONS_ID_TOKEN_REQUEST_URL is not set" >&2
-  exit 1
-fi
-if [ -z "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
-  echo "ERROR: ACTIONS_ID_TOKEN_REQUEST_TOKEN is not set" >&2
-  exit 1
-fi
-
-# Verify URL has https scheme
-case "$ACTIONS_ID_TOKEN_REQUEST_URL" in
-  https://*)
-    ;;
-  *)
-    echo "ERROR: ACTIONS_ID_TOKEN_REQUEST_URL does not start with https://" >&2
-    echo "URL value: $ACTIONS_ID_TOKEN_REQUEST_URL" >&2
-    exit 1
-    ;;
-esac
-
-# Use jq to safely construct JSON (handles special chars in URLs/tokens)
-jq -n \\
-  --arg url "$ACTIONS_ID_TOKEN_REQUEST_URL&audience={audience}" \\
-  --arg token "bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \\
-  '{{
-    "type": "external_account",
-    "audience": "{audience}",
-    "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
-    "token_url": "https://sts.googleapis.com/v1/token",
-    "credential_source": {{
-      "url": $url,
-      "headers": {{"Authorization": $token}},
-      "format": {{"type": "json", "subject_token_field_name": "value"}}
-    }}{sa_impersonation}
-  }}' > /tmp/gcp-credentials.json
+    # Use cat heredoc - simpler and avoids jq dependency issues
+    return f'''set -e
+[ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && echo "ERROR: ACTIONS_ID_TOKEN_REQUEST_URL not set" >&2 && exit 1
+[ -z "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && echo "ERROR: ACTIONS_ID_TOKEN_REQUEST_TOKEN not set" >&2 && exit 1
+cat > /tmp/gcp-credentials.json << CREDENTIALS_EOF
+{{
+  "type": "external_account",
+  "audience": "{audience}",
+  "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+  "token_url": "https://sts.googleapis.com/v1/token",
+  "credential_source": {{
+    "url": "$ACTIONS_ID_TOKEN_REQUEST_URL&audience={audience}",
+    "headers": {{"Authorization": "bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"}},
+    "format": {{"type": "json", "subject_token_field_name": "value"}}
+  }}{sa_impersonation}
+}}
+CREDENTIALS_EOF
 '''
