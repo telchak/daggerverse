@@ -385,6 +385,131 @@ class Tests:
         return "\n".join(results)
 
     @function
+    async def gcp_firebase_firestore(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        location: Annotated[str, Doc("Firestore location")] = "us-central1",
+    ) -> str:
+        """Run gcp-firebase Firestore module CRUD tests using GitHub Actions OIDC."""
+        results = []
+        # Use timestamp to create unique database ID (must start with letter, 4-63 chars)
+        database_id = f"dagger-test-{int(time.time())}"
+
+        # Generate credentials from OIDC
+        credentials = await dag.gcp_auth().oidc_credentials(
+            workload_identity_provider=workload_identity_provider,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+            service_account_email=service_account,
+        )
+
+        firestore = dag.gcp_firebase().firestore()
+
+        try:
+            # CREATE - create a new database
+            await firestore.create(
+                credentials=credentials,
+                project_id=project_id,
+                database_id=database_id,
+                location=location,
+                database_type="firestore-native",
+                delete_protection=False,
+            )
+            results.append(f"PASS: CREATE - created database {database_id}")
+
+            # READ - check exists
+            exists = await firestore.exists(
+                credentials=credentials,
+                project_id=project_id,
+                database_id=database_id,
+            )
+            if not exists:
+                raise Exception(f"Database {database_id} not found after create")
+            results.append("PASS: READ - database exists")
+
+            # READ - describe database
+            description = await firestore.describe(
+                credentials=credentials,
+                project_id=project_id,
+                database_id=database_id,
+            )
+            if database_id not in description:
+                raise Exception(f"Database {database_id} not in describe output")
+            results.append("PASS: READ - describe database")
+
+            # READ - list databases
+            db_list = await firestore.list(
+                credentials=credentials,
+                project_id=project_id,
+            )
+            if database_id not in db_list:
+                raise Exception(f"Database {database_id} not in list output")
+            results.append("PASS: READ - list databases")
+
+            # UPDATE - enable delete protection
+            await firestore.update(
+                credentials=credentials,
+                project_id=project_id,
+                database_id=database_id,
+                delete_protection=True,
+            )
+            results.append("PASS: UPDATE - enabled delete protection")
+
+            # UPDATE - disable delete protection (required before delete)
+            await firestore.update(
+                credentials=credentials,
+                project_id=project_id,
+                database_id=database_id,
+                delete_protection=False,
+            )
+            results.append("PASS: UPDATE - disabled delete protection")
+
+            # DELETE - delete the database
+            await firestore.delete(
+                credentials=credentials,
+                project_id=project_id,
+                database_id=database_id,
+            )
+            results.append("PASS: DELETE - database deleted")
+
+            # Verify deletion
+            exists_after = await firestore.exists(
+                credentials=credentials,
+                project_id=project_id,
+                database_id=database_id,
+            )
+            if exists_after:
+                raise Exception(f"Database {database_id} still exists after delete")
+            results.append("PASS: VERIFY - database no longer exists")
+
+        except Exception as e:
+            results.append(f"FAIL: {e}")
+            # Cleanup on failure
+            try:
+                # Disable delete protection first
+                await firestore.update(
+                    credentials=credentials,
+                    project_id=project_id,
+                    database_id=database_id,
+                    delete_protection=False,
+                )
+                await firestore.delete(
+                    credentials=credentials,
+                    project_id=project_id,
+                    database_id=database_id,
+                )
+                results.append(f"CLEANUP: deleted database {database_id}")
+            except Exception:
+                pass
+            raise
+
+        return "\n".join(results)
+
+    @function
     async def all_no_credentials(self) -> str:
         """Run all tests that don't require credentials."""
         results = []

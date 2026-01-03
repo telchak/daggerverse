@@ -521,32 +521,167 @@ class MyPipeline:
         await gcloud.with_exec(["gcloud", "services", "list"]).sync()
 ```
 
-### Example 2: Deploy to Cloud Run
+### Example 2a: Build, Push & Deploy to Cloud Run (GitHub Actions OIDC)
+
+This example demonstrates a complete CI/CD workflow using multiple daggerverse modules with keyless authentication.
+
+**Install the modules:**
+
+```bash
+dagger install github.com/telchak/daggerverse/gcp-auth
+dagger install github.com/telchak/daggerverse/gcp-artifact-registry
+dagger install github.com/telchak/daggerverse/gcp-cloud-run
+```
+
+**Pipeline code:**
 
 ```python
-@function
-async def deploy_cloud_run(
-    self,
-    source: dagger.Directory,
-    service_name: str,
-):
-    # Build container
-    container = source.docker_build(dockerfile="Dockerfile")
+from dagger import dag, function, object_type, Secret, Directory
 
-    # Get authenticated gcloud
-    gcloud = dag.gcp_auth().gcloud_container(
-        credentials=env:GOOGLE_CREDENTIALS,
-        project_id="my-project",
-        region="us-central1"
-    )
+@object_type
+class MyPipeline:
+    @function
+    async def deploy_cloud_run_oidc(
+        self,
+        source: Directory,
+        service_name: str,
+        project_id: str,
+        workload_identity_provider: str,
+        oidc_request_token: Secret,
+        oidc_request_url: Secret,
+        service_account_email: str | None = None,
+        region: str = "us-central1",
+        repository: str = "my-repo",
+    ) -> str:
+        """Build, push, and deploy using GitHub Actions OIDC (no keys needed)."""
 
-    # Deploy to Cloud Run
-    await gcloud.with_exec([
-        "gcloud", "run", "deploy", service_name,
-        "--source=.",
-        "--region=us-central1"
-    ]).sync()
+        # Step 1: Generate GCP credentials from GitHub OIDC
+        credentials = await dag.gcp_auth().oidc_credentials(
+            workload_identity_provider=workload_identity_provider,
+            oidc_request_token=oidc_request_token,
+            oidc_request_url=oidc_request_url,
+            service_account_email=service_account_email,
+        )
+
+        # Step 2: Build container from source
+        container = source.docker_build()
+
+        # Step 3: Push to Artifact Registry
+        image_ref = await dag.gcp_artifact_registry().publish(
+            container=container,
+            project_id=project_id,
+            repository=repository,
+            image_name=service_name,
+            tag="latest",
+            region=region,
+            credentials=credentials,
+        )
+
+        # Step 4: Deploy to Cloud Run
+        await dag.gcp_cloud_run().deploy_service(
+            image=image_ref,
+            service_name=service_name,
+            credentials=credentials,
+            project_id=project_id,
+            region=region,
+            min_instances=0,
+            allow_unauthenticated=True,
+        )
+
+        # Step 5: Return service URL
+        return await dag.gcp_cloud_run().get_service_url(
+            service_name=service_name,
+            credentials=credentials,
+            project_id=project_id,
+            region=region,
+        )
 ```
+
+**GitHub Actions workflow (`.github/workflows/deploy.yml`):**
+
+```yaml
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # Required for OIDC
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy with Dagger
+        run: |
+          dagger call deploy-cloud-run-oidc \
+            --source=. \
+            --service-name=my-service \
+            --project-id=my-project \
+            --workload-identity-provider="projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider" \
+            --oidc-request-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+            --oidc-request-url=env:ACTIONS_ID_TOKEN_REQUEST_URL \
+            --service-account-email="deployer@my-project.iam.gserviceaccount.com" \
+            --region=us-central1 \
+            --repository=my-repo
+```
+
+---
+
+### Example 2b: Build, Push & Deploy to Cloud Run (Local with ADC)
+
+For local development, use Application Default Credentials with the Dagger CLI directly.
+
+**Prerequisites:**
+
+```bash
+# Authenticate with your Google account (one-time setup)
+gcloud auth application-default login
+```
+
+**CLI usage:**
+
+```bash
+# Build, push, and deploy using ADC credentials
+# Step 1: Build and push to Artifact Registry
+IMAGE_REF=$(dagger -m github.com/telchak/daggerverse/gcp-artifact-registry call publish \
+  --container=$(dagger core container build --context=.) \
+  --project-id=my-project \
+  --repository=my-repo \
+  --image-name=my-service \
+  --tag=latest \
+  --region=us-central1 \
+  --credentials=file:~/.config/gcloud/application_default_credentials.json)
+
+# Step 2: Deploy to Cloud Run
+dagger -m github.com/telchak/daggerverse/gcp-cloud-run call deploy-service \
+  --image="$IMAGE_REF" \
+  --service-name=my-service \
+  --project-id=my-project \
+  --region=us-central1 \
+  --min-instances=0 \
+  --allow-unauthenticated \
+  --credentials=file:~/.config/gcloud/application_default_credentials.json
+
+# Step 3: Get service URL
+dagger -m github.com/telchak/daggerverse/gcp-cloud-run call get-service-url \
+  --service-name=my-service \
+  --project-id=my-project \
+  --region=us-central1 \
+  --credentials=file:~/.config/gcloud/application_default_credentials.json
+```
+
+| Aspect | GitHub OIDC (2a) | Local ADC (2b) |
+|--------|------------------|----------------|
+| **Credentials** | Generated from WIF at runtime | `file:~/.config/gcloud/application_default_credentials.json` |
+| **Key management** | None (keyless) | None (uses your gcloud login) |
+| **Best for** | CI/CD pipelines | Local development & testing |
+
+---
 
 ### Example 3: GKE Deployment
 

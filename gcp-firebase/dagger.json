@@ -1,6 +1,6 @@
 {
   "name": "gcp-firebase",
-  "description": "Firebase Hosting deployment utilities for web applications",
+  "description": "Firebase Hosting and Firestore database management utilities",
   "engineVersion": "v0.19.7",
   "sdk": {
     "source": "python"

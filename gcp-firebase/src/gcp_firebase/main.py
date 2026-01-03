@@ -6,6 +6,8 @@ from typing import Annotated
 import dagger
 from dagger import DefaultPath, Doc, dag, function, object_type
 
+from .firestore import Firestore
+
 
 @object_type
 class GcpFirebase:
@@ -156,4 +158,13 @@ class GcpFirebase:
             ])
             .stdout()
         )
+
+    @function
+    def firestore(self) -> Firestore:
+        """Access Firestore database management utilities.
+
+        Returns a Firestore object with functions to create, update,
+        delete, and manage Firestore databases.
+        """
+        return Firestore()
 
