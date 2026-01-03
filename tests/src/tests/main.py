@@ -266,115 +266,160 @@ class Tests:
         project_id: Annotated[str, Doc("GCP project ID")],
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
-        region: Annotated[str, Doc("GCP region (used for Firestore location)")] = "us-central1",
+        region: Annotated[str, Doc("GCP region for Firestore")] = "europe-west9",
     ) -> str:
-        """Run gcp-firebase module tests using GitHub Actions OIDC.
+        """Run gcp-firebase module tests (Hosting + Firestore).
 
-        Tests Firestore (via gcloud) and Firebase Hosting build (no deploy).
-        Firebase Hosting deploy requires google-github-actions/auth credentials.
+        Uses GitHub Actions OIDC to generate credentials via gcp-auth module.
         """
         results = []
+        channel_id = f"dagger-test-{int(time.time())}"
         database_id = f"dagger-test-{int(time.time())}"
 
-        # Generate gcloud-compatible credentials from OIDC
-        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+        # Generate credentials from OIDC
+        credentials = dag.gcp_auth().oidc_credentials(
             workload_identity_provider=workload_identity_provider,
-            project_id=project_id,
+            service_account_email=service_account,
             oidc_request_token=oidc_token,
             oidc_request_url=oidc_url,
-            service_account_email=service_account,
-            region=region,
         )
 
-        # ========== HOSTING BUILD TEST ==========
-        results.append("--- Firebase Hosting (build only) ---")
-
-        # Clone firebase-dagger-template from GitHub
+        # Clone firebase-dagger-template from GitHub (already has firebase.json configured)
         source = (
             dag.git("https://github.com/telchak/firebase-dagger-template.git")
             .branch("main")
             .tree()
         )
 
-        # Test build (doesn't need Firebase CLI auth)
+        # ========== HOSTING TESTS ==========
+        results.append("--- Firebase Hosting ---")
+
+        # Test build
         dist = dag.gcp_firebase().build(source=source)
         entries = await dist.entries()
         if len(entries) == 0:
             raise ValueError("Build produced no output files")
         results.append(f"PASS: build -> {len(entries)} files")
 
-        # ========== FIRESTORE TESTS (via gcloud) ==========
+        try:
+            # Test deploy_preview
+            preview_url = await dag.gcp_firebase().deploy_preview(
+                credentials=credentials,
+                project_id=project_id,
+                channel_id=channel_id,
+                source=source,
+            )
+            if not preview_url.startswith("https://"):
+                raise ValueError(f"Invalid preview URL: {preview_url}")
+            results.append(f"PASS: deploy_preview -> {preview_url}")
+
+            # Test delete_channel
+            await dag.gcp_firebase().delete_channel(
+                credentials=credentials,
+                project_id=project_id,
+                channel_id=channel_id,
+            )
+            results.append("PASS: delete_channel")
+
+        except Exception as e:
+            results.append(f"FAIL: {e}")
+            try:
+                await dag.gcp_firebase().delete_channel(
+                    credentials=credentials,
+                    project_id=project_id,
+                    channel_id=channel_id,
+                )
+                results.append(f"CLEANUP: deleted channel {channel_id}")
+            except Exception:
+                pass
+            raise
+
+        # ========== FIRESTORE TESTS ==========
         results.append("--- Firestore ---")
+
+        firestore = dag.gcp_firebase().firestore()
 
         try:
             # CREATE
-            await gcloud.with_exec([
-                "gcloud", "firestore", "databases", "create",
-                f"--database={database_id}",
-                f"--location={region}",
-                "--type=firestore-native",
-                "--quiet",
-            ]).stdout()
+            await firestore.create(
+                credentials=credentials,
+                project_id=project_id,
+                database_id=database_id,
+                location=region,
+                database_type="firestore-native",
+                delete_protection=False,
+            )
             results.append(f"PASS: CREATE - created database {database_id}")
 
+            # READ - exists
+            exists = await firestore.exists(
+                credentials=credentials,
+                project_id=project_id,
+                database_id=database_id,
+            )
+            if not exists:
+                raise Exception(f"Database {database_id} not found after create")
+            results.append("PASS: READ - database exists")
+
             # READ - describe
-            description = await gcloud.with_exec([
-                "gcloud", "firestore", "databases", "describe",
-                f"--database={database_id}",
-            ]).stdout()
+            description = await firestore.describe(
+                credentials=credentials,
+                project_id=project_id,
+                database_id=database_id,
+            )
             if database_id not in description:
                 raise Exception(f"Database {database_id} not in describe output")
             results.append("PASS: READ - describe database")
 
             # READ - list
-            db_list = await gcloud.with_exec([
-                "gcloud", "firestore", "databases", "list",
-            ]).stdout()
+            db_list = await firestore.list(
+                credentials=credentials,
+                project_id=project_id,
+            )
             if database_id not in db_list:
                 raise Exception(f"Database {database_id} not in list output")
             results.append("PASS: READ - list databases")
 
             # UPDATE - enable delete protection
-            await gcloud.with_exec([
-                "gcloud", "firestore", "databases", "update",
-                f"--database={database_id}",
-                "--delete-protection",
-                "--quiet",
-            ]).stdout()
+            await firestore.update(
+                credentials=credentials,
+                project_id=project_id,
+                database_id=database_id,
+                delete_protection=True,
+            )
             results.append("PASS: UPDATE - enabled delete protection")
 
             # UPDATE - disable delete protection
-            await gcloud.with_exec([
-                "gcloud", "firestore", "databases", "update",
-                f"--database={database_id}",
-                "--no-delete-protection",
-                "--quiet",
-            ]).stdout()
+            await firestore.update(
+                credentials=credentials,
+                project_id=project_id,
+                database_id=database_id,
+                delete_protection=False,
+            )
             results.append("PASS: UPDATE - disabled delete protection")
 
             # DELETE
-            await gcloud.with_exec([
-                "gcloud", "firestore", "databases", "delete",
-                f"--database={database_id}",
-                "--quiet",
-            ]).stdout()
+            await firestore.delete(
+                credentials=credentials,
+                project_id=project_id,
+                database_id=database_id,
+            )
             results.append("PASS: DELETE - database deleted")
 
         except Exception as e:
             results.append(f"FAIL: {e}")
-            # Cleanup on failure
             try:
-                await gcloud.with_exec([
-                    "gcloud", "firestore", "databases", "update",
-                    f"--database={database_id}",
-                    "--no-delete-protection",
-                    "--quiet",
-                ]).stdout()
-                await gcloud.with_exec([
-                    "gcloud", "firestore", "databases", "delete",
-                    f"--database={database_id}",
-                    "--quiet",
-                ]).stdout()
+                await firestore.update(
+                    credentials=credentials,
+                    project_id=project_id,
+                    database_id=database_id,
+                    delete_protection=False,
+                )
+                await firestore.delete(
+                    credentials=credentials,
+                    project_id=project_id,
+                    database_id=database_id,
+                )
                 results.append(f"CLEANUP: deleted database {database_id}")
             except Exception:
                 pass

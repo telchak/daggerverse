@@ -13,26 +13,44 @@ from .firestore import Firestore
 class GcpFirebase:
     """Firebase Hosting deployment utilities for Dagger pipelines.
 
-    Uses GCP service account credentials for authentication (via GOOGLE_APPLICATION_CREDENTIALS).
-    This works with both service account keys and Workload Identity Federation credentials
-    from google-github-actions/auth.
+    Uses GCP service account credentials for authentication.
+    Supports both service account keys and Workload Identity Federation credentials.
     """
 
-    @function
-    def _base_container(
+    async def _get_access_token(
         self,
         credentials: dagger.Secret,
+        project_id: str,
+    ) -> dagger.Secret:
+        """Get an access token using gcloud (handles external_account credentials)."""
+        gcloud = dag.gcp_auth().gcloud_container(
+            credentials=credentials,
+            project_id=project_id,
+        )
+        token_output = await (
+            gcloud
+            .with_exec(["gcloud", "auth", "print-access-token"])
+            .stdout()
+        )
+        return dag.set_secret("firebase_access_token", token_output.strip())
+
+    @function
+    async def _base_container(
+        self,
+        credentials: dagger.Secret,
+        project_id: str,
         node_version: str = "20",
     ) -> dagger.Container:
         """Create a base container with Node.js and Firebase CLI, authenticated with GCP credentials."""
-        credentials_path = "/tmp/gcp-credentials.json"
+        # Get access token using gcloud (supports external_account credentials)
+        access_token = await self._get_access_token(credentials, project_id)
+
         return (
             dag.container()
             .from_(f"node:{node_version}-alpine")
             .with_exec(["apk", "add", "--no-cache", "openjdk17-jre"])
             .with_exec(["npm", "install", "-g", "firebase-tools"])
-            .with_mounted_secret(credentials_path, credentials)
-            .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", credentials_path)
+            .with_secret_variable("FIREBASE_TOKEN", access_token)
         )
 
     @function
@@ -66,8 +84,9 @@ class GcpFirebase:
     ) -> str:
         """Build and deploy to Firebase Hosting and optionally Cloud Functions using GCP credentials."""
         deploy_target = "hosting,functions" if deploy_functions else "hosting"
+        base = await self._base_container(credentials, project_id, node_version)
         container = (
-            self._base_container(credentials, node_version)
+            base
             .with_directory("/app", source)
             .with_workdir("/app")
             .with_exec(["npm", "ci"])
@@ -105,8 +124,9 @@ class GcpFirebase:
 
         Returns the preview channel URL.
         """
+        base = await self._base_container(credentials, project_id, node_version)
         output = await (
-            self._base_container(credentials, node_version)
+            base
             .with_directory("/app", source)
             .with_workdir("/app")
             .with_exec(["npm", "ci"])
@@ -145,8 +165,9 @@ class GcpFirebase:
         site_name = site or project_id
         # Firebase CLI requires firebase.json even for channel deletion
         minimal_firebase_json = '{"hosting": {"public": "."}}'
+        base = await self._base_container(credentials, project_id, node_version)
         return await (
-            self._base_container(credentials, node_version)
+            base
             .with_workdir("/tmp/firebase")
             .with_new_file("/tmp/firebase/firebase.json", minimal_firebase_json)
             .with_exec([
