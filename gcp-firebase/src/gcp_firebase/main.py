@@ -34,6 +34,29 @@ class GcpFirebase:
         )
         return dag.set_secret("firebase_access_token", token_output.strip())
 
+    async def _get_access_token_from_oidc(
+        self,
+        workload_identity_provider: str,
+        project_id: str,
+        oidc_request_token: dagger.Secret,
+        oidc_request_url: dagger.Secret,
+        service_account_email: str | None = None,
+    ) -> dagger.Secret:
+        """Get an access token using GitHub Actions OIDC directly."""
+        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_request_token,
+            oidc_request_url=oidc_request_url,
+            service_account_email=service_account_email,
+        )
+        token_output = await (
+            gcloud
+            .with_exec(["gcloud", "auth", "print-access-token"])
+            .stdout()
+        )
+        return dag.set_secret("firebase_access_token", token_output.strip())
+
     @function
     async def _base_container(
         self,
@@ -44,6 +67,32 @@ class GcpFirebase:
         """Create a base container with Node.js and Firebase CLI, authenticated with GCP credentials."""
         # Get access token using gcloud (supports external_account credentials)
         access_token = await self._get_access_token(credentials, project_id)
+
+        return (
+            dag.container()
+            .from_(f"node:{node_version}-alpine")
+            .with_exec(["apk", "add", "--no-cache", "openjdk17-jre"])
+            .with_exec(["npm", "install", "-g", "firebase-tools"])
+            .with_secret_variable("FIREBASE_TOKEN", access_token)
+        )
+
+    async def _base_container_from_oidc(
+        self,
+        workload_identity_provider: str,
+        project_id: str,
+        oidc_request_token: dagger.Secret,
+        oidc_request_url: dagger.Secret,
+        service_account_email: str | None = None,
+        node_version: str = "20",
+    ) -> dagger.Container:
+        """Create a base container using GitHub Actions OIDC directly."""
+        access_token = await self._get_access_token_from_oidc(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_request_token,
+            oidc_request_url=oidc_request_url,
+            service_account_email=service_account_email,
+        )
 
         return (
             dag.container()
@@ -166,6 +215,93 @@ class GcpFirebase:
         # Firebase CLI requires firebase.json even for channel deletion
         minimal_firebase_json = '{"hosting": {"public": "."}}'
         base = await self._base_container(credentials, project_id, node_version)
+        return await (
+            base
+            .with_workdir("/tmp/firebase")
+            .with_new_file("/tmp/firebase/firebase.json", minimal_firebase_json)
+            .with_exec([
+                "firebase", "hosting:channel:delete", channel_id,
+                "--site", site_name,
+                "--project", project_id,
+                "--non-interactive",
+                "--force",
+            ])
+            .stdout()
+        )
+
+    @function
+    async def deploy_preview_with_oidc(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        project_id: Annotated[str, Doc("Firebase project ID")],
+        channel_id: Annotated[str, Doc("Preview channel ID (e.g., pr-123)")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory containing firebase.json")],
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+        build_command: Annotated[str, Doc("Build command to run")] = "npm run build",
+        node_version: Annotated[str, Doc("Node.js version")] = "20",
+        expires: Annotated[str, Doc("Channel expiration (e.g., 7d, 30d)")] = "7d",
+    ) -> str:
+        """Build and deploy to a Firebase Hosting preview channel using GitHub Actions OIDC.
+
+        Returns the preview channel URL.
+        """
+        base = await self._base_container_from_oidc(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_request_token,
+            oidc_request_url=oidc_request_url,
+            service_account_email=service_account_email,
+            node_version=node_version,
+        )
+        output = await (
+            base
+            .with_directory("/app", source)
+            .with_workdir("/app")
+            .with_exec(["npm", "ci"])
+            .with_exec(["sh", "-c", build_command])
+            .with_exec([
+                "firebase", "hosting:channel:deploy", channel_id,
+                "--project", project_id,
+                "--expires", expires,
+                "--non-interactive",
+            ])
+            .stdout()
+        )
+        # Extract the preview URL from Firebase CLI output
+        match = re.search(r"Channel URL[^:]*:\s*(https://[^\s\[\]]+)", output)
+        if match:
+            return match.group(1)
+        fallback_match = re.search(rf"(https://[^\s]*--{re.escape(channel_id)}[^\s]*\.web\.app)", output)
+        if fallback_match:
+            return fallback_match.group(1)
+        msg = f"Could not extract preview URL from Firebase output:\n{output}"
+        raise ValueError(msg)
+
+    @function
+    async def delete_channel_with_oidc(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        project_id: Annotated[str, Doc("Firebase project ID")],
+        channel_id: Annotated[str, Doc("Preview channel ID to delete")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+        site: Annotated[str | None, Doc("Firebase Hosting site (defaults to project ID)")] = None,
+        node_version: Annotated[str, Doc("Node.js version")] = "20",
+    ) -> str:
+        """Delete a Firebase Hosting preview channel using GitHub Actions OIDC."""
+        site_name = site or project_id
+        minimal_firebase_json = '{"hosting": {"public": "."}}'
+        base = await self._base_container_from_oidc(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_request_token,
+            oidc_request_url=oidc_request_url,
+            service_account_email=service_account_email,
+            node_version=node_version,
+        )
         return await (
             base
             .with_workdir("/tmp/firebase")

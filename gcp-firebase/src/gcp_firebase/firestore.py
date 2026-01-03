@@ -25,6 +25,23 @@ class Firestore:
             project_id=project_id,
         )
 
+    def _gcloud_container_from_oidc(
+        self,
+        workload_identity_provider: str,
+        project_id: str,
+        oidc_request_token: dagger.Secret,
+        oidc_request_url: dagger.Secret,
+        service_account_email: str | None = None,
+    ) -> dagger.Container:
+        """Get authenticated gcloud container via GitHub Actions OIDC."""
+        return dag.gcp_auth().gcloud_container_from_github_actions(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_request_token,
+            oidc_request_url=oidc_request_url,
+            service_account_email=service_account_email,
+        )
+
     @function
     async def create(
         self,
@@ -197,6 +214,162 @@ class Firestore:
         """
         result = await (
             self._gcloud_container(credentials, project_id)
+            .with_exec([
+                "sh", "-c",
+                f"gcloud firestore databases describe --database={database_id} "
+                f"--format='value(name)' 2>/dev/null || echo ''",
+            ])
+            .stdout()
+        )
+        return bool(result.strip())
+
+    # ========== OIDC versions ==========
+
+    @function
+    async def create_with_oidc(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        database_id: Annotated[str, Doc("Database ID")],
+        location: Annotated[str, Doc("Database location")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+        database_type: Annotated[str, Doc("Database type")] = "firestore-native",
+        delete_protection: Annotated[bool, Doc("Enable delete protection")] = False,
+    ) -> str:
+        """Create a new Firestore database using GitHub Actions OIDC."""
+        cmd = [
+            "gcloud", "firestore", "databases", "create",
+            f"--database={database_id}",
+            f"--location={location}",
+            f"--type={database_type}",
+            "--quiet",
+        ]
+        if delete_protection:
+            cmd.append("--delete-protection")
+
+        return await (
+            self._gcloud_container_from_oidc(
+                workload_identity_provider, project_id,
+                oidc_request_token, oidc_request_url, service_account_email
+            )
+            .with_exec(cmd)
+            .stdout()
+        )
+
+    @function
+    async def delete_with_oidc(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        database_id: Annotated[str, Doc("Database ID to delete")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+    ) -> str:
+        """Delete a Firestore database using GitHub Actions OIDC."""
+        return await (
+            self._gcloud_container_from_oidc(
+                workload_identity_provider, project_id,
+                oidc_request_token, oidc_request_url, service_account_email
+            )
+            .with_exec([
+                "gcloud", "firestore", "databases", "delete",
+                f"--database={database_id}",
+                "--quiet",
+            ])
+            .stdout()
+        )
+
+    @function
+    async def update_with_oidc(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        database_id: Annotated[str, Doc("Database ID to update")],
+        delete_protection: Annotated[bool, Doc("Enable or disable delete protection")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+    ) -> str:
+        """Update a Firestore database using GitHub Actions OIDC."""
+        protection_flag = "--delete-protection" if delete_protection else "--no-delete-protection"
+
+        return await (
+            self._gcloud_container_from_oidc(
+                workload_identity_provider, project_id,
+                oidc_request_token, oidc_request_url, service_account_email
+            )
+            .with_exec([
+                "gcloud", "firestore", "databases", "update",
+                f"--database={database_id}",
+                protection_flag,
+                "--quiet",
+            ])
+            .stdout()
+        )
+
+    @function
+    async def describe_with_oidc(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        database_id: Annotated[str, Doc("Database ID to describe")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+    ) -> str:
+        """Get details of a Firestore database using GitHub Actions OIDC."""
+        return await (
+            self._gcloud_container_from_oidc(
+                workload_identity_provider, project_id,
+                oidc_request_token, oidc_request_url, service_account_email
+            )
+            .with_exec([
+                "gcloud", "firestore", "databases", "describe",
+                f"--database={database_id}",
+            ])
+            .stdout()
+        )
+
+    @function
+    async def list_with_oidc(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+    ) -> str:
+        """List all Firestore databases using GitHub Actions OIDC."""
+        return await (
+            self._gcloud_container_from_oidc(
+                workload_identity_provider, project_id,
+                oidc_request_token, oidc_request_url, service_account_email
+            )
+            .with_exec([
+                "gcloud", "firestore", "databases", "list",
+            ])
+            .stdout()
+        )
+
+    @function
+    async def exists_with_oidc(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        database_id: Annotated[str, Doc("Database ID to check")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+    ) -> bool:
+        """Check if a Firestore database exists using GitHub Actions OIDC."""
+        result = await (
+            self._gcloud_container_from_oidc(
+                workload_identity_provider, project_id,
+                oidc_request_token, oidc_request_url, service_account_email
+            )
             .with_exec([
                 "sh", "-c",
                 f"gcloud firestore databases describe --database={database_id} "

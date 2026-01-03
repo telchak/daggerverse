@@ -1,6 +1,5 @@
 {
   "name": "tests",
-  "description": "Centralized test orchestration for all daggerverse modules",
   "engineVersion": "v0.19.8",
   "sdk": {
     "source": "python"

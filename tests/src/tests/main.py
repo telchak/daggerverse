@@ -276,14 +276,6 @@ class Tests:
         channel_id = f"dagger-test-{int(time.time())}"
         database_id = f"dagger-test-{int(time.time())}"
 
-        # Generate credentials from OIDC
-        credentials = dag.gcp_auth().oidc_credentials(
-            workload_identity_provider=workload_identity_provider,
-            service_account_email=service_account,
-            oidc_request_token=oidc_token,
-            oidc_request_url=oidc_url,
-        )
-
         # Clone firebase-dagger-template from GitHub (already has firebase.json configured)
         source = (
             dag.git("https://github.com/telchak/firebase-dagger-template.git")
@@ -302,32 +294,41 @@ class Tests:
         results.append(f"PASS: build -> {len(entries)} files")
 
         try:
-            # Test deploy_preview
-            preview_url = await dag.gcp_firebase().deploy_preview(
-                credentials=credentials,
+            # Test deploy_preview with OIDC (uses gcloud_container_from_github_actions internally)
+            preview_url = await dag.gcp_firebase().deploy_preview_with_oidc(
+                workload_identity_provider=workload_identity_provider,
                 project_id=project_id,
                 channel_id=channel_id,
+                oidc_request_token=oidc_token,
+                oidc_request_url=oidc_url,
+                service_account_email=service_account,
                 source=source,
             )
             if not preview_url.startswith("https://"):
                 raise ValueError(f"Invalid preview URL: {preview_url}")
-            results.append(f"PASS: deploy_preview -> {preview_url}")
+            results.append(f"PASS: deploy_preview_with_oidc -> {preview_url}")
 
-            # Test delete_channel
-            await dag.gcp_firebase().delete_channel(
-                credentials=credentials,
+            # Test delete_channel with OIDC
+            await dag.gcp_firebase().delete_channel_with_oidc(
+                workload_identity_provider=workload_identity_provider,
                 project_id=project_id,
                 channel_id=channel_id,
+                oidc_request_token=oidc_token,
+                oidc_request_url=oidc_url,
+                service_account_email=service_account,
             )
-            results.append("PASS: delete_channel")
+            results.append("PASS: delete_channel_with_oidc")
 
         except Exception as e:
             results.append(f"FAIL: {e}")
             try:
-                await dag.gcp_firebase().delete_channel(
-                    credentials=credentials,
+                await dag.gcp_firebase().delete_channel_with_oidc(
+                    workload_identity_provider=workload_identity_provider,
                     project_id=project_id,
                     channel_id=channel_id,
+                    oidc_request_token=oidc_token,
+                    oidc_request_url=oidc_url,
+                    service_account_email=service_account,
                 )
                 results.append(f"CLEANUP: deleted channel {channel_id}")
             except Exception:
@@ -339,11 +340,19 @@ class Tests:
 
         firestore = dag.gcp_firebase().firestore()
 
+        # Common OIDC params for Firestore operations
+        oidc_params = {
+            "workload_identity_provider": workload_identity_provider,
+            "project_id": project_id,
+            "oidc_request_token": oidc_token,
+            "oidc_request_url": oidc_url,
+            "service_account_email": service_account,
+        }
+
         try:
             # CREATE
-            await firestore.create(
-                credentials=credentials,
-                project_id=project_id,
+            await firestore.create_with_oidc(
+                **oidc_params,
                 database_id=database_id,
                 location=region,
                 database_type="firestore-native",
@@ -352,9 +361,8 @@ class Tests:
             results.append(f"PASS: CREATE - created database {database_id}")
 
             # READ - exists
-            exists = await firestore.exists(
-                credentials=credentials,
-                project_id=project_id,
+            exists = await firestore.exists_with_oidc(
+                **oidc_params,
                 database_id=database_id,
             )
             if not exists:
@@ -362,9 +370,8 @@ class Tests:
             results.append("PASS: READ - database exists")
 
             # READ - describe
-            description = await firestore.describe(
-                credentials=credentials,
-                project_id=project_id,
+            description = await firestore.describe_with_oidc(
+                **oidc_params,
                 database_id=database_id,
             )
             if database_id not in description:
@@ -372,36 +379,32 @@ class Tests:
             results.append("PASS: READ - describe database")
 
             # READ - list
-            db_list = await firestore.list(
-                credentials=credentials,
-                project_id=project_id,
+            db_list = await firestore.list_with_oidc(
+                **oidc_params,
             )
             if database_id not in db_list:
                 raise Exception(f"Database {database_id} not in list output")
             results.append("PASS: READ - list databases")
 
             # UPDATE - enable delete protection
-            await firestore.update(
-                credentials=credentials,
-                project_id=project_id,
+            await firestore.update_with_oidc(
+                **oidc_params,
                 database_id=database_id,
                 delete_protection=True,
             )
             results.append("PASS: UPDATE - enabled delete protection")
 
             # UPDATE - disable delete protection
-            await firestore.update(
-                credentials=credentials,
-                project_id=project_id,
+            await firestore.update_with_oidc(
+                **oidc_params,
                 database_id=database_id,
                 delete_protection=False,
             )
             results.append("PASS: UPDATE - disabled delete protection")
 
             # DELETE
-            await firestore.delete(
-                credentials=credentials,
-                project_id=project_id,
+            await firestore.delete_with_oidc(
+                **oidc_params,
                 database_id=database_id,
             )
             results.append("PASS: DELETE - database deleted")
@@ -409,15 +412,13 @@ class Tests:
         except Exception as e:
             results.append(f"FAIL: {e}")
             try:
-                await firestore.update(
-                    credentials=credentials,
-                    project_id=project_id,
+                await firestore.update_with_oidc(
+                    **oidc_params,
                     database_id=database_id,
                     delete_protection=False,
                 )
-                await firestore.delete(
-                    credentials=credentials,
-                    project_id=project_id,
+                await firestore.delete_with_oidc(
+                    **oidc_params,
                     database_id=database_id,
                 )
                 results.append(f"CLEANUP: deleted database {database_id}")
