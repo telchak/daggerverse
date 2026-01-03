@@ -62,32 +62,31 @@ def generate_credentials_script(
     """
     audience = f"//iam.googleapis.com/{workload_identity_provider}"
 
-    # Build jq filter for service account impersonation
-    sa_filter = ""
+    # Build optional service account impersonation line
+    sa_line = ""
     if service_account_email:
         sa_url = (
             f"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/"
             f"{service_account_email}:generateAccessToken"
         )
-        sa_filter = f' | .service_account_impersonation_url = "{sa_url}"'
+        sa_line = f',\n  "service_account_impersonation_url": "{sa_url}"'
 
-    # Use jq for proper JSON construction - handles escaping automatically
+    # Use heredoc with variable expansion (no external tools needed)
+    # Note: In Python f-strings, {{ and }} produce literal { and }
     return f'''set -e
 [ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && echo "ERROR: ACTIONS_ID_TOKEN_REQUEST_URL not set" >&2 && exit 1
 [ -z "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && echo "ERROR: ACTIONS_ID_TOKEN_REQUEST_TOKEN not set" >&2 && exit 1
-jq -n \\
-  --arg audience "{audience}" \\
-  --arg url "$ACTIONS_ID_TOKEN_REQUEST_URL" \\
-  --arg token "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" \\
-  '{{
-    type: "external_account",
-    audience: $audience,
-    subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
-    token_url: "https://sts.googleapis.com/v1/token",
-    credential_source: {{
-      url: ($url + "&audience=" + $audience),
-      headers: {{Authorization: ("bearer " + $token)}},
-      format: {{type: "json", subject_token_field_name: "value"}}
-    }}
-  }}{sa_filter}' > /tmp/gcp-credentials.json
+cat > /tmp/gcp-credentials.json <<EOF
+{{
+  "type": "external_account",
+  "audience": "{audience}",
+  "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+  "token_url": "https://sts.googleapis.com/v1/token",
+  "credential_source": {{
+    "url": "$ACTIONS_ID_TOKEN_REQUEST_URL&audience={audience}",
+    "headers": {{"Authorization": "bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"}},
+    "format": {{"type": "json", "subject_token_field_name": "value"}}
+  }}{sa_line}
+}}
+EOF
 '''
