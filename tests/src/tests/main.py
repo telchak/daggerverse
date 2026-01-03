@@ -266,7 +266,7 @@ class Tests:
         project_id: Annotated[str, Doc("GCP project ID")],
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
-        location: Annotated[str, Doc("Firestore location")] = "us-central1",
+        region: Annotated[str, Doc("GCP region (used for Firestore location)")] = "us-central1",
     ) -> str:
         """Run gcp-firebase module tests (Hosting + Firestore) using GitHub Actions OIDC."""
         results = []
@@ -343,7 +343,7 @@ class Tests:
                 credentials=credentials,
                 project_id=project_id,
                 database_id=database_id,
-                location=location,
+                location=region,
                 database_type="firestore-native",
                 delete_protection=False,
             )
