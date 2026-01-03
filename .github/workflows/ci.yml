@@ -121,38 +121,20 @@ jobs:
             gcp-artifact-registry)
               echo "args=--repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}" >> $GITHUB_OUTPUT
               echo "needs_gcp=true" >> $GITHUB_OUTPUT
-              echo "needs_gcp_auth_action=false" >> $GITHUB_OUTPUT
-              ;;
-            gcp-firebase)
-              echo "args=" >> $GITHUB_OUTPUT
-              echo "needs_gcp=false" >> $GITHUB_OUTPUT
-              echo "needs_gcp_auth_action=true" >> $GITHUB_OUTPUT
               ;;
             gcp-*)
               echo "args=" >> $GITHUB_OUTPUT
               echo "needs_gcp=true" >> $GITHUB_OUTPUT
-              echo "needs_gcp_auth_action=false" >> $GITHUB_OUTPUT
               ;;
             semver)
               echo "args=--source=." >> $GITHUB_OUTPUT
               echo "needs_gcp=false" >> $GITHUB_OUTPUT
-              echo "needs_gcp_auth_action=false" >> $GITHUB_OUTPUT
               ;;
             *)
               echo "args=" >> $GITHUB_OUTPUT
               echo "needs_gcp=false" >> $GITHUB_OUTPUT
-              echo "needs_gcp_auth_action=false" >> $GITHUB_OUTPUT
               ;;
           esac
-
-      # Firebase needs google-github-actions/auth for proper credentials
-      - name: Authenticate to GCP (Firebase)
-        if: steps.setup.outputs.needs_gcp_auth_action == 'true'
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-          create_credentials_file: true
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.2.0
@@ -169,12 +151,7 @@ jobs:
           MODULE="${{ matrix.module }}"
           ARGS="${{ steps.setup.outputs.args }}"
 
-          if [ "${{ steps.setup.outputs.needs_gcp_auth_action }}" == "true" ]; then
-            OUTPUT=$(dagger call -m tests "$MODULE" \
-              --credentials="file:$GOOGLE_APPLICATION_CREDENTIALS" \
-              --project-id="${{ secrets.GCP_PROJECT_ID }}" \
-              $ARGS 2>&1) || { echo "$OUTPUT"; exit 1; }
-          elif [ "${{ steps.setup.outputs.needs_gcp }}" == "true" ]; then
+          if [ "${{ steps.setup.outputs.needs_gcp }}" == "true" ]; then
             OUTPUT=$(dagger call -m tests "$MODULE" \
               --workload-identity-provider="${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}" \
               --service-account="${{ secrets.GCP_SERVICE_ACCOUNT }}" \
