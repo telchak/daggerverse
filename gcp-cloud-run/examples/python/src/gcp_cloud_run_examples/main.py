@@ -13,26 +13,25 @@ class GcpCloudRunExamples:
     @function
     async def deploy_service(
         self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         image: Annotated[str, Doc("Container image URI")],
         service_name: Annotated[str, Doc("Service name")],
-        credentials: Annotated[dagger.Secret, Doc("GCP credentials")],
-        project_id: Annotated[str, Doc("GCP project ID")],
     ) -> str:
         """Example: Deploy a service to Cloud Run with scale-to-zero."""
-        result = await dag.gcp_cloud_run().deploy_service(
+        cr = dag.gcp_cloud_run()
+
+        await cr.deploy_service(
+            gcloud=gcloud,
             image=image,
             service_name=service_name,
-            credentials=credentials,
-            project_id=project_id,
             min_instances=0,
             max_instances=10,
             allow_unauthenticated=False,
         )
 
-        url = await dag.gcp_cloud_run().get_service_url(
+        url = await cr.get_service_url(
+            gcloud=gcloud,
             service_name=service_name,
-            credentials=credentials,
-            project_id=project_id,
         )
 
         return f"Deployed {service_name} at {url}"
@@ -40,25 +39,24 @@ class GcpCloudRunExamples:
     @function
     async def deploy_and_run_job(
         self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         image: Annotated[str, Doc("Container image URI")],
         job_name: Annotated[str, Doc("Job name")],
-        credentials: Annotated[dagger.Secret, Doc("GCP credentials")],
-        project_id: Annotated[str, Doc("GCP project ID")],
     ) -> str:
         """Example: Deploy and execute a Cloud Run job."""
-        await dag.gcp_cloud_run().deploy_job(
+        cr = dag.gcp_cloud_run()
+
+        await cr.deploy_job(
+            gcloud=gcloud,
             image=image,
             job_name=job_name,
-            credentials=credentials,
-            project_id=project_id,
             tasks=1,
             timeout="600s",
         )
 
-        result = await dag.gcp_cloud_run().execute_job(
+        result = await cr.execute_job(
+            gcloud=gcloud,
             job_name=job_name,
-            credentials=credentials,
-            project_id=project_id,
             wait=True,
         )
 

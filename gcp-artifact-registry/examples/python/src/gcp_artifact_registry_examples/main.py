@@ -14,7 +14,7 @@ class GcpArtifactRegistryExamples:
     async def publish_container(
         self,
         source: Annotated[dagger.Directory, Doc("Source directory with Dockerfile")],
-        credentials: Annotated[dagger.Secret, Doc("GCP credentials")],
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         project_id: Annotated[str, Doc("GCP project ID")],
         repository: Annotated[str, Doc("Repository name")],
         image_name: Annotated[str, Doc("Image name")],
@@ -29,7 +29,7 @@ class GcpArtifactRegistryExamples:
             repository=repository,
             image_name=image_name,
             tag=tag,
-            credentials=credentials,
+            gcloud=gcloud,
         )
 
         return f"Published: {image_ref}"
@@ -37,13 +37,13 @@ class GcpArtifactRegistryExamples:
     @function
     async def list_repository_images(
         self,
-        credentials: Annotated[dagger.Secret, Doc("GCP credentials")],
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         project_id: Annotated[str, Doc("GCP project ID")],
         repository: Annotated[str, Doc("Repository name")],
     ) -> str:
         """Example: List all images in an Artifact Registry repository."""
         return await dag.gcp_artifact_registry().list_images(
+            gcloud=gcloud,
             project_id=project_id,
             repository=repository,
-            credentials=credentials,
         )

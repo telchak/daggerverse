@@ -8,6 +8,10 @@
     {
       "name": "gcp-firebase",
       "source": "../.."
+    },
+    {
+      "name": "gcp-auth",
+      "source": "../../../gcp-auth"
     }
   ]
 }

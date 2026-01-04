@@ -8,6 +8,10 @@
     {
       "name": "gcp-artifact-registry",
       "source": "../.."
+    },
+    {
+      "name": "gcp-auth",
+      "source": "../../../gcp-auth"
     }
   ]
 }

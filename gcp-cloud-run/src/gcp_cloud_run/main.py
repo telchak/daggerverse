@@ -3,7 +3,7 @@
 from typing import Annotated
 
 import dagger
-from dagger import Doc, dag, function, object_type
+from dagger import Doc, function, object_type
 
 
 @object_type
@@ -13,10 +13,9 @@ class GcpCloudRun:
     @function
     async def deploy_service(
         self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         image: Annotated[str, Doc("Container image URI")],
         service_name: Annotated[str, Doc("Service name")],
-        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
-        project_id: Annotated[str, Doc("GCP project ID")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
         port: Annotated[int, Doc("Container port")] = 8080,
         cpu: Annotated[str, Doc("CPU allocation")] = "1",
@@ -33,8 +32,6 @@ class GcpCloudRun:
         cpu_boost: Annotated[bool, Doc("Enable CPU boost during startup")] = False,
     ) -> str:
         """Deploy a Cloud Run service."""
-        gcloud = dag.gcp_auth().gcloud_container(credentials, project_id, region=region)
-
         cmd = [
             "gcloud", "run", "deploy", service_name,
             "--image", image, "--region", region, "--port", str(port),
@@ -60,10 +57,9 @@ class GcpCloudRun:
     @function
     async def deploy_job(
         self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         image: Annotated[str, Doc("Container image URI")],
         job_name: Annotated[str, Doc("Job name")],
-        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
-        project_id: Annotated[str, Doc("GCP project ID")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
         cpu: Annotated[str, Doc("CPU allocation")] = "1",
         memory: Annotated[str, Doc("Memory allocation")] = "512Mi",
@@ -79,8 +75,6 @@ class GcpCloudRun:
         args: Annotated[list[str], Doc("Override container args")] = [],
     ) -> str:
         """Deploy a Cloud Run job."""
-        gcloud = dag.gcp_auth().gcloud_container(credentials, project_id, region=region)
-
         cmd = [
             "gcloud", "run", "jobs", "deploy", job_name,
             "--image", image, "--region", region, "--cpu", cpu, "--memory", memory,
@@ -106,14 +100,12 @@ class GcpCloudRun:
     @function
     async def execute_job(
         self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         job_name: Annotated[str, Doc("Job name")],
-        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
-        project_id: Annotated[str, Doc("GCP project ID")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
         wait: Annotated[bool, Doc("Wait for execution to complete")] = True,
     ) -> str:
         """Execute a Cloud Run job."""
-        gcloud = dag.gcp_auth().gcloud_container(credentials, project_id, region=region)
         cmd = ["gcloud", "run", "jobs", "execute", job_name, "--region", region, "--quiet"]
         if wait:
             cmd.append("--wait")
@@ -122,13 +114,11 @@ class GcpCloudRun:
     @function
     async def delete_service(
         self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         service_name: Annotated[str, Doc("Service name")],
-        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
-        project_id: Annotated[str, Doc("GCP project ID")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> str:
         """Delete a Cloud Run service."""
-        gcloud = dag.gcp_auth().gcloud_container(credentials, project_id, region=region)
         return await gcloud.with_exec([
             "gcloud", "run", "services", "delete", service_name, "--region", region, "--quiet",
         ]).stdout()
@@ -136,13 +126,11 @@ class GcpCloudRun:
     @function
     async def delete_job(
         self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         job_name: Annotated[str, Doc("Job name")],
-        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
-        project_id: Annotated[str, Doc("GCP project ID")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> str:
         """Delete a Cloud Run job."""
-        gcloud = dag.gcp_auth().gcloud_container(credentials, project_id, region=region)
         return await gcloud.with_exec([
             "gcloud", "run", "jobs", "delete", job_name, "--region", region, "--quiet",
         ]).stdout()
@@ -150,13 +138,11 @@ class GcpCloudRun:
     @function
     async def get_service_url(
         self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         service_name: Annotated[str, Doc("Service name")],
-        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
-        project_id: Annotated[str, Doc("GCP project ID")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> str:
         """Get the URL of a deployed service."""
-        gcloud = dag.gcp_auth().gcloud_container(credentials, project_id, region=region)
         output = await gcloud.with_exec([
             "gcloud", "run", "services", "describe", service_name,
             "--region", region, "--format", "value(status.url)",
@@ -166,13 +152,11 @@ class GcpCloudRun:
     @function
     async def service_exists(
         self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         service_name: Annotated[str, Doc("Service name")],
-        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials")],
-        project_id: Annotated[str, Doc("GCP project ID")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> bool:
         """Check if a Cloud Run service exists."""
-        gcloud = dag.gcp_auth().gcloud_container(credentials, project_id, region=region)
         result = await gcloud.with_exec([
             "sh", "-c",
             f"gcloud run services describe {service_name} --region {region} "

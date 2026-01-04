@@ -13,17 +13,15 @@ class GcpVertexAiExamples:
     @function
     async def deploy_ml_model(
         self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         image_uri: Annotated[str, Doc("Container image URI for the model")],
-        credentials: Annotated[dagger.Secret, Doc("GCP credentials")],
-        project_id: Annotated[str, Doc("GCP project ID")],
         model_name: Annotated[str, Doc("Model display name")],
         endpoint_name: Annotated[str, Doc("Endpoint display name")],
     ) -> str:
         """Example: Deploy a containerized ML model to Vertex AI."""
         result = await dag.gcp_vertex_ai().deploy_model(
+            gcloud=gcloud,
             image_uri=image_uri,
-            project_id=project_id,
-            credentials=credentials,
             model_name=model_name,
             endpoint_name=endpoint_name,
             machine_type="n1-standard-4",
@@ -38,18 +36,12 @@ class GcpVertexAiExamples:
     @function
     async def list_deployed_models(
         self,
-        credentials: Annotated[dagger.Secret, Doc("GCP credentials")],
-        project_id: Annotated[str, Doc("GCP project ID")],
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
     ) -> str:
         """Example: List all deployed models and endpoints."""
-        models = await dag.gcp_vertex_ai().list_models(
-            project_id=project_id,
-            credentials=credentials,
-        )
+        vai = dag.gcp_vertex_ai()
 
-        endpoints = await dag.gcp_vertex_ai().list_endpoints(
-            project_id=project_id,
-            credentials=credentials,
-        )
+        models = await vai.list_models(gcloud=gcloud)
+        endpoints = await vai.list_endpoints(gcloud=gcloud)
 
         return f"Models:\n{models}\n\nEndpoints:\n{endpoints}"

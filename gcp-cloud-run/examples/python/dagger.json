@@ -8,6 +8,10 @@
     {
       "name": "gcp-cloud-run",
       "source": "../.."
+    },
+    {
+      "name": "gcp-auth",
+      "source": "../../../gcp-auth"
     }
   ]
 }

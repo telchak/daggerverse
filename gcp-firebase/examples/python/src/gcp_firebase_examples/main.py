@@ -14,12 +14,12 @@ class GcpFirebaseExamples:
     async def deploy_to_production(
         self,
         source: Annotated[dagger.Directory, Doc("Source directory with firebase.json")],
-        credentials: Annotated[dagger.Secret, Doc("GCP credentials")],
+        access_token: Annotated[dagger.Secret, Doc("GCP access token")],
         project_id: Annotated[str, Doc("Firebase project ID")],
     ) -> str:
         """Example: Build and deploy web app to Firebase Hosting."""
         result = await dag.gcp_firebase().deploy(
-            credentials=credentials,
+            access_token=access_token,
             project_id=project_id,
             source=source,
             build_command="npm run build",
@@ -32,13 +32,13 @@ class GcpFirebaseExamples:
     async def deploy_preview_for_pr(
         self,
         source: Annotated[dagger.Directory, Doc("Source directory with firebase.json")],
-        credentials: Annotated[dagger.Secret, Doc("GCP credentials")],
+        access_token: Annotated[dagger.Secret, Doc("GCP access token")],
         project_id: Annotated[str, Doc("Firebase project ID")],
         pr_number: Annotated[int, Doc("Pull request number")],
     ) -> str:
         """Example: Deploy a preview channel for a pull request."""
         preview_url = await dag.gcp_firebase().deploy_preview(
-            credentials=credentials,
+            access_token=access_token,
             project_id=project_id,
             channel_id=f"pr-{pr_number}",
             source=source,

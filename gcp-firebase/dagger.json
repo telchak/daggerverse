@@ -4,11 +4,5 @@
   "engineVersion": "v0.19.8",
   "sdk": {
     "source": "python"
-  },
-  "dependencies": [
-    {
-      "name": "gcp-auth",
-      "source": "../gcp-auth"
-    }
-  ]
+  }
 }

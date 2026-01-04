@@ -118,7 +118,7 @@ class Tests:
 
         # Test get_image_uri (no credentials needed)
         ar = dag.gcp_artifact_registry()
-        uri = await ar.get_image_uri(
+        uri = ar.get_image_uri(
             project_id="test-project",
             repository="test-repo",
             image_name="test-image",
@@ -129,7 +129,7 @@ class Tests:
             raise ValueError(f"Expected {expected}, got {uri}")
         results.append(f"PASS: get_image_uri -> {uri}")
 
-        # Test list_images with OIDC
+        # Get gcloud container from gcp-auth, then pass to artifact-registry
         gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
             workload_identity_provider=workload_identity_provider,
             project_id=project_id,
@@ -139,11 +139,8 @@ class Tests:
             region=region,
         )
 
-        await gcloud.with_exec([
-            "gcloud", "artifacts", "docker", "images", "list",
-            f"{region}-docker.pkg.dev/{project_id}/{repository}",
-            "--format=table(IMAGE,TAGS,CREATE_TIME)",
-        ]).stdout()
+        # Test list_images using the module function
+        await ar.list_images(gcloud=gcloud, project_id=project_id, repository=repository, region=region)
         results.append(f"PASS: list_images -> {repository}")
 
         return "\n".join(results)
@@ -163,6 +160,7 @@ class Tests:
         service_name = f"dagger-test-{int(time.time())}"
         test_image = "gcr.io/google-samples/hello-app:1.0"
 
+        # Get gcloud container from gcp-auth
         gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
             workload_identity_provider=workload_identity_provider,
             project_id=project_id,
@@ -172,49 +170,35 @@ class Tests:
             region=region,
         )
 
+        cr = dag.gcp_cloud_run()
+
         try:
             # CREATE
-            await gcloud.with_exec([
-                "gcloud", "run", "deploy", service_name, "--image", test_image,
-                "--region", region, "--port", "8080", "--allow-unauthenticated", "--quiet",
-            ]).stdout()
+            await cr.deploy_service(gcloud=gcloud, image=test_image, service_name=service_name, region=region, allow_unauthenticated=True)
             results.append(f"PASS: CREATE - deployed {service_name}")
 
             # READ - check exists
-            result = await gcloud.with_exec([
-                "gcloud", "run", "services", "describe", service_name,
-                "--region", region, "--format", "value(metadata.name)",
-            ]).stdout()
-            if not result.strip():
+            exists = await cr.service_exists(gcloud=gcloud, service_name=service_name, region=region)
+            if not exists:
                 raise Exception(f"Service {service_name} not found after deploy")
             results.append("PASS: READ - service exists")
 
             # READ - get URL
-            url = await gcloud.with_exec([
-                "gcloud", "run", "services", "describe", service_name,
-                "--region", region, "--format", "value(status.url)",
-            ]).stdout()
-            results.append(f"PASS: READ - get_service_url -> {url.strip()}")
+            url = await cr.get_service_url(gcloud=gcloud, service_name=service_name, region=region)
+            results.append(f"PASS: READ - get_service_url -> {url}")
 
             # UPDATE
-            await gcloud.with_exec([
-                "gcloud", "run", "deploy", service_name, "--image", test_image,
-                "--region", region, "--set-env-vars", "TEST_VAR=updated", "--quiet",
-            ]).stdout()
+            await cr.deploy_service(gcloud=gcloud, image=test_image, service_name=service_name, region=region, env_vars=["TEST_VAR=updated"])
             results.append("PASS: UPDATE - redeployed with env var")
 
             # DELETE
-            await gcloud.with_exec([
-                "gcloud", "run", "services", "delete", service_name, "--region", region, "--quiet",
-            ]).stdout()
+            await cr.delete_service(gcloud=gcloud, service_name=service_name, region=region)
             results.append("PASS: DELETE - service deleted")
 
         except Exception as e:
             results.append(f"FAIL: {e}")
             try:
-                await gcloud.with_exec([
-                    "gcloud", "run", "services", "delete", service_name, "--region", region, "--quiet",
-                ]).stdout()
+                await cr.delete_service(gcloud=gcloud, service_name=service_name, region=region)
                 results.append(f"CLEANUP: deleted {service_name}")
             except Exception:
                 pass
@@ -235,6 +219,7 @@ class Tests:
         """Run gcp-vertex-ai module tests using GitHub Actions OIDC."""
         results = []
 
+        # Get gcloud container from gcp-auth
         gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
             workload_identity_provider=workload_identity_provider,
             project_id=project_id,
@@ -244,16 +229,14 @@ class Tests:
             region=region,
         )
 
+        vai = dag.gcp_vertex_ai()
+
         # Test list models
-        await gcloud.with_exec([
-            "gcloud", "ai", "models", "list", f"--region={region}",
-        ]).stdout()
+        await vai.list_models(gcloud=gcloud, region=region)
         results.append("PASS: list_models")
 
         # Test list endpoints
-        await gcloud.with_exec([
-            "gcloud", "ai", "endpoints", "list", f"--region={region}",
-        ]).stdout()
+        await vai.list_endpoints(gcloud=gcloud, region=region)
         results.append("PASS: list_endpoints")
 
         return "\n".join(results)
@@ -268,68 +251,57 @@ class Tests:
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         region: Annotated[str, Doc("GCP region for Firestore")] = "europe-west9",
     ) -> str:
-        """Run gcp-firebase module tests (Hosting + Firestore).
-
-        Uses GitHub Actions OIDC to generate credentials via gcp-auth module.
-        """
+        """Run gcp-firebase module tests (Hosting + Firestore)."""
         results = []
         channel_id = f"dagger-test-{int(time.time())}"
         database_id = f"dagger-test-{int(time.time())}"
 
-        # Clone firebase-dagger-template from GitHub (already has firebase.json configured)
-        source = (
-            dag.git("https://github.com/telchak/firebase-dagger-template.git")
-            .branch("main")
-            .tree()
+        # Get gcloud container from gcp-auth
+        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+            service_account_email=service_account,
         )
+
+        # Get access token for Firebase
+        token_output = await gcloud.with_exec(["gcloud", "auth", "print-access-token"]).stdout()
+        access_token = dag.set_secret("firebase_token", token_output.strip())
+
+        # Clone firebase-dagger-template from GitHub
+        source = dag.git("https://github.com/telchak/firebase-dagger-template.git").branch("main").tree()
+
+        firebase = dag.gcp_firebase()
 
         # ========== HOSTING TESTS ==========
         results.append("--- Firebase Hosting ---")
 
         # Test build
-        dist = dag.gcp_firebase().build(source=source)
+        dist = firebase.build(source=source)
         entries = await dist.entries()
         if len(entries) == 0:
             raise ValueError("Build produced no output files")
         results.append(f"PASS: build -> {len(entries)} files")
 
         try:
-            # Test deploy_preview with OIDC (uses gcloud_container_from_github_actions internally)
-            preview_url = await dag.gcp_firebase().deploy_preview_with_oidc(
-                workload_identity_provider=workload_identity_provider,
-                project_id=project_id,
-                channel_id=channel_id,
-                oidc_request_token=oidc_token,
-                oidc_request_url=oidc_url,
-                service_account_email=service_account,
-                source=source,
+            # Test deploy_preview
+            preview_url = await firebase.deploy_preview(
+                access_token=access_token, project_id=project_id,
+                channel_id=channel_id, source=source,
             )
             if not preview_url.startswith("https://"):
                 raise ValueError(f"Invalid preview URL: {preview_url}")
-            results.append(f"PASS: deploy_preview_with_oidc -> {preview_url}")
+            results.append(f"PASS: deploy_preview -> {preview_url}")
 
-            # Test delete_channel with OIDC
-            await dag.gcp_firebase().delete_channel_with_oidc(
-                workload_identity_provider=workload_identity_provider,
-                project_id=project_id,
-                channel_id=channel_id,
-                oidc_request_token=oidc_token,
-                oidc_request_url=oidc_url,
-                service_account_email=service_account,
-            )
-            results.append("PASS: delete_channel_with_oidc")
+            # Test delete_channel
+            await firebase.delete_channel(access_token=access_token, project_id=project_id, channel_id=channel_id)
+            results.append("PASS: delete_channel")
 
         except Exception as e:
             results.append(f"FAIL: {e}")
             try:
-                await dag.gcp_firebase().delete_channel_with_oidc(
-                    workload_identity_provider=workload_identity_provider,
-                    project_id=project_id,
-                    channel_id=channel_id,
-                    oidc_request_token=oidc_token,
-                    oidc_request_url=oidc_url,
-                    service_account_email=service_account,
-                )
+                await firebase.delete_channel(access_token=access_token, project_id=project_id, channel_id=channel_id)
                 results.append(f"CLEANUP: deleted channel {channel_id}")
             except Exception:
                 pass
@@ -338,89 +310,47 @@ class Tests:
         # ========== FIRESTORE TESTS ==========
         results.append("--- Firestore ---")
 
-        firestore = dag.gcp_firebase().firestore()
-
-        # Common OIDC params for Firestore operations
-        oidc_params = {
-            "workload_identity_provider": workload_identity_provider,
-            "project_id": project_id,
-            "oidc_request_token": oidc_token,
-            "oidc_request_url": oidc_url,
-            "service_account_email": service_account,
-        }
+        firestore = firebase.firestore()
 
         try:
             # CREATE
-            await firestore.create_with_oidc(
-                **oidc_params,
-                database_id=database_id,
-                location=region,
-                database_type="firestore-native",
-                delete_protection=False,
-            )
+            await firestore.create(gcloud=gcloud, database_id=database_id, location=region)
             results.append(f"PASS: CREATE - created database {database_id}")
 
             # READ - exists
-            exists = await firestore.exists_with_oidc(
-                **oidc_params,
-                database_id=database_id,
-            )
+            exists = await firestore.exists(gcloud=gcloud, database_id=database_id)
             if not exists:
                 raise Exception(f"Database {database_id} not found after create")
             results.append("PASS: READ - database exists")
 
             # READ - describe
-            description = await firestore.describe_with_oidc(
-                **oidc_params,
-                database_id=database_id,
-            )
+            description = await firestore.describe(gcloud=gcloud, database_id=database_id)
             if database_id not in description:
                 raise Exception(f"Database {database_id} not in describe output")
             results.append("PASS: READ - describe database")
 
             # READ - list
-            db_list = await firestore.list_with_oidc(
-                **oidc_params,
-            )
+            db_list = await firestore.list(gcloud=gcloud)
             if database_id not in db_list:
                 raise Exception(f"Database {database_id} not in list output")
             results.append("PASS: READ - list databases")
 
-            # UPDATE - enable delete protection
-            await firestore.update_with_oidc(
-                **oidc_params,
-                database_id=database_id,
-                delete_protection=True,
-            )
+            # UPDATE - enable then disable delete protection
+            await firestore.update(gcloud=gcloud, database_id=database_id, delete_protection=True)
             results.append("PASS: UPDATE - enabled delete protection")
 
-            # UPDATE - disable delete protection
-            await firestore.update_with_oidc(
-                **oidc_params,
-                database_id=database_id,
-                delete_protection=False,
-            )
+            await firestore.update(gcloud=gcloud, database_id=database_id, delete_protection=False)
             results.append("PASS: UPDATE - disabled delete protection")
 
             # DELETE
-            await firestore.delete_with_oidc(
-                **oidc_params,
-                database_id=database_id,
-            )
+            await firestore.delete(gcloud=gcloud, database_id=database_id)
             results.append("PASS: DELETE - database deleted")
 
         except Exception as e:
             results.append(f"FAIL: {e}")
             try:
-                await firestore.update_with_oidc(
-                    **oidc_params,
-                    database_id=database_id,
-                    delete_protection=False,
-                )
-                await firestore.delete_with_oidc(
-                    **oidc_params,
-                    database_id=database_id,
-                )
+                await firestore.update(gcloud=gcloud, database_id=database_id, delete_protection=False)
+                await firestore.delete(gcloud=gcloud, database_id=database_id)
                 results.append(f"CLEANUP: deleted database {database_id}")
             except Exception:
                 pass
@@ -430,31 +360,25 @@ class Tests:
 
     @function
     async def oidc_token(self) -> str:
-        """Run oidc-token module tests.
-
-        Note: github_token requires network access to GitHub's OIDC endpoint,
-        which isn't available from within Dagger containers. We test token_claims
-        with a sample JWT instead.
-        """
+        """Run oidc-token module tests."""
         results = []
 
-        # Sample JWT for testing (header.payload.signature)
-        # Payload: {"iss":"test","aud":"test","sub":"test"}
+        # Sample JWT for testing
         sample_jwt = "eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ0ZXN0IiwiYXVkIjoidGVzdCIsInN1YiI6InRlc3QifQ.signature"
         test_token = dag.set_secret("test-jwt", sample_jwt)
 
-        # Test token_claims - decode the sample JWT
+        # Test token_claims
         claims = await dag.oidc_token().token_claims(token=test_token)
         if "iss" not in claims:
             raise ValueError(f"Token missing 'iss' claim: {claims}")
         results.append("PASS: token_claims decodes JWT payload")
 
-        # Test gitlab_token - just passes through the secret
+        # Test gitlab_token
         gitlab_secret = dag.set_secret("gitlab-jwt", "test-token")
         _ = dag.oidc_token().gitlab_token(ci_job_jwt=gitlab_secret)
         results.append("PASS: gitlab_token pass-through")
 
-        # Test circleci_token - just passes through the secret
+        # Test circleci_token
         circleci_secret = dag.set_secret("circleci-jwt", "test-token")
         _ = dag.oidc_token().circleci_token(oidc_token=circleci_secret)
         results.append("PASS: circleci_token pass-through")
@@ -470,20 +394,16 @@ class Tests:
         results = []
         sv = dag.semver()
 
-        # Use a test-specific prefix to avoid conflicts with calver tags
         prefix = "test-semver/"
 
-        # Test current version
         current = await sv.current(source=source, tag_prefix=prefix, initial_version="v0.0.0")
         results.append(f"PASS: current -> {current}")
 
-        # Test bump
         bumped = await sv.bump(source=source, tag_prefix=prefix, bump_type="patch", initial_version="v1.0.0")
         if not bumped.startswith("v1.0."):
             raise ValueError(f"Expected v1.0.x, got {bumped}")
         results.append(f"PASS: bump patch -> {bumped}")
 
-        # Test bump_type detection
         bump_type = await sv.bump_type(source=source, tag_prefix=prefix)
         if bump_type not in ["none", "patch", "minor", "major"]:
             raise ValueError(f"Invalid bump_type: {bump_type}")
