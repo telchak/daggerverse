@@ -32,75 +32,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.2.0
         with:
           version: "0.19.8"
           verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-
       - name: Validate modules
         run: |
           echo "## Modules" >> $GITHUB_STEP_SUMMARY
           for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
             [ -f "$module/dagger.json" ] || { echo "ERROR: $module/dagger.json missing"; exit 1; }
             grep -q '"description"' "$module/dagger.json" || { echo "ERROR: $module missing description"; exit 1; }
-            if [ "$module" != "tests" ]; then
-              [ -f "$module/README.md" ] || { echo "ERROR: $module/README.md missing"; exit 1; }
-              [ -d "$module/examples" ] || { echo "ERROR: $module/examples missing"; exit 1; }
-            fi
+            [ -f "$module/README.md" ] || { echo "ERROR: $module/README.md missing"; exit 1; }
+            [ -d "$module/examples" ] || { echo "ERROR: $module/examples missing"; exit 1; }
             cd $module && FUNCS=$(dagger functions 2>/dev/null | tail -n +2 | awk '{print $1}') && cd ..
             echo "<details><summary><b>$module</b></summary>" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
             for func in $FUNCS; do echo "- \`$func\`" >> $GITHUB_STEP_SUMMARY; done
             echo "</details>" >> $GITHUB_STEP_SUMMARY
           done
 
-  test-basic:
-    needs: validate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Dagger
-        uses: dagger/dagger-for-github@v8.2.0
-        with:
-          version: "0.19.8"
-          verb: version
-          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-
-      - name: Test modules (no credentials)
-        id: test
-        env:
-          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-        run: |
-          OUTPUT=$(dagger call -m tests all-no-credentials 2>&1) || { echo "$OUTPUT"; exit 1; }
-          echo "$OUTPUT"
-          SEMVER=$(dagger call -m tests semver --source=. 2>&1) || { echo "$SEMVER"; exit 1; }
-          echo "$SEMVER"
-          RESULTS=$(echo -e "$OUTPUT\n\n=== semver ===\n$SEMVER" | grep -E '^PASS:|^FAIL:|^===' || true)
-          echo "output<<EOF" >> $GITHUB_OUTPUT
-          echo "$RESULTS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Summary
-        if: always()
-        run: |
-          echo "## Tests (no credentials)" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.test.outcome }}" == "success" ]; then
-            echo ":white_check_mark: **PASSED**" >> $GITHUB_STEP_SUMMARY
-          else
-            echo ":x: **FAILED**" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.test.outputs.output }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-
-  test-gcp:
-    needs: validate
+  test:
+    needs: [discover, validate]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -108,9 +61,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [gcp-auth, gcp-artifact-registry, gcp-cloud-run, gcp-vertex-ai, gcp-firebase]
+        module: ${{ fromJson(needs.discover.outputs.modules) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.2.0
@@ -124,20 +79,26 @@ jobs:
         env:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
         run: |
-          # All GCP modules have the same base parameters
-          ARGS="--workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
-          ARGS="$ARGS --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}"
-          ARGS="$ARGS --project-id=${{ secrets.GCP_PROJECT_ID }}"
-          ARGS="$ARGS --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN"
-          ARGS="$ARGS --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL"
-          ARGS="$ARGS --region=europe-west9"
+          MODULE="${{ matrix.module }}"
+          ARGS=""
 
-          # Only gcp-artifact-registry needs repository
-          if [ "${{ matrix.module }}" == "gcp-artifact-registry" ]; then
-            ARGS="$ARGS --repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}"
+          # GCP modules need OIDC credentials
+          if [[ "$MODULE" == gcp-* ]]; then
+            ARGS="--workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
+            ARGS="$ARGS --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}"
+            ARGS="$ARGS --project-id=${{ secrets.GCP_PROJECT_ID }}"
+            ARGS="$ARGS --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+            ARGS="$ARGS --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL"
+            ARGS="$ARGS --region=europe-west9"
           fi
 
-          OUTPUT=$(dagger call -m tests "${{ matrix.module }}" $ARGS 2>&1) || { echo "$OUTPUT"; exit 1; }
+          # Module-specific args
+          case "$MODULE" in
+            gcp-artifact-registry) ARGS="$ARGS --repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}" ;;
+            semver) ARGS="$ARGS --source=." ;;
+          esac
+
+          OUTPUT=$(dagger call -m tests "$MODULE" $ARGS 2>&1) || { echo "$OUTPUT"; exit 1; }
           echo "$OUTPUT"
 
           RESULTS=$(echo "$OUTPUT" | grep -E '^PASS:|^FAIL:' || true)
@@ -159,7 +120,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   release:
-    needs: [discover, test-basic, test-gcp]
+    needs: [discover, test]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -183,11 +144,9 @@ jobs:
         run: |
           for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
             LATEST_TAG=$(git tag -l "${module}/v*" --sort=-v:refname | head -n1)
-            if [ -n "$LATEST_TAG" ]; then
-              if git diff --quiet "$LATEST_TAG" HEAD -- "$module/"; then
-                echo "No changes in $module since $LATEST_TAG"
-                continue
-              fi
+            if [ -n "$LATEST_TAG" ] && git diff --quiet "$LATEST_TAG" HEAD -- "$module/"; then
+              echo "No changes in $module since $LATEST_TAG"
+              continue
             fi
             TAG=$(dagger call -m ./semver release --source=. --tag-prefix="${module}/" --initial-version="v0.1.0" --github-token=env:GITHUB_TOKEN)
             echo "$module: $TAG"
@@ -200,13 +159,11 @@ jobs:
         run: |
           git fetch --tags
           VERSION=$(dagger call -m ./calver generate --source=. --format="vYYYY.MM.MICRO")
-
           NOTES="## Module Versions\n\n| Module | Version |\n|--------|---------|"
           for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
             VER=$(dagger call -m ./semver current --source=. --tag-prefix="${module}/" --initial-version="v0.0.0")
             NOTES="$NOTES\n| $module | $VER |"
           done
-
           if gh release view "$VERSION" > /dev/null 2>&1; then
             echo -e "$NOTES" | gh release edit "$VERSION" --notes-file -
           else
