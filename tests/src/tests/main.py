@@ -118,7 +118,7 @@ class Tests:
 
         # Test get_image_uri (no credentials needed)
         ar = dag.gcp_artifact_registry()
-        uri = ar.get_image_uri(
+        uri = await ar.get_image_uri(
             project_id="test-project",
             repository="test-repo",
             image_name="test-image",
