@@ -7,39 +7,39 @@
   "dependencies": [
     {
       "name": "calver",
-      "source": "../calver"
+      "source": "github.com/telchak/daggerverse/calver"
     },
     {
       "name": "gcp-artifact-registry",
-      "source": "../gcp-artifact-registry"
+      "source": "github.com/telchak/daggerverse/gcp-artifact-registry"
     },
     {
       "name": "gcp-auth",
-      "source": "../gcp-auth"
+      "source": "github.com/telchak/daggerverse/gcp-auth"
     },
     {
       "name": "gcp-cloud-run",
-      "source": "../gcp-cloud-run"
+      "source": "github.com/telchak/daggerverse/gcp-cloud-run"
     },
     {
       "name": "gcp-firebase",
-      "source": "../gcp-firebase"
+      "source": "github.com/telchak/daggerverse/gcp-firebase"
     },
     {
       "name": "gcp-vertex-ai",
-      "source": "../gcp-vertex-ai"
+      "source": "github.com/telchak/daggerverse/gcp-vertex-ai"
     },
     {
       "name": "health-check",
-      "source": "../health-check"
+      "source": "github.com/telchak/daggerverse/health-check"
     },
     {
       "name": "oidc-token",
-      "source": "../oidc-token"
+      "source": "github.com/telchak/daggerverse/oidc-token"
     },
     {
       "name": "semver",
-      "source": "../semver"
+      "source": "github.com/telchak/daggerverse/semver"
     }
   ]
 }

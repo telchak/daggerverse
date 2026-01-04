@@ -1,7 +1,14 @@
 {
   "name": "health-check-examples",
   "engineVersion": "v0.19.7",
-  "sdk": "typescript",
+  "sdk": {
+    "source": "typescript"
+  },
   "source": "src",
-  "dependencies": ["../.."]
+  "dependencies": [
+    {
+      "name": "health-check",
+      "source": "github.com/telchak/daggerverse/health-check"
+    }
+  ]
 }

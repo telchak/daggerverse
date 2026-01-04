@@ -8,7 +8,7 @@
   "dependencies": [
     {
       "name": "gcp-auth",
-      "source": "../gcp-auth"
+      "source": "github.com/telchak/daggerverse/gcp-auth"
     }
   ]
 }

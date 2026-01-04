@@ -7,7 +7,7 @@
   "dependencies": [
     {
       "name": "gcp-vertex-ai",
-      "source": "../.."
+      "source": "github.com/telchak/daggerverse/gcp-vertex-ai"
     }
   ]
 }

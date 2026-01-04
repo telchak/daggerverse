@@ -1,6 +1,13 @@
 {
   "name": "health-check-examples",
   "engineVersion": "v0.19.7",
-  "sdk": "go",
-  "dependencies": ["../.."]
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "health-check",
+      "source": "github.com/telchak/daggerverse/health-check"
+    }
+  ]
 }
