@@ -8,7 +8,7 @@
   "dependencies": [
     {
       "name": "health-check",
-      "source": "github.com/telchak/daggerverse/health-check"
+      "source": "../.."
     }
   ]
 }

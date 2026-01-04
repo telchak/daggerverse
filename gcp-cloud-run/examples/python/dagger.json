@@ -7,7 +7,7 @@
   "dependencies": [
     {
       "name": "gcp-cloud-run",
-      "source": "github.com/telchak/daggerverse/gcp-cloud-run"
+      "source": "../.."
     }
   ]
 }

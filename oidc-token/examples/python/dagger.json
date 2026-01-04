@@ -7,7 +7,7 @@
   "dependencies": [
     {
       "name": "oidc-token",
-      "source": "github.com/telchak/daggerverse/oidc-token"
+      "source": "../.."
     }
   ]
 }

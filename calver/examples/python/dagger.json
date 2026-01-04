@@ -7,11 +7,11 @@
   "dependencies": [
     {
       "name": "calver",
-      "source": "github.com/telchak/daggerverse/calver"
+      "source": "../.."
     },
     {
       "name": "gcp-artifact-registry",
-      "source": "github.com/telchak/daggerverse/gcp-artifact-registry"
+      "source": "../../../gcp-artifact-registry"
     }
   ]
 }

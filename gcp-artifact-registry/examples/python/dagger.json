@@ -7,7 +7,7 @@
   "dependencies": [
     {
       "name": "gcp-artifact-registry",
-      "source": "github.com/telchak/daggerverse/gcp-artifact-registry"
+      "source": "../.."
     }
   ]
 }

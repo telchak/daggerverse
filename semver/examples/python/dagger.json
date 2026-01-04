@@ -7,7 +7,7 @@
   "dependencies": [
     {
       "name": "semver",
-      "source": "github.com/telchak/daggerverse/semver"
+      "source": "../.."
     }
   ]
 }
