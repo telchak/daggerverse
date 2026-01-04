@@ -330,7 +330,7 @@ class Tests:
             results.append("PASS: READ - describe database")
 
             # READ - list
-            db_list = await firestore.list(gcloud=gcloud)
+            db_list = await firestore.list_(gcloud=gcloud)
             if database_id not in db_list:
                 raise Exception(f"Database {database_id} not in list output")
             results.append("PASS: READ - list databases")
