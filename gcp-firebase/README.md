@@ -17,6 +17,14 @@ dagger install github.com/telchak/daggerverse/gcp-firebase
 
 ## Firebase Hosting
 
+Firebase Hosting functions accept an `access_token` secret. Get one from a gcloud container:
+
+```python
+# Get access token from authenticated gcloud container
+token = await gcloud.with_exec(["gcloud", "auth", "print-access-token"]).stdout()
+access_token = dag.set_secret("firebase_token", token.strip())
+```
+
 ### Functions
 
 | Function | Description |
@@ -28,44 +36,22 @@ dagger install github.com/telchak/daggerverse/gcp-firebase
 
 ### Usage
 
-#### Deploy to Production
-
-```bash
-dagger call deploy \
-  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-  --project-id=my-firebase-project \
-  --source=. \
-  --build-command="npm run build"
-```
-
-#### Deploy Preview
-
-```bash
-dagger call deploy-preview \
-  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-  --project-id=my-firebase-project \
-  --channel-id=pr-123 \
-  --source=. \
-  --expires=7d
-```
-
-#### Delete Preview Channel
-
-```bash
-dagger call delete-channel \
-  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-  --project-id=my-firebase-project \
-  --channel-id=pr-123
-```
-
-#### Python Example
-
 ```python
 from dagger import dag
 
+# Get gcloud container from gcp-auth
+gcloud = dag.gcp_auth().gcloud_container(
+    credentials=credentials,
+    project_id="my-project",
+)
+
+# Get access token
+token = await gcloud.with_exec(["gcloud", "auth", "print-access-token"]).stdout()
+access_token = dag.set_secret("firebase_token", token.strip())
+
 # Deploy to production
 result = await dag.gcp_firebase().deploy(
-    credentials=credentials,
+    access_token=access_token,
     project_id="my-firebase-project",
     source=source_dir,
     build_command="npm run build",
@@ -73,7 +59,7 @@ result = await dag.gcp_firebase().deploy(
 
 # Deploy preview
 preview_url = await dag.gcp_firebase().deploy_preview(
-    credentials=credentials,
+    access_token=access_token,
     project_id="my-firebase-project",
     channel_id="pr-123",
     source=source_dir,
@@ -82,7 +68,7 @@ preview_url = await dag.gcp_firebase().deploy_preview(
 
 # Delete preview channel
 await dag.gcp_firebase().delete_channel(
-    credentials=credentials,
+    access_token=access_token,
     project_id="my-firebase-project",
     channel_id="pr-123",
 )
@@ -92,7 +78,7 @@ await dag.gcp_firebase().delete_channel(
 
 ## Firestore Database Management
 
-Manage Firestore databases using gcloud CLI commands.
+Firestore functions accept a pre-authenticated `gcloud` container.
 
 See: https://firebase.google.com/docs/firestore/manage-databases
 
@@ -109,128 +95,61 @@ See: https://firebase.google.com/docs/firestore/manage-databases
 
 ### Usage
 
-#### Create a Database
-
-```bash
-dagger call firestore create \
-  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-  --project-id=my-project \
-  --database-id=my-database \
-  --location=us-central1 \
-  --database-type=firestore-native \
-  --delete-protection=false
-```
-
-**Parameters:**
-- `database-id`: Lowercase letters, numbers, hyphens (4-63 characters, starting with letter)
-- `location`: Region (e.g., `us-central1`) or multi-region (e.g., `nam5`, `eur3`)
-- `database-type`: `firestore-native` (default) or `datastore-mode`
-- `delete-protection`: Enable to prevent accidental deletion
-
-#### List Databases
-
-```bash
-dagger call firestore list \
-  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-  --project-id=my-project
-```
-
-#### Describe a Database
-
-```bash
-dagger call firestore describe \
-  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-  --project-id=my-project \
-  --database-id=my-database
-```
-
-#### Update Delete Protection
-
-```bash
-# Enable delete protection
-dagger call firestore update \
-  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-  --project-id=my-project \
-  --database-id=my-database \
-  --delete-protection=true
-
-# Disable delete protection
-dagger call firestore update \
-  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-  --project-id=my-project \
-  --database-id=my-database \
-  --delete-protection=false
-```
-
-#### Delete a Database
-
-```bash
-dagger call firestore delete \
-  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-  --project-id=my-project \
-  --database-id=my-database
-```
-
-**Note:** Use `(default)` as `database-id` to delete the default database. Delete protection must be disabled first.
-
-#### Check if Database Exists
-
-```bash
-dagger call firestore exists \
-  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
-  --project-id=my-project \
-  --database-id=my-database
-```
-
-#### Python Example
-
 ```python
 from dagger import dag
 
-# Create a new database
-await dag.gcp_firebase().firestore().create(
+# Get authenticated gcloud container from gcp-auth
+gcloud = dag.gcp_auth().gcloud_container(
     credentials=credentials,
     project_id="my-project",
+)
+
+firestore = dag.gcp_firebase().firestore()
+
+# Create a database
+await firestore.create(
+    gcloud=gcloud,
     database_id="my-database",
     location="us-central1",
-    database_type="firestore-native",
+)
+
+# Check if exists
+exists = await firestore.exists(
+    gcloud=gcloud,
+    database_id="my-database",
+)
+
+# Update delete protection
+await firestore.update(
+    gcloud=gcloud,
+    database_id="my-database",
     delete_protection=True,
 )
 
-# List all databases
-databases = await dag.gcp_firebase().firestore().list(
-    credentials=credentials,
-    project_id="my-project",
-)
-
-# Check if database exists
-exists = await dag.gcp_firebase().firestore().exists(
-    credentials=credentials,
-    project_id="my-project",
-    database_id="my-database",
-)
-
-# Disable delete protection before deletion
-await dag.gcp_firebase().firestore().update(
-    credentials=credentials,
-    project_id="my-project",
+# Delete (must disable delete protection first)
+await firestore.update(
+    gcloud=gcloud,
     database_id="my-database",
     delete_protection=False,
 )
-
-# Delete the database
-await dag.gcp_firebase().firestore().delete(
-    credentials=credentials,
-    project_id="my-project",
+await firestore.delete(
+    gcloud=gcloud,
     database_id="my-database",
 )
 ```
 
----
+### CLI
 
-## Dependencies
+```bash
+# Create database
+dagger call firestore create \
+  --gcloud=FROM_GCP_AUTH \
+  --database-id=my-database \
+  --location=us-central1
 
-- `gcp-auth` - For GCP authentication (used by Firestore)
+# List databases
+dagger call firestore list --gcloud=FROM_GCP_AUTH
+```
 
 ## License
 

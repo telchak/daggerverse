@@ -4,17 +4,17 @@ A collection of small, independent, reusable Dagger modules for CI/CD pipelines.
 
 ## Available Modules
 
-| Module | Description | Dependencies |
-|--------|-------------|--------------|
-| **calver** | Calendar Versioning utilities | None |
-| **gcp-auth** | GCP authentication utilities | None |
-| **gcp-artifact-registry** | Artifact Registry operations | gcp-auth |
-| **gcp-cloud-run** | Cloud Run deployment | gcp-auth |
-| **gcp-vertex-ai** | Vertex AI model deployment | gcp-auth |
-| **gcp-firebase** | Firebase Hosting deployment | None |
-| **health-check** | Container health checking | None |
-| **oidc-token** | OIDC token utilities | None |
-| **semver** | Semantic Versioning with Conventional Commits | None |
+| Module | Description |
+|--------|-------------|
+| **calver** | Calendar Versioning utilities |
+| **gcp-auth** | GCP authentication utilities |
+| **gcp-artifact-registry** | Artifact Registry operations |
+| **gcp-cloud-run** | Cloud Run deployment |
+| **gcp-vertex-ai** | Vertex AI model deployment |
+| **gcp-firebase** | Firebase Hosting & Firestore |
+| **health-check** | Container health checking |
+| **oidc-token** | OIDC token utilities |
+| **semver** | Semantic Versioning with Conventional Commits |
 
 ## Installation
 
@@ -86,34 +86,24 @@ Tests are centralized in the `tests/` module. This keeps the main modules clean 
 ### Run Tests Locally
 
 ```bash
-# Tests without credentials
-dagger -m tests call calver
-dagger -m tests call health-check
+# Tests without credentials (calver, health-check, oidc-token, semver)
+dagger -m tests call all-no-credentials
 
-# GCP tests (require credentials)
-dagger -m tests call gcp-auth \
+# All GCP tests (require OIDC credentials)
+dagger -m tests call all-gcp \
   --workload-identity-provider="..." \
   --service-account="..." \
   --project-id="..." \
-  --oidc-token=env:TOKEN \
-  --oidc-url=env:URL
+  --repository="..." \
+  --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+  --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
 ```
-
-### Test Coverage
-
-| Test | Credentials Required |
-|------|---------------------|
-| `calver` | No |
-| `health-check` | No |
-| `gcp-auth` | Yes (OIDC) |
-| `gcp-artifact-registry` | Yes (OIDC) |
-| `gcp-cloud-run` | Yes (OIDC) |
-| `gcp-vertex-ai` | Yes (OIDC) |
-| `gcp-firebase` | No (build only) |
 
 ### CI
 
-Tests run automatically on push/PR via GitHub Actions. GCP tests use Workload Identity Federation for keyless authentication.
+Tests run automatically on push/PR via GitHub Actions:
+- `test-basic`: calver, health-check, oidc-token, semver
+- `test-gcp`: All GCP modules with shared OIDC authentication
 
 ### Validation Pipeline
 
@@ -143,19 +133,21 @@ Tests run automatically on push/PR via GitHub Actions. GCP tests use Workload Id
 - **Functions**: `snake_case` (e.g., `verify_credentials`)
 - **Parameters**: `snake_case` (e.g., `project_id`)
 
-## Dependency Graph
+## Architecture
+
+All modules are independent and don't depend on each other. GCP modules accept pre-authenticated containers from `gcp-auth`:
 
 ```
-gcp-auth (base)
-├── gcp-artifact-registry
-├── gcp-cloud-run
-└── gcp-vertex-ai
+gcp-auth ─────────────────────────────────────┐
+  │ provides authenticated gcloud containers  │
+  ├──> gcp-artifact-registry                  │
+  ├──> gcp-cloud-run                          │
+  ├──> gcp-vertex-ai                          │
+  └──> gcp-firebase (firestore)               │
+                                              │
+gcp-firebase (hosting) <── access_token ──────┘
 
-calver (independent)
-health-check (independent)
-gcp-firebase (independent)
-oidc-token (independent)
-semver (independent)
+calver, health-check, oidc-token, semver (standalone)
 ```
 
 ## Publishing

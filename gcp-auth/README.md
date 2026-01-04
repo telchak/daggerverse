@@ -555,12 +555,14 @@ class MyPipeline:
     ) -> str:
         """Build, push, and deploy using GitHub Actions OIDC (no keys needed)."""
 
-        # Step 1: Generate GCP credentials from GitHub OIDC
-        credentials = await dag.gcp_auth().oidc_credentials(
+        # Step 1: Get authenticated gcloud container
+        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
             workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
             oidc_request_token=oidc_request_token,
             oidc_request_url=oidc_request_url,
             service_account_email=service_account_email,
+            region=region,
         )
 
         # Step 2: Build container from source
@@ -573,16 +575,14 @@ class MyPipeline:
             repository=repository,
             image_name=service_name,
             tag="latest",
-            region=region,
-            credentials=credentials,
+            gcloud=gcloud,
         )
 
         # Step 4: Deploy to Cloud Run
         await dag.gcp_cloud_run().deploy_service(
+            gcloud=gcloud,
             image=image_ref,
             service_name=service_name,
-            credentials=credentials,
-            project_id=project_id,
             region=region,
             min_instances=0,
             allow_unauthenticated=True,
@@ -590,10 +590,8 @@ class MyPipeline:
 
         # Step 5: Return service URL
         return await dag.gcp_cloud_run().get_service_url(
+            gcloud=gcloud,
             service_name=service_name,
-            credentials=credentials,
-            project_id=project_id,
-            region=region,
         )
 ```
 
@@ -634,7 +632,7 @@ jobs:
 
 ### Example 2b: Build, Push & Deploy to Cloud Run (Local with ADC)
 
-For local development, use Application Default Credentials with the Dagger CLI directly.
+For local development, use Application Default Credentials.
 
 **Prerequisites:**
 
@@ -643,41 +641,55 @@ For local development, use Application Default Credentials with the Dagger CLI d
 gcloud auth application-default login
 ```
 
-**CLI usage:**
+**Pipeline code:**
 
-```bash
-# Build, push, and deploy using ADC credentials
-# Step 1: Build and push to Artifact Registry
-IMAGE_REF=$(dagger -m github.com/telchak/daggerverse/gcp-artifact-registry call publish \
-  --container=$(dagger core container build --context=.) \
-  --project-id=my-project \
-  --repository=my-repo \
-  --image-name=my-service \
-  --tag=latest \
-  --region=us-central1 \
-  --credentials=file:~/.config/gcloud/application_default_credentials.json)
+```python
+from dagger import dag, function, object_type, Directory
 
-# Step 2: Deploy to Cloud Run
-dagger -m github.com/telchak/daggerverse/gcp-cloud-run call deploy-service \
-  --image="$IMAGE_REF" \
-  --service-name=my-service \
-  --project-id=my-project \
-  --region=us-central1 \
-  --min-instances=0 \
-  --allow-unauthenticated \
-  --credentials=file:~/.config/gcloud/application_default_credentials.json
+@object_type
+class MyPipeline:
+    @function
+    async def deploy_local(
+        self,
+        source: Directory,
+        service_name: str,
+        project_id: str,
+        region: str = "us-central1",
+        repository: str = "my-repo",
+    ) -> str:
+        """Build, push, and deploy using local ADC credentials."""
 
-# Step 3: Get service URL
-dagger -m github.com/telchak/daggerverse/gcp-cloud-run call get-service-url \
-  --service-name=my-service \
-  --project-id=my-project \
-  --region=us-central1 \
-  --credentials=file:~/.config/gcloud/application_default_credentials.json
+        # Get gcloud container using host credentials
+        gcloud = dag.gcp_auth().gcloud_container_from_host(
+            project_id=project_id,
+            region=region,
+        )
+
+        # Build, push, deploy
+        container = source.docker_build()
+        image_ref = await dag.gcp_artifact_registry().publish(
+            container=container,
+            project_id=project_id,
+            repository=repository,
+            image_name=service_name,
+            gcloud=gcloud,
+        )
+
+        await dag.gcp_cloud_run().deploy_service(
+            gcloud=gcloud,
+            image=image_ref,
+            service_name=service_name,
+        )
+
+        return await dag.gcp_cloud_run().get_service_url(
+            gcloud=gcloud,
+            service_name=service_name,
+        )
 ```
 
 | Aspect | GitHub OIDC (2a) | Local ADC (2b) |
 |--------|------------------|----------------|
-| **Credentials** | Generated from WIF at runtime | `file:~/.config/gcloud/application_default_credentials.json` |
+| **Credentials** | Generated from WIF at runtime | Host's ADC credentials |
 | **Key management** | None (keyless) | None (uses your gcloud login) |
 | **Best for** | CI/CD pipelines | Local development & testing |
 
