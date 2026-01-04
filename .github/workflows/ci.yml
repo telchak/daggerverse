@@ -77,15 +77,10 @@ jobs:
         env:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
         run: |
-          # Run basic tests
           OUTPUT=$(dagger call -m tests all-no-credentials 2>&1) || { echo "$OUTPUT"; exit 1; }
           echo "$OUTPUT"
-
-          # Run semver test (needs git history)
           SEMVER=$(dagger call -m tests semver --source=. 2>&1) || { echo "$SEMVER"; exit 1; }
           echo "$SEMVER"
-
-          # Combine results
           RESULTS=$(echo -e "$OUTPUT\n\n=== semver ===\n$SEMVER" | grep -E '^PASS:|^FAIL:|^===' || true)
           echo "output<<EOF" >> $GITHUB_OUTPUT
           echo "$RESULTS" >> $GITHUB_OUTPUT
@@ -110,6 +105,10 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [gcp-auth, gcp-artifact-registry, gcp-cloud-run, gcp-vertex-ai, gcp-firebase]
     steps:
       - uses: actions/checkout@v4
 
@@ -120,22 +119,28 @@ jobs:
           verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
-      - name: Test GCP modules
+      - name: Test ${{ matrix.module }}
         id: test
         env:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
         run: |
-          OUTPUT=$(dagger call -m tests all-gcp \
-            --workload-identity-provider="${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}" \
-            --service-account="${{ secrets.GCP_SERVICE_ACCOUNT }}" \
-            --project-id="${{ secrets.GCP_PROJECT_ID }}" \
-            --repository="${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}" \
-            --oidc-token="env:ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            --oidc-url="env:ACTIONS_ID_TOKEN_REQUEST_URL" \
-            --region="europe-west9" 2>&1) || { echo "$OUTPUT"; exit 1; }
+          # All GCP modules have the same base parameters
+          ARGS="--workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
+          ARGS="$ARGS --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}"
+          ARGS="$ARGS --project-id=${{ secrets.GCP_PROJECT_ID }}"
+          ARGS="$ARGS --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+          ARGS="$ARGS --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL"
+          ARGS="$ARGS --region=europe-west9"
+
+          # Only gcp-artifact-registry needs repository
+          if [ "${{ matrix.module }}" == "gcp-artifact-registry" ]; then
+            ARGS="$ARGS --repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}"
+          fi
+
+          OUTPUT=$(dagger call -m tests "${{ matrix.module }}" $ARGS 2>&1) || { echo "$OUTPUT"; exit 1; }
           echo "$OUTPUT"
 
-          RESULTS=$(echo "$OUTPUT" | grep -E '^PASS:|^FAIL:|^===' || true)
+          RESULTS=$(echo "$OUTPUT" | grep -E '^PASS:|^FAIL:' || true)
           echo "output<<EOF" >> $GITHUB_OUTPUT
           echo "$RESULTS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -143,7 +148,7 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "## Tests (GCP)" >> $GITHUB_STEP_SUMMARY
+          echo "## Test: ${{ matrix.module }}" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.test.outcome }}" == "success" ]; then
             echo ":white_check_mark: **PASSED**" >> $GITHUB_STEP_SUMMARY
           else
