@@ -45,15 +45,14 @@ class Calver:
         # Determine final MICRO value
         final_micro = micro
         if source and micro_marker in version:
-            git_repo = source.as_git()
-
             # Check if HEAD commit already has a CalVer tag matching pattern
-            existing_tag = await self._get_tag_for_head(git_repo, pattern)
+            existing_tag = await self._get_tag_for_head(source, pattern)
             if existing_tag:
                 print(f"Found existing tag on current commit: {existing_tag}")
                 return existing_tag
 
             # No existing tag on HEAD, find max MICRO from all tags
+            git_repo = source.as_git()
             tags = await git_repo.tags()
             max_micro = -1
             for tag in tags:
@@ -79,23 +78,30 @@ class Calver:
 
         return version
 
-    async def _get_tag_for_head(self, git_repo: dagger.GitRepository, pattern: str) -> str | None:
-        """Check if HEAD commit has a tag matching the CalVer pattern."""
+    async def _get_tag_for_head(self, source: dagger.Directory, pattern: str) -> str | None:
+        """Check if HEAD commit has a tag matching the CalVer pattern.
+
+        Uses git directly to find tags pointing at HEAD, which is more reliable
+        than using the Dagger GitRepository API in CI environments.
+        """
         try:
-            # Get current commit SHA
-            head_sha = await git_repo.commit()
+            # Use git directly to find all tags pointing at HEAD
+            result = await (
+                dag.container()
+                .from_("alpine/git:latest")
+                .with_mounted_directory("/repo", source)
+                .with_workdir("/repo")
+                .with_exec(["git", "tag", "--points-at", "HEAD"])
+                .stdout()
+            )
 
-            # Get all tags
-            tags = await git_repo.tags()
-
-            # For each tag matching pattern, check if it points to HEAD
-            for tag in tags:
-                if tag.startswith(pattern):
-                    tag_sha = await git_repo.tag(tag).commit()
-                    if tag_sha == head_sha:
-                        return tag
-        except Exception:
-            pass
+            # Check each tag to see if it matches our CalVer pattern
+            for tag in result.strip().split("\n"):
+                tag = tag.strip()
+                if tag and tag.startswith(pattern):
+                    return tag
+        except Exception as e:
+            print(f"Warning: Could not check tags on HEAD: {e}")
 
         return None
 
