@@ -6,6 +6,16 @@ from typing import Annotated
 import dagger
 from dagger import Doc, dag, function, object_type
 
+from .calver import test_calver
+from .gcp_artifact_registry import test_gcp_artifact_registry
+from .gcp_auth import test_gcp_auth
+from .gcp_cloud_run import test_gcp_cloud_run
+from .gcp_firebase import test_gcp_firebase
+from .gcp_vertex_ai import test_gcp_vertex_ai
+from .health_check import test_health_check
+from .oidc_token import test_oidc_token
+from .semver import test_semver
+
 
 @object_type
 class Tests:
@@ -14,52 +24,25 @@ class Tests:
     @function
     async def calver(self) -> str:
         """Run calver module tests."""
-        results = []
-        calver = dag.calver()
-
-        # Test default format
-        version = await calver.generate()
-        parts = version.split(".")
-        if len(parts) != 3:
-            raise ValueError(f"Expected 3 parts, got {len(parts)}: {version}")
-        results.append(f"PASS: generate default -> {version}")
-
-        # Test with micro
-        version = await calver.generate(format="YYYY.MM.MICRO", micro=5)
-        if not version.endswith(".5"):
-            raise ValueError(f"Expected version to end with .5, got {version}")
-        results.append(f"PASS: generate with micro -> {version}")
-
-        # Test custom format
-        version = await calver.generate(format="v.YY.0M.0D")
-        if not version.startswith("v."):
-            raise ValueError(f"Expected version to start with 'v.', got {version}")
-        results.append(f"PASS: generate custom format -> {version}")
-
-        return "\n".join(results)
+        return await test_calver()
 
     @function
     async def health_check(self) -> str:
         """Run health-check module tests."""
-        results = []
-        hc = dag.health_check()
+        return await test_health_check()
 
-        # Test HTTP check with nginx
-        nginx = dag.container().from_("nginx:alpine")
-        await hc.http(nginx, port=80, path="/")
-        results.append("PASS: HTTP check with nginx")
+    @function
+    async def oidc_token(self) -> str:
+        """Run oidc-token module tests."""
+        return await test_oidc_token()
 
-        # Test TCP check with redis
-        redis = dag.container().from_("redis:alpine")
-        await hc.tcp(redis, port=6379)
-        results.append("PASS: TCP check with redis")
-
-        # Test exec check
-        alpine = dag.container().from_("alpine:latest")
-        await hc.exec(alpine, command=["echo", "healthy"])
-        results.append("PASS: Exec check")
-
-        return "\n".join(results)
+    @function
+    async def semver(
+        self,
+        source: Annotated[dagger.Directory, Doc("Git repository with tags")],
+    ) -> str:
+        """Run semver module tests."""
+        return await test_semver(source=source)
 
     @function
     async def gcp_auth(
@@ -72,35 +55,14 @@ class Tests:
         region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> str:
         """Run gcp-auth module tests using GitHub Actions OIDC."""
-        results = []
-
-        # Get authenticated gcloud container
-        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+        return await test_gcp_auth(
             workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
             project_id=project_id,
-            oidc_request_token=oidc_token,
-            oidc_request_url=oidc_url,
-            service_account_email=service_account,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
             region=region,
         )
-
-        # Test auth list
-        email = await gcloud.with_exec(
-            ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
-        ).stdout()
-        results.append(f"PASS: gcloud auth -> {email.strip()}")
-
-        # Test project config
-        proj = await gcloud.with_exec(["gcloud", "config", "get", "project"]).stdout()
-        results.append(f"PASS: gcloud project -> {proj.strip()}")
-
-        # Test projects describe
-        desc = await gcloud.with_exec(
-            ["gcloud", "projects", "describe", project_id, "--format=value(projectId)"]
-        ).stdout()
-        results.append(f"PASS: gcloud projects describe -> {desc.strip()}")
-
-        return "\n".join(results)
 
     @function
     async def gcp_artifact_registry(
@@ -114,36 +76,15 @@ class Tests:
         region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> str:
         """Run gcp-artifact-registry module tests using GitHub Actions OIDC."""
-        results = []
-
-        # Test get_image_uri (no credentials needed)
-        ar = dag.gcp_artifact_registry()
-        uri = await ar.get_image_uri(
-            project_id="test-project",
-            repository="test-repo",
-            image_name="test-image",
-            tag="v1.0.0",
-        )
-        expected = "us-central1-docker.pkg.dev/test-project/test-repo/test-image:v1.0.0"
-        if uri != expected:
-            raise ValueError(f"Expected {expected}, got {uri}")
-        results.append(f"PASS: get_image_uri -> {uri}")
-
-        # Get gcloud container from gcp-auth, then pass to artifact-registry
-        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+        return await test_gcp_artifact_registry(
             workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
             project_id=project_id,
-            oidc_request_token=oidc_token,
-            oidc_request_url=oidc_url,
-            service_account_email=service_account,
+            repository=repository,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
             region=region,
         )
-
-        # Test list_images using the module function
-        await ar.list_images(gcloud=gcloud, project_id=project_id, repository=repository, region=region)
-        results.append(f"PASS: list_images -> {repository}")
-
-        return "\n".join(results)
 
     @function
     async def gcp_cloud_run(
@@ -156,55 +97,14 @@ class Tests:
         region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> str:
         """Run gcp-cloud-run module CRUD tests using GitHub Actions OIDC."""
-        results = []
-        service_name = f"dagger-test-{int(time.time())}"
-        test_image = "gcr.io/google-samples/hello-app:1.0"
-
-        # Get gcloud container from gcp-auth
-        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+        return await test_gcp_cloud_run(
             workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
             project_id=project_id,
-            oidc_request_token=oidc_token,
-            oidc_request_url=oidc_url,
-            service_account_email=service_account,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
             region=region,
         )
-
-        cr = dag.gcp_cloud_run()
-
-        try:
-            # CREATE
-            await cr.deploy_service(gcloud=gcloud, image=test_image, service_name=service_name, region=region, allow_unauthenticated=True)
-            results.append(f"PASS: CREATE - deployed {service_name}")
-
-            # READ - check exists
-            exists = await cr.service_exists(gcloud=gcloud, service_name=service_name, region=region)
-            if not exists:
-                raise Exception(f"Service {service_name} not found after deploy")
-            results.append("PASS: READ - service exists")
-
-            # READ - get URL
-            url = await cr.get_service_url(gcloud=gcloud, service_name=service_name, region=region)
-            results.append(f"PASS: READ - get_service_url -> {url}")
-
-            # UPDATE
-            await cr.deploy_service(gcloud=gcloud, image=test_image, service_name=service_name, region=region, env_vars=["TEST_VAR=updated"])
-            results.append("PASS: UPDATE - redeployed with env var")
-
-            # DELETE
-            await cr.delete_service(gcloud=gcloud, service_name=service_name, region=region)
-            results.append("PASS: DELETE - service deleted")
-
-        except Exception as e:
-            results.append(f"FAIL: {e}")
-            try:
-                await cr.delete_service(gcloud=gcloud, service_name=service_name, region=region)
-                results.append(f"CLEANUP: deleted {service_name}")
-            except Exception:
-                pass
-            raise
-
-        return "\n".join(results)
 
     @function
     async def gcp_vertex_ai(
@@ -217,29 +117,14 @@ class Tests:
         region: Annotated[str, Doc("GCP region")] = "us-central1",
     ) -> str:
         """Run gcp-vertex-ai module tests using GitHub Actions OIDC."""
-        results = []
-
-        # Get gcloud container from gcp-auth
-        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+        return await test_gcp_vertex_ai(
             workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
             project_id=project_id,
-            oidc_request_token=oidc_token,
-            oidc_request_url=oidc_url,
-            service_account_email=service_account,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
             region=region,
         )
-
-        vai = dag.gcp_vertex_ai()
-
-        # Test list models
-        await vai.list_models(gcloud=gcloud, region=region)
-        results.append("PASS: list_models")
-
-        # Test list endpoints
-        await vai.list_endpoints(gcloud=gcloud, region=region)
-        results.append("PASS: list_endpoints")
-
-        return "\n".join(results)
 
     @function
     async def gcp_firebase(
@@ -252,172 +137,22 @@ class Tests:
         region: Annotated[str, Doc("GCP region for Firestore")] = "europe-west9",
     ) -> str:
         """Run gcp-firebase module tests (Hosting + Firestore)."""
-        results = []
-        channel_id = f"dagger-test-{int(time.time())}"
-        database_id = f"dagger-test-{int(time.time())}"
-
-        # Get gcloud container from gcp-auth
-        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+        return await test_gcp_firebase(
             workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
             project_id=project_id,
-            oidc_request_token=oidc_token,
-            oidc_request_url=oidc_url,
-            service_account_email=service_account,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
         )
-
-        # Get access token for Firebase
-        token_output = await gcloud.with_exec(["gcloud", "auth", "print-access-token"]).stdout()
-        access_token = dag.set_secret("firebase_token", token_output.strip())
-
-        # Clone firebase-dagger-template from GitHub
-        source = dag.git("https://github.com/telchak/firebase-dagger-template.git").branch("main").tree()
-
-        firebase = dag.gcp_firebase()
-
-        # ========== HOSTING TESTS ==========
-        results.append("--- Firebase Hosting ---")
-
-        # Test build
-        dist = firebase.build(source=source)
-        entries = await dist.entries()
-        if len(entries) == 0:
-            raise ValueError("Build produced no output files")
-        results.append(f"PASS: build -> {len(entries)} files")
-
-        try:
-            # Test deploy_preview
-            preview_url = await firebase.deploy_preview(
-                access_token=access_token, project_id=project_id,
-                channel_id=channel_id, source=source,
-            )
-            if not preview_url.startswith("https://"):
-                raise ValueError(f"Invalid preview URL: {preview_url}")
-            results.append(f"PASS: deploy_preview -> {preview_url}")
-
-            # Test delete_channel
-            await firebase.delete_channel(access_token=access_token, project_id=project_id, channel_id=channel_id)
-            results.append("PASS: delete_channel")
-
-        except Exception as e:
-            results.append(f"FAIL: {e}")
-            try:
-                await firebase.delete_channel(access_token=access_token, project_id=project_id, channel_id=channel_id)
-                results.append(f"CLEANUP: deleted channel {channel_id}")
-            except Exception:
-                pass
-            raise
-
-        # ========== FIRESTORE TESTS ==========
-        results.append("--- Firestore ---")
-
-        firestore = firebase.firestore()
-
-        try:
-            # CREATE
-            await firestore.create(gcloud=gcloud, database_id=database_id, location=region)
-            results.append(f"PASS: CREATE - created database {database_id}")
-
-            # READ - exists
-            exists = await firestore.exists(gcloud=gcloud, database_id=database_id)
-            if not exists:
-                raise Exception(f"Database {database_id} not found after create")
-            results.append("PASS: READ - database exists")
-
-            # READ - describe
-            description = await firestore.describe(gcloud=gcloud, database_id=database_id)
-            if database_id not in description:
-                raise Exception(f"Database {database_id} not in describe output")
-            results.append("PASS: READ - describe database")
-
-            # READ - list
-            db_list = await firestore.list_(gcloud=gcloud)
-            if database_id not in db_list:
-                raise Exception(f"Database {database_id} not in list output")
-            results.append("PASS: READ - list databases")
-
-            # UPDATE - enable then disable delete protection
-            await firestore.update(gcloud=gcloud, database_id=database_id, delete_protection=True)
-            results.append("PASS: UPDATE - enabled delete protection")
-
-            await firestore.update(gcloud=gcloud, database_id=database_id, delete_protection=False)
-            results.append("PASS: UPDATE - disabled delete protection")
-
-            # DELETE
-            await firestore.delete(gcloud=gcloud, database_id=database_id)
-            results.append("PASS: DELETE - database deleted")
-
-        except Exception as e:
-            results.append(f"FAIL: {e}")
-            try:
-                await firestore.update(gcloud=gcloud, database_id=database_id, delete_protection=False)
-                await firestore.delete(gcloud=gcloud, database_id=database_id)
-                results.append(f"CLEANUP: deleted database {database_id}")
-            except Exception:
-                pass
-            raise
-
-        return "\n".join(results)
-
-    @function
-    async def oidc_token(self) -> str:
-        """Run oidc-token module tests."""
-        results = []
-
-        # Sample JWT for testing
-        sample_jwt = "eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ0ZXN0IiwiYXVkIjoidGVzdCIsInN1YiI6InRlc3QifQ.signature"
-        test_token = dag.set_secret("test-jwt", sample_jwt)
-
-        # Test token_claims
-        claims = await dag.oidc_token().token_claims(token=test_token)
-        if "iss" not in claims:
-            raise ValueError(f"Token missing 'iss' claim: {claims}")
-        results.append("PASS: token_claims decodes JWT payload")
-
-        # Test gitlab_token
-        gitlab_secret = dag.set_secret("gitlab-jwt", "test-token")
-        _ = dag.oidc_token().gitlab_token(ci_job_jwt=gitlab_secret)
-        results.append("PASS: gitlab_token pass-through")
-
-        # Test circleci_token
-        circleci_secret = dag.set_secret("circleci-jwt", "test-token")
-        _ = dag.oidc_token().circleci_token(oidc_token=circleci_secret)
-        results.append("PASS: circleci_token pass-through")
-
-        return "\n".join(results)
-
-    @function
-    async def semver(
-        self,
-        source: Annotated[dagger.Directory, Doc("Git repository with tags")],
-    ) -> str:
-        """Run semver module tests."""
-        results = []
-        sv = dag.semver()
-
-        prefix = "test-semver/"
-
-        current = await sv.current(source=source, tag_prefix=prefix, initial_version="v0.0.0")
-        results.append(f"PASS: current -> {current}")
-
-        bumped = await sv.bump(source=source, tag_prefix=prefix, bump_type="patch", initial_version="v1.0.0")
-        if not bumped.startswith("v1.0."):
-            raise ValueError(f"Expected v1.0.x, got {bumped}")
-        results.append(f"PASS: bump patch -> {bumped}")
-
-        bump_type = await sv.bump_type(source=source, tag_prefix=prefix)
-        if bump_type not in ["none", "patch", "minor", "major"]:
-            raise ValueError(f"Invalid bump_type: {bump_type}")
-        results.append(f"PASS: bump_type -> {bump_type}")
-
-        return "\n".join(results)
 
     @function
     async def all_no_credentials(self) -> str:
         """Run all tests that don't require credentials."""
         results = []
-        results.append(f"=== calver ===\n{await self.calver()}")
-        results.append(f"=== health-check ===\n{await self.health_check()}")
-        results.append(f"=== oidc-token ===\n{await self.oidc_token()}")
+        results.append(f"=== calver ===\n{await test_calver()}")
+        results.append(f"=== health-check ===\n{await test_health_check()}")
+        results.append(f"=== oidc-token ===\n{await test_oidc_token()}")
         return "\n\n".join(results)
 
     @function
@@ -495,7 +230,7 @@ class Tests:
             results.append(f"PASS: get_service_url -> {url}")
             await cr.delete_service(gcloud=gcloud, service_name=service_name, region=region)
             results.append("PASS: delete_service")
-        except Exception as e:
+        except Exception:
             try:
                 await cr.delete_service(gcloud=gcloud, service_name=service_name, region=region)
             except Exception:
@@ -520,7 +255,7 @@ class Tests:
             results.append(f"PASS: deploy_preview -> {preview_url}")
             await firebase.delete_channel(access_token=access_token, project_id=project_id, channel_id=channel_id)
             results.append("PASS: delete_channel")
-        except Exception as e:
+        except Exception:
             try:
                 await firebase.delete_channel(access_token=access_token, project_id=project_id, channel_id=channel_id)
             except Exception:
@@ -540,7 +275,7 @@ class Tests:
             results.append("PASS: firestore.update")
             await firestore.delete(gcloud=gcloud, database_id=database_id)
             results.append("PASS: firestore.delete")
-        except Exception as e:
+        except Exception:
             try:
                 await firestore.update(gcloud=gcloud, database_id=database_id, delete_protection=False)
                 await firestore.delete(gcloud=gcloud, database_id=database_id)

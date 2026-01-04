@@ -196,6 +196,89 @@ git tag -a calver/v1.0.0 -m "Release calver v1.0.0"
 git push origin calver/v1.0.0
 ```
 
+## Adding a New Module
+
+### 1. Create the module structure
+
+```bash
+# Create module directory
+mkdir my-module && cd my-module
+
+# Initialize Dagger module
+dagger init --sdk=python --name=my-module
+
+# Create required files
+mkdir examples
+touch README.md
+```
+
+### 2. Required files
+
+| File | Required | Description |
+|------|----------|-------------|
+| `dagger.json` | ✅ | Must include `"description"` field |
+| `README.md` | ✅ | Documentation with usage examples |
+| `examples/` | ✅ | Directory with example code |
+| `src/main.py` | ✅ | Module implementation |
+
+Example `dagger.json`:
+```json
+{
+  "name": "my-module",
+  "sdk": "python",
+  "description": "Short description of what this module does"
+}
+```
+
+### 3. Add tests
+
+Create a test file `tests/src/tests/my_module.py`:
+
+```python
+from dagger import dag
+
+async def test_my_module() -> str:
+    """Test my-module functions."""
+    results = []
+    result = await dag.my_module().some_function()
+    results.append(f"PASS: some_function returned {result}")
+    return "\n".join(results)
+```
+
+Then add to `tests/src/tests/main.py`:
+
+```python
+from .my_module import test_my_module
+
+# In the Tests class:
+@function
+async def my_module(self) -> str:
+    """Run my-module tests."""
+    return await test_my_module()
+```
+
+### 4. CI auto-discovery
+
+The CI workflow automatically discovers all modules. No changes needed unless:
+
+- **GCP modules**: Name your module `gcp-*` and OIDC credentials are automatically passed
+- **Special arguments**: Add a case in `.github/workflows/ci.yml`:
+  ```bash
+  case "$MODULE" in
+    my-module) ARGS="$ARGS --special-arg=value" ;;
+  esac
+  ```
+
+### 5. Test locally
+
+```bash
+# Run your module's tests
+dagger call -m tests my-module
+
+# Validate module structure
+dagger call -m . functions  # from module directory
+```
+
 ## Contributing
 
 1. Follow the established patterns
