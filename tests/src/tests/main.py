@@ -415,7 +415,137 @@ class Tests:
     async def all_no_credentials(self) -> str:
         """Run all tests that don't require credentials."""
         results = []
-        results.append(f"calver:\n{await self.calver()}")
-        results.append(f"health-check:\n{await self.health_check()}")
-        results.append(f"oidc-token:\n{await self.oidc_token()}")
+        results.append(f"=== calver ===\n{await self.calver()}")
+        results.append(f"=== health-check ===\n{await self.health_check()}")
+        results.append(f"=== oidc-token ===\n{await self.oidc_token()}")
         return "\n\n".join(results)
+
+    @function
+    async def all_gcp(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        repository: Annotated[str, Doc("Artifact Registry repository name")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "europe-west9",
+    ) -> str:
+        """Run all GCP tests with shared authentication."""
+        results = []
+
+        # Authenticate once, use everywhere
+        gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_token,
+            oidc_request_url=oidc_url,
+            service_account_email=service_account,
+            region=region,
+        )
+
+        # Get access token for Firebase
+        token_output = await gcloud.with_exec(["gcloud", "auth", "print-access-token"]).stdout()
+        access_token = dag.set_secret("firebase_token", token_output.strip())
+
+        # === gcp-auth ===
+        results.append("=== gcp-auth ===")
+        email = await gcloud.with_exec(
+            ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
+        ).stdout()
+        results.append(f"PASS: gcloud auth -> {email.strip()}")
+        proj = await gcloud.with_exec(["gcloud", "config", "get", "project"]).stdout()
+        results.append(f"PASS: gcloud project -> {proj.strip()}")
+
+        # === gcp-artifact-registry ===
+        results.append("\n=== gcp-artifact-registry ===")
+        ar = dag.gcp_artifact_registry()
+        uri = await ar.get_image_uri(
+            project_id="test-project", repository="test-repo", image_name="test-image", tag="v1.0.0",
+        )
+        if uri != "us-central1-docker.pkg.dev/test-project/test-repo/test-image:v1.0.0":
+            raise ValueError(f"Unexpected URI: {uri}")
+        results.append(f"PASS: get_image_uri -> {uri}")
+        await ar.list_images(gcloud=gcloud, project_id=project_id, repository=repository, region=region)
+        results.append(f"PASS: list_images -> {repository}")
+
+        # === gcp-vertex-ai ===
+        results.append("\n=== gcp-vertex-ai ===")
+        vai = dag.gcp_vertex_ai()
+        await vai.list_models(gcloud=gcloud, region=region)
+        results.append("PASS: list_models")
+        await vai.list_endpoints(gcloud=gcloud, region=region)
+        results.append("PASS: list_endpoints")
+
+        # === gcp-cloud-run ===
+        results.append("\n=== gcp-cloud-run ===")
+        service_name = f"dagger-test-{int(time.time())}"
+        cr = dag.gcp_cloud_run()
+        try:
+            await cr.deploy_service(
+                gcloud=gcloud, image="gcr.io/google-samples/hello-app:1.0",
+                service_name=service_name, region=region, allow_unauthenticated=True,
+            )
+            results.append(f"PASS: deploy_service -> {service_name}")
+            exists = await cr.service_exists(gcloud=gcloud, service_name=service_name, region=region)
+            if not exists:
+                raise Exception(f"Service {service_name} not found")
+            results.append("PASS: service_exists")
+            url = await cr.get_service_url(gcloud=gcloud, service_name=service_name, region=region)
+            results.append(f"PASS: get_service_url -> {url}")
+            await cr.delete_service(gcloud=gcloud, service_name=service_name, region=region)
+            results.append("PASS: delete_service")
+        except Exception as e:
+            try:
+                await cr.delete_service(gcloud=gcloud, service_name=service_name, region=region)
+            except Exception:
+                pass
+            raise
+
+        # === gcp-firebase ===
+        results.append("\n=== gcp-firebase ===")
+        channel_id = f"dagger-test-{int(time.time())}"
+        database_id = f"dagger-test-{int(time.time())}"
+        source = dag.git("https://github.com/telchak/firebase-dagger-template.git").branch("main").tree()
+        firebase = dag.gcp_firebase()
+
+        # Hosting
+        dist = firebase.build(source=source)
+        entries = await dist.entries()
+        results.append(f"PASS: build -> {len(entries)} files")
+        try:
+            preview_url = await firebase.deploy_preview(
+                access_token=access_token, project_id=project_id, channel_id=channel_id, source=source,
+            )
+            results.append(f"PASS: deploy_preview -> {preview_url}")
+            await firebase.delete_channel(access_token=access_token, project_id=project_id, channel_id=channel_id)
+            results.append("PASS: delete_channel")
+        except Exception as e:
+            try:
+                await firebase.delete_channel(access_token=access_token, project_id=project_id, channel_id=channel_id)
+            except Exception:
+                pass
+            raise
+
+        # Firestore
+        firestore = firebase.firestore()
+        try:
+            await firestore.create(gcloud=gcloud, database_id=database_id, location=region)
+            results.append(f"PASS: firestore.create -> {database_id}")
+            exists = await firestore.exists(gcloud=gcloud, database_id=database_id)
+            if not exists:
+                raise Exception(f"Database {database_id} not found")
+            results.append("PASS: firestore.exists")
+            await firestore.update(gcloud=gcloud, database_id=database_id, delete_protection=False)
+            results.append("PASS: firestore.update")
+            await firestore.delete(gcloud=gcloud, database_id=database_id)
+            results.append("PASS: firestore.delete")
+        except Exception as e:
+            try:
+                await firestore.update(gcloud=gcloud, database_id=database_id, delete_protection=False)
+                await firestore.delete(gcloud=gcloud, database_id=database_id)
+            except Exception:
+                pass
+            raise
+
+        return "\n".join(results)
