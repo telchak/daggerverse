@@ -1,7 +1,6 @@
 """GitHub Actions OIDC credential generation script."""
 
 import json
-from urllib.parse import quote
 
 
 def generate_credentials_json(
@@ -22,8 +21,9 @@ def generate_credentials_json(
         JSON string for GCP credentials file.
     """
     audience = f"//iam.googleapis.com/{workload_identity_provider}"
-    # URL-encode audience for use in query parameter (// needs encoding)
-    audience_encoded = quote(audience, safe="")
+
+    # Determine correct separator for audience parameter
+    separator = "&" if "?" in oidc_url else "?"
 
     credentials = {
         "type": "external_account",
@@ -31,7 +31,7 @@ def generate_credentials_json(
         "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
         "token_url": "https://sts.googleapis.com/v1/token",
         "credential_source": {
-            "url": f"{oidc_url}&audience={audience_encoded}",
+            "url": f"{oidc_url}{separator}audience={audience}",
             "headers": {"Authorization": f"bearer {oidc_token}"},
             "format": {"type": "json", "subject_token_field_name": "value"},
         },
@@ -64,8 +64,6 @@ def generate_credentials_script(
         Shell script that generates /tmp/gcp-credentials.json.
     """
     audience = f"//iam.googleapis.com/{workload_identity_provider}"
-    # URL-encode audience for use in query parameter (// needs encoding)
-    audience_encoded = quote(audience, safe="")
 
     # Build optional service account impersonation line
     sa_line = ""
@@ -84,10 +82,11 @@ def generate_credentials_script(
 [ -z "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && echo "ERROR: ACTIONS_ID_TOKEN_REQUEST_TOKEN not set" >&2 && exit 1
 
 # Determine correct separator for audience parameter
+# Note: audience is NOT URL-encoded per google-github-actions/auth convention
 if echo "$ACTIONS_ID_TOKEN_REQUEST_URL" | grep -q '?'; then
-  FULL_URL="${{ACTIONS_ID_TOKEN_REQUEST_URL}}&audience={audience_encoded}"
+  FULL_URL="${{ACTIONS_ID_TOKEN_REQUEST_URL}}&audience={audience}"
 else
-  FULL_URL="${{ACTIONS_ID_TOKEN_REQUEST_URL}}?audience={audience_encoded}"
+  FULL_URL="${{ACTIONS_ID_TOKEN_REQUEST_URL}}?audience={audience}"
 fi
 
 cat > /tmp/gcp-credentials.json <<EOF
