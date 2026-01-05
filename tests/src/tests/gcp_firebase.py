@@ -136,6 +136,7 @@ async def test_gcp_firebase(
             source=scripts_source,
             script="seed-data.ts",
             working_dir=".",
+            install_command="npm install",  # No package-lock.json in fixtures
             env=[f"FIRESTORE_DATABASE_ID={database_id}"],
         )
         if '"status":"success"' not in node_output:
