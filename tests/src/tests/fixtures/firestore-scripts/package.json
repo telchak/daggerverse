@@ -4,15 +4,15 @@
   "description": "Test scripts for Firestore data seeding",
   "type": "module",
   "scripts": {
-    "seed": "npx ts-node --esm seed-data.ts",
-    "verify": "npx ts-node --esm verify-data.ts"
+    "seed": "npx tsx seed-data.ts",
+    "verify": "npx tsx verify-data.ts"
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "ts-node": "^10.9.0",
+    "tsx": "^4.0.0",
     "typescript": "^5.0.0"
   }
 }

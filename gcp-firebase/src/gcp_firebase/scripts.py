@@ -67,8 +67,9 @@ class FirebaseScripts:
             )
         """
         # Determine the runner based on file extension
+        # tsx handles ESM TypeScript automatically without extra configuration
         if script.endswith(".ts"):
-            run_cmd = ["npx", "ts-node", script]
+            run_cmd = ["npx", "tsx", script]
         else:
             run_cmd = ["node", script]
 
