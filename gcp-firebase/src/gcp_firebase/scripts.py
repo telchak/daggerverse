@@ -50,6 +50,7 @@ class FirebaseScripts:
         working_dir: Annotated[str, Doc("Working directory relative to source root")] = ".",
         node_version: Annotated[str, Doc("Node.js version")] = "20",
         install_command: Annotated[str, Doc("Package install command")] = "npm ci",
+        env: Annotated[list[str] | None, Doc("Environment variables (KEY=VALUE format)")] = None,
     ) -> str:
         """Run a Node.js or TypeScript script with Firebase credentials.
 
@@ -62,6 +63,7 @@ class FirebaseScripts:
                 source=source,
                 script="src/seed-data.ts",
                 working_dir="functions",
+                env=["FIRESTORE_DATABASE_ID=my-database"],
             )
         """
         # Determine the runner based on file extension
@@ -79,6 +81,12 @@ class FirebaseScripts:
         )
         container = _with_gcp_credentials(container, credentials)
 
+        # Add custom environment variables
+        if env:
+            for env_var in env:
+                key, _, value = env_var.partition("=")
+                container = container.with_env_variable(key, value)
+
         return await container.with_exec(run_cmd).stdout()
 
     @function
@@ -90,6 +98,7 @@ class FirebaseScripts:
         working_dir: Annotated[str, Doc("Working directory relative to source root")] = ".",
         python_version: Annotated[str, Doc("Python version")] = "3.12",
         install_command: Annotated[str | None, Doc("Package install command (e.g., 'pip install -r requirements.txt')")] = None,
+        env: Annotated[list[str] | None, Doc("Environment variables (KEY=VALUE format)")] = None,
     ) -> str:
         """Run a Python script with Firebase credentials.
 
@@ -103,6 +112,7 @@ class FirebaseScripts:
                 script="seed_data.py",
                 working_dir="scripts",
                 install_command="pip install -r requirements.txt",
+                env=["FIRESTORE_DATABASE_ID=my-database"],
             )
         """
         container = (
@@ -116,6 +126,12 @@ class FirebaseScripts:
             container = container.with_exec(["sh", "-c", install_command])
 
         container = _with_gcp_credentials(container, credentials)
+
+        # Add custom environment variables
+        if env:
+            for env_var in env:
+                key, _, value = env_var.partition("=")
+                container = container.with_env_variable(key, value)
 
         return await container.with_exec(["python", script]).stdout()
 
