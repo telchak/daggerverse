@@ -7,6 +7,7 @@ import dagger
 from dagger import DefaultPath, Doc, dag, function, object_type
 
 from .firestore import Firestore
+from .scripts import FirebaseScripts
 
 
 @object_type
@@ -132,3 +133,36 @@ class GcpFirebase:
     def firestore(self) -> Firestore:
         """Access Firestore database management utilities."""
         return Firestore()
+
+    @function
+    def scripts(self) -> FirebaseScripts:
+        """Access script runners for Firebase/Firestore data operations.
+
+        Provides methods to run scripts in various languages (Node.js, Python, etc.)
+        with GCP Application Default Credentials configured for Firebase services.
+
+        Example (Node.js/TypeScript):
+            await dag.gcp_firebase().scripts().node(
+                credentials=credentials,
+                source=source,
+                script="src/seed-data.ts",
+                working_dir="functions",
+            )
+
+        Example (Python):
+            await dag.gcp_firebase().scripts().python(
+                credentials=credentials,
+                source=source,
+                script="seed_data.py",
+                install_command="pip install firebase-admin",
+            )
+
+        Example (Other languages):
+            container = dag.gcp_firebase().scripts().container(
+                credentials=credentials,
+                source=source,
+                base_image="golang:1.22-alpine",
+            )
+            await container.with_exec(["go", "run", "main.go"]).stdout()
+        """
+        return FirebaseScripts()
