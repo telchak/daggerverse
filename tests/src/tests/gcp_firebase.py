@@ -6,8 +6,8 @@ import dagger
 from dagger import dag
 
 
-# Fixtures path relative to module source (src/)
-FIXTURES_PATH = "tests/fixtures/firestore-scripts"
+# Fixtures path relative to module root
+FIXTURES_PATH = "src/tests/fixtures/firestore-scripts"
 
 
 async def test_gcp_firebase(
