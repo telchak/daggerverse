@@ -1,14 +1,13 @@
 """Tests for gcp-firebase module."""
 
 import time
-from pathlib import Path
 
 import dagger
 from dagger import dag
 
 
-# Path to test fixtures
-FIXTURES_DIR = Path(__file__).parent / "fixtures" / "firestore-scripts"
+# Fixtures path relative to module source (src/)
+FIXTURES_PATH = "tests/fixtures/firestore-scripts"
 
 
 async def test_gcp_firebase(
@@ -48,8 +47,8 @@ async def test_gcp_firebase(
     # Clone firebase-dagger-template from GitHub
     source = dag.git("https://github.com/telchak/firebase-dagger-template.git").branch("main").tree()
 
-    # Load test fixtures for scripts tests
-    scripts_source = dag.host().directory(str(FIXTURES_DIR))
+    # Load test fixtures for scripts tests (relative to module source)
+    scripts_source = dag.current_module().source().directory(FIXTURES_PATH)
 
     firebase = dag.gcp_firebase()
 
