@@ -1,6 +1,7 @@
 """GitHub Actions OIDC credential generation script."""
 
 import json
+from urllib.parse import quote
 
 
 def generate_credentials_json(
@@ -21,6 +22,8 @@ def generate_credentials_json(
         JSON string for GCP credentials file.
     """
     audience = f"//iam.googleapis.com/{workload_identity_provider}"
+    # URL-encode audience for use in query parameter (// needs encoding)
+    audience_encoded = quote(audience, safe="")
 
     credentials = {
         "type": "external_account",
@@ -28,7 +31,7 @@ def generate_credentials_json(
         "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
         "token_url": "https://sts.googleapis.com/v1/token",
         "credential_source": {
-            "url": f"{oidc_url}&audience={audience}",
+            "url": f"{oidc_url}&audience={audience_encoded}",
             "headers": {"Authorization": f"bearer {oidc_token}"},
             "format": {"type": "json", "subject_token_field_name": "value"},
         },
@@ -61,6 +64,8 @@ def generate_credentials_script(
         Shell script that generates /tmp/gcp-credentials.json.
     """
     audience = f"//iam.googleapis.com/{workload_identity_provider}"
+    # URL-encode audience for use in query parameter (// needs encoding)
+    audience_encoded = quote(audience, safe="")
 
     # Build optional service account impersonation line
     sa_line = ""
@@ -83,7 +88,7 @@ cat > /tmp/gcp-credentials.json <<EOF
   "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
   "token_url": "https://sts.googleapis.com/v1/token",
   "credential_source": {{
-    "url": "$ACTIONS_ID_TOKEN_REQUEST_URL&audience={audience}",
+    "url": "$ACTIONS_ID_TOKEN_REQUEST_URL&audience={audience_encoded}",
     "headers": {{"Authorization": "bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"}},
     "format": {{"type": "json", "subject_token_field_name": "value"}}
   }}{sa_line}
