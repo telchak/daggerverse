@@ -48,7 +48,8 @@ class GcpAuth:
         credentials_content = await credentials.plaintext()
         try:
             creds_data = json.loads(credentials_content)
-            if "oidc_token" in creds_data and "credentials" in creds_data:
+            # Check for our specific type marker
+            if creds_data.get("type") == "gcp_auth_oidc_combined":
                 # This is combined OIDC credentials - set up both files
                 token_secret = dag.set_secret("oidc_token", creds_data["oidc_token"])
                 creds_secret = dag.set_secret("gcp_credentials", json.dumps(creds_data["credentials"]))
@@ -67,7 +68,7 @@ class GcpAuth:
                     )
 
                 return configured
-        except (json.JSONDecodeError, KeyError):
+        except json.JSONDecodeError:
             pass
 
         # Regular credentials (service account key)
@@ -262,7 +263,9 @@ class GcpAuth:
         token_content = await oidc_token.plaintext()
 
         # Return combined format that with_credentials() can handle
+        # The "type" marker lets with_credentials() detect this format
         combined = {
+            "type": "gcp_auth_oidc_combined",
             "credentials": json.loads(credentials_config),
             "oidc_token": token_content,
         }
