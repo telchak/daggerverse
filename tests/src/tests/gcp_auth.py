@@ -20,7 +20,7 @@ async def test_gcp_auth(
     results.append("--- oidc_token.github_token ---")
 
     # Fetch OIDC token using oidc-token module
-    oidc_jwt = await dag.oidc_token().github_token(
+    oidc_jwt = dag.oidc_token().github_token(
         request_token=oidc_token,
         request_url=oidc_url,
         audience=f"//iam.googleapis.com/{workload_identity_provider}",
@@ -126,7 +126,7 @@ async def test_gcp_auth(
             "sh", "-c",
             f'curl -s -H "Authorization: Bearer $ACCESS_TOKEN" '
             f'"https://cloudresourcemanager.googleapis.com/v1/projects/{project_id}" '
-            f'| grep -o \'"projectId":\s*"[^"]*"\''
+            f'| grep -o \'"projectId":[ ]*"[^"]*"\''
         ])
         .stdout()
     )
@@ -154,7 +154,7 @@ async def test_gcp_auth(
             "sh", "-c",
             f'curl -s -H "Authorization: Bearer $ACCESS_TOKEN" '
             f'"https://cloudresourcemanager.googleapis.com/v1/projects/{project_id}" '
-            f'| grep -o \'"projectId":\s*"[^"]*"\''
+            f'| grep -o \'"projectId":[ ]*"[^"]*"\''
         ])
         .stdout()
     )

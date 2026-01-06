@@ -145,7 +145,7 @@ class GcpAuth:
         Equivalent to: dag.oidc_token().github_token() + gcloud_container_from_oidc_token()
         """
         # Use oidc-token module to fetch the GitHub Actions token
-        oidc_token = await dag.oidc_token().github_token(
+        oidc_token = dag.oidc_token().github_token(
             request_token=oidc_request_token,
             request_url=oidc_request_url,
             audience=f"//iam.googleapis.com/{workload_identity_provider}",
@@ -237,7 +237,7 @@ class GcpAuth:
         Convenience wrapper for GitHub Actions. Returns credentials JSON that
         can be used with any GCP SDK via GOOGLE_APPLICATION_CREDENTIALS.
         """
-        oidc_token = await dag.oidc_token().github_token(
+        oidc_token = dag.oidc_token().github_token(
             request_token=oidc_request_token,
             request_url=oidc_request_url,
             audience=f"//iam.googleapis.com/{workload_identity_provider}",
@@ -285,7 +285,7 @@ class GcpAuth:
         Convenience wrapper for GitHub Actions. Returns an access token for APIs
         that accept Bearer tokens (e.g., Firebase CLI).
         """
-        oidc_token = await dag.oidc_token().github_token(
+        oidc_token = dag.oidc_token().github_token(
             request_token=oidc_request_token,
             request_url=oidc_request_url,
             audience=f"//iam.googleapis.com/{workload_identity_provider}",
