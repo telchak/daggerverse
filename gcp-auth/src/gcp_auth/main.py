@@ -154,6 +154,57 @@ class GcpAuth:
         return configure_gcloud_project(container, project_id, region)
 
     @function
+    async def credentials_from_github_actions(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+    ) -> dagger.Secret:
+        """Get GCP credentials as a Secret from GitHub Actions OIDC.
+
+        Returns the external_account credentials JSON that can be used with
+        any GCP SDK via GOOGLE_APPLICATION_CREDENTIALS. This is equivalent to
+        what google-github-actions/auth produces.
+
+        Use this when you need credentials for other modules (e.g., gcp-firebase scripts).
+        """
+        gcloud = self.gcloud_container_from_github_actions(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_request_token,
+            oidc_request_url=oidc_request_url,
+            service_account_email=service_account_email,
+        )
+        credentials_content = await gcloud.file("/tmp/gcp-credentials.json").contents()
+        return dag.set_secret("gcp_credentials", credentials_content)
+
+    @function
+    async def access_token_from_github_actions(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+    ) -> dagger.Secret:
+        """Get a GCP access token from GitHub Actions OIDC.
+
+        Returns an access token that can be used with APIs that accept Bearer tokens
+        (e.g., Firebase CLI). For SDKs that use ADC, use credentials_from_github_actions instead.
+        """
+        gcloud = self.gcloud_container_from_github_actions(
+            workload_identity_provider=workload_identity_provider,
+            project_id=project_id,
+            oidc_request_token=oidc_request_token,
+            oidc_request_url=oidc_request_url,
+            service_account_email=service_account_email,
+        )
+        token_output = await gcloud.with_exec(["gcloud", "auth", "print-access-token"]).stdout()
+        return dag.set_secret("gcp_access_token", token_output.strip())
+
+    @function
     def gcloud_container_from_host(
         self,
         project_id: Annotated[str, Doc("GCP project ID")],
