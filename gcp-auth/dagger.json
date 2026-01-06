@@ -8,8 +8,7 @@
   "dependencies": [
     {
       "name": "oidc-token",
-      "source": "github.com/telchak/daggerverse/oidc-token@oidc-token/v1.0.0",
-      "pin": "314da00b5e7e6e7d5b0e527b2f6ec0e540935f34"
+      "source": "../oidc-token"
     }
   ]
 }
