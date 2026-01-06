@@ -32,17 +32,9 @@ async def test_gcp_firebase(
         service_account_email=service_account,
     )
 
-    # Get credentials for scripts (full JSON credentials, not just access token)
-    credentials = dag.gcp_auth().oidc_credentials(
-        workload_identity_provider=workload_identity_provider,
-        oidc_request_token=oidc_token,
-        oidc_request_url=oidc_url,
-        service_account_email=service_account,
-    )
-
-    # Get access token for Firebase CLI
+    # Get access token from gcloud (already authenticated via OIDC)
     token_output = await gcloud.with_exec(["gcloud", "auth", "print-access-token"]).stdout()
-    access_token = dag.set_secret("firebase_token", token_output.strip())
+    access_token = dag.set_secret("gcp_access_token", token_output.strip())
 
     # Clone firebase-dagger-template from GitHub
     source = dag.git("https://github.com/telchak/firebase-dagger-template.git").branch("main").tree()
@@ -125,34 +117,43 @@ async def test_gcp_firebase(
         results.append("PASS: UPDATE - disabled delete protection")
 
         # ========== SCRIPTS TESTS ==========
-        # Test scripts() credential mounting (actual script execution with OIDC
-        # credentials has compatibility issues - works with service account keys)
+        # Run scripts using access_token (works with OIDC authentication)
         results.append("--- Scripts ---")
 
         scripts = firebase.scripts()
 
-        # Test scripts().container() - verify credential mounting works
+        # Test scripts().node() - TypeScript script with access token
+        node_output = await scripts.node(
+            access_token=access_token,
+            project_id=project_id,
+            source=scripts_source,
+            script="seed-data.ts",
+            working_dir=".",
+            install_command="npm install",  # No package-lock.json in fixtures
+            env=[f"FIRESTORE_DATABASE_ID={database_id}"],
+        )
+        if '"status":"success"' not in node_output:
+            raise Exception(f"Node script failed: {node_output}")
+        results.append("PASS: scripts().node() - TypeScript seed script executed")
+
+        # Test scripts().container() - verify access token is set
         container = scripts.container(
-            credentials=credentials,
+            access_token=access_token,
+            project_id=project_id,
             source=scripts_source,
             base_image="alpine:latest",
         )
-        # Verify credentials are properly mounted
-        creds_check = await container.with_exec(["cat", "/tmp/gcp-credentials.json"]).stdout()
-        if "type" not in creds_check:
-            raise Exception("Credentials not properly mounted in container")
-        results.append("PASS: scripts().container() - credentials mounted correctly")
+        # Verify GOOGLE_ACCESS_TOKEN env var is set
+        env_check = await container.with_exec(["sh", "-c", "echo $GOOGLE_ACCESS_TOKEN | head -c 20"]).stdout()
+        if len(env_check.strip()) < 10:
+            raise Exception("GOOGLE_ACCESS_TOKEN not set correctly")
+        results.append("PASS: scripts().container() - GOOGLE_ACCESS_TOKEN set correctly")
 
-        # Verify GOOGLE_APPLICATION_CREDENTIALS env var is set
-        env_check = await container.with_exec(["sh", "-c", "echo $GOOGLE_APPLICATION_CREDENTIALS"]).stdout()
-        if "/tmp/gcp-credentials.json" not in env_check:
-            raise Exception("GOOGLE_APPLICATION_CREDENTIALS not set correctly")
-        results.append("PASS: scripts().container() - GOOGLE_APPLICATION_CREDENTIALS set correctly")
-
-        # NOTE: scripts().node() and scripts().python() tests are skipped in CI
-        # because OIDC credentials from oidc_credentials() don't work when extracted
-        # and used in a separate container. These work with service account JSON keys.
-        # TODO: Add integration tests with service account credentials
+        # Verify GOOGLE_CLOUD_PROJECT env var is set
+        project_check = await container.with_exec(["sh", "-c", "echo $GOOGLE_CLOUD_PROJECT"]).stdout()
+        if project_id not in project_check:
+            raise Exception("GOOGLE_CLOUD_PROJECT not set correctly")
+        results.append("PASS: scripts().container() - GOOGLE_CLOUD_PROJECT set correctly")
 
         # DELETE
         await firestore.delete(gcloud=gcloud, database_id=database_id)

@@ -6,16 +6,37 @@
  *
  * Environment variables:
  * - FIRESTORE_DATABASE_ID: The database ID to use (optional, defaults to "(default)")
+ * - GOOGLE_ACCESS_TOKEN: Access token for authentication (optional, for CI/CD)
+ * - GOOGLE_CLOUD_PROJECT: Project ID (required when using access token)
  * - GOOGLE_APPLICATION_CREDENTIALS: Path to GCP credentials (set by Dagger)
  */
 
 import { Firestore, FieldValue } from "@google-cloud/firestore";
+import { GoogleAuth, OAuth2Client } from "google-auth-library";
 
 const databaseId = process.env.FIRESTORE_DATABASE_ID || "(default)";
+const accessToken = process.env.GOOGLE_ACCESS_TOKEN;
+const projectId = process.env.GOOGLE_CLOUD_PROJECT;
 
-const db = new Firestore({
-  databaseId: databaseId,
-});
+// Create Firestore client with appropriate authentication
+async function createFirestoreClient(): Promise<Firestore> {
+  if (accessToken) {
+    // Use explicit access token (for CI/CD with OIDC)
+    const oauth2Client = new OAuth2Client();
+    oauth2Client.setCredentials({ access_token: accessToken });
+
+    return new Firestore({
+      projectId: projectId,
+      databaseId: databaseId,
+      authClient: oauth2Client as any,
+    });
+  }
+
+  // Use Application Default Credentials
+  return new Firestore({
+    databaseId: databaseId,
+  });
+}
 
 interface TestDocument {
   name: string;
@@ -28,6 +49,7 @@ interface TestDocument {
 async function seedData(): Promise<void> {
   console.log(`Seeding test data to Firestore database: ${databaseId}`);
 
+  const db = await createFirestoreClient();
   const collectionRef = db.collection("dagger-test-collection");
   const batch = db.batch();
 
