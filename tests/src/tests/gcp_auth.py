@@ -51,7 +51,7 @@ async def test_gcp_auth(
     results.append("--- gcloud_container_from_github_actions ---")
 
     # Test GitHub Actions convenience wrapper
-    gcloud_gh = await gcp_auth.gcloud_container_from_github_actions(
+    gcloud_gh = gcp_auth.gcloud_container_from_github_actions(
         workload_identity_provider=workload_identity_provider,
         project_id=project_id,
         oidc_request_token=oidc_token,
@@ -68,7 +68,7 @@ async def test_gcp_auth(
     # ========== CREDENTIALS FROM OIDC TOKEN TEST ==========
     results.append("--- credentials_from_oidc_token ---")
 
-    credentials = await gcp_auth.credentials_from_oidc_token(
+    credentials = gcp_auth.credentials_from_oidc_token(
         oidc_token=oidc_jwt,
         workload_identity_provider=workload_identity_provider,
         project_id=project_id,
@@ -89,7 +89,7 @@ async def test_gcp_auth(
     # ========== CREDENTIALS FROM GITHUB ACTIONS TEST ==========
     results.append("--- credentials_from_github_actions ---")
 
-    credentials_gh = await gcp_auth.credentials_from_github_actions(
+    credentials_gh = gcp_auth.credentials_from_github_actions(
         workload_identity_provider=workload_identity_provider,
         project_id=project_id,
         oidc_request_token=oidc_token,
@@ -110,7 +110,7 @@ async def test_gcp_auth(
     # ========== ACCESS TOKEN FROM OIDC TOKEN TEST ==========
     results.append("--- access_token_from_oidc_token ---")
 
-    access_token = await gcp_auth.access_token_from_oidc_token(
+    access_token = gcp_auth.access_token_from_oidc_token(
         oidc_token=oidc_jwt,
         workload_identity_provider=workload_identity_provider,
         project_id=project_id,
@@ -138,7 +138,7 @@ async def test_gcp_auth(
     # ========== ACCESS TOKEN FROM GITHUB ACTIONS TEST ==========
     results.append("--- access_token_from_github_actions ---")
 
-    access_token_gh = await gcp_auth.access_token_from_github_actions(
+    access_token_gh = gcp_auth.access_token_from_github_actions(
         workload_identity_provider=workload_identity_provider,
         project_id=project_id,
         oidc_request_token=oidc_token,
