@@ -47,8 +47,6 @@ This Dagger module provides utilities for authenticating with Google Cloud Platf
 | `gcloud-container-from-oidc-token` | Get authenticated gcloud container (any CI provider OIDC) |
 | `gcloud-container-from-github-actions` | Get authenticated gcloud container (GitHub Actions OIDC) |
 | `gcloud-container-from-host` | Get authenticated gcloud SDK container (ADC) |
-| `credentials-from-oidc-token` | Get GCP credentials JSON from OIDC token |
-| `credentials-from-github-actions` | Get GCP credentials JSON from GitHub Actions OIDC |
 | `access-token-from-oidc-token` | Get GCP access token from OIDC token |
 | `access-token-from-github-actions` | Get GCP access token from GitHub Actions OIDC |
 | `verify-credentials` | Validate credentials before use |
@@ -549,70 +547,6 @@ docker_container = dag.gcp_auth().configure_docker_auth(
 
 ---
 
-### `credentials-from-oidc-token`
-
-Get GCP credentials as a Secret from an OIDC token. Returns credentials JSON that can be used with any GCP SDK via `GOOGLE_APPLICATION_CREDENTIALS`.
-
-```python
-# Get OIDC token from your CI provider
-token = dag.oidc_token().github_token(
-    request_token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN,
-    request_url=env:ACTIONS_ID_TOKEN_REQUEST_URL,
-    audience="//iam.googleapis.com/projects/123456/locations/global/workloadIdentityPools/pool/providers/github"
-)
-
-# Get credentials as a Secret
-credentials = dag.gcp_auth().credentials_from_oidc_token(
-    oidc_token=token,
-    workload_identity_provider="projects/123456/locations/global/workloadIdentityPools/pool/providers/github",
-    project_id="my-project",
-    service_account_email="sa@project.iam.gserviceaccount.com"  # Optional
-)
-
-# Use with any container that needs GCP SDK access
-container = (
-    dag.container()
-    .from_("node:20")
-    .with_mounted_secret("/tmp/gcp-credentials.json", credentials)
-    .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp-credentials.json")
-)
-```
-
-**Parameters:**
-- `oidc_token` - OIDC JWT token (Secret) from any CI provider
-- `workload_identity_provider` - Full WIF provider resource name
-- `project_id` - GCP project ID
-- `service_account_email` - Service account to impersonate (optional)
-
-**Returns:** GCP credentials JSON as a Secret
-
----
-
-### `credentials-from-github-actions`
-
-Convenience wrapper to get GCP credentials from GitHub Actions OIDC.
-
-```python
-credentials = dag.gcp_auth().credentials_from_github_actions(
-    workload_identity_provider="projects/123456/locations/global/workloadIdentityPools/pool/providers/github",
-    project_id="my-project",
-    oidc_request_token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN,
-    oidc_request_url=env:ACTIONS_ID_TOKEN_REQUEST_URL,
-    service_account_email="sa@project.iam.gserviceaccount.com"  # Optional
-)
-```
-
-**Parameters:**
-- `workload_identity_provider` - Full WIF provider resource name
-- `project_id` - GCP project ID
-- `oidc_request_token` - GitHub's `ACTIONS_ID_TOKEN_REQUEST_TOKEN` (Secret)
-- `oidc_request_url` - GitHub's `ACTIONS_ID_TOKEN_REQUEST_URL` (Secret)
-- `service_account_email` - Service account to impersonate (optional)
-
-**Returns:** GCP credentials JSON as a Secret
-
----
-
 ### `access-token-from-oidc-token`
 
 Get a GCP access token from an OIDC token. Returns an access token for APIs that accept Bearer tokens (e.g., Firebase CLI, REST APIs).
@@ -650,7 +584,7 @@ container = (
 
 **Returns:** GCP access token as a Secret
 
-**Note:** For SDKs that use Application Default Credentials (ADC), use `credentials-from-oidc-token` instead.
+**Note:** For SDKs that use Application Default Credentials (ADC), use `with-oidc-token` or `gcloud-container-from-oidc-token` instead.
 
 ---
 

@@ -65,48 +65,6 @@ async def test_gcp_auth(
     ).stdout()
     results.append(f"PASS: gcloud_container_from_github_actions -> {email_gh.strip()}")
 
-    # ========== CREDENTIALS FROM OIDC TOKEN TEST ==========
-    results.append("--- credentials_from_oidc_token ---")
-
-    credentials = gcp_auth.credentials_from_oidc_token(
-        oidc_token=oidc_jwt,
-        workload_identity_provider=workload_identity_provider,
-        project_id=project_id,
-        service_account_email=service_account,
-    )
-
-    # Verify credentials work by using them with gcloud_container
-    gcloud_from_creds = gcp_auth.gcloud_container(
-        credentials=credentials,
-        project_id=project_id,
-        region=region,
-    )
-    creds_email = await gcloud_from_creds.with_exec(
-        ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
-    ).stdout()
-    results.append(f"PASS: credentials_from_oidc_token -> {creds_email.strip()}")
-
-    # ========== CREDENTIALS FROM GITHUB ACTIONS TEST ==========
-    results.append("--- credentials_from_github_actions ---")
-
-    credentials_gh = gcp_auth.credentials_from_github_actions(
-        workload_identity_provider=workload_identity_provider,
-        project_id=project_id,
-        oidc_request_token=oidc_token,
-        oidc_request_url=oidc_url,
-        service_account_email=service_account,
-    )
-
-    gcloud_from_creds_gh = gcp_auth.gcloud_container(
-        credentials=credentials_gh,
-        project_id=project_id,
-        region=region,
-    )
-    creds_email_gh = await gcloud_from_creds_gh.with_exec(
-        ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
-    ).stdout()
-    results.append(f"PASS: credentials_from_github_actions -> {creds_email_gh.strip()}")
-
     # ========== ACCESS TOKEN FROM OIDC TOKEN TEST ==========
     results.append("--- access_token_from_oidc_token ---")
 
