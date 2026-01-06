@@ -89,5 +89,41 @@ dagger -m semver call next --source=. --tag-prefix="mymodule/"
 | `next` | Calculate next version from conventional commits |
 | `current` | Get current version from latest tag |
 | `bump-type` | Analyze commits and return bump type |
+| `bump` | Calculate next version with explicit bump type (ignores commits) |
 | `release` | Calculate version and create git tag |
+| `tag` | Create and push a git tag with specific version |
 | `changed-paths` | List files changed since last tag |
+
+### Manual Version Bumping
+
+Use `bump` when you want to specify the exact bump type instead of analyzing commits:
+
+```bash
+# Explicit patch bump
+dagger -m semver call bump --source=. --bump-type=patch
+
+# Explicit minor bump
+dagger -m semver call bump --source=. --bump-type=minor
+
+# For monorepo
+dagger -m semver call bump --source=. --bump-type=minor --tag-prefix="mymodule/"
+```
+
+### Manual Tagging
+
+Use `tag` to create a tag with a specific version:
+
+```bash
+# Create and push a specific version tag
+dagger -m semver call tag \
+  --source=. \
+  --version="v2.0.0" \
+  --github-token=env:GITHUB_TOKEN
+
+# For monorepo
+dagger -m semver call tag \
+  --source=. \
+  --version="v1.5.0" \
+  --tag-prefix="mymodule/" \
+  --github-token=env:GITHUB_TOKEN
+```

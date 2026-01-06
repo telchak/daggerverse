@@ -151,6 +151,112 @@ dagger call firestore create \
 dagger call firestore list --gcloud=FROM_GCP_AUTH
 ```
 
+---
+
+## Firebase Scripts
+
+Run scripts that interact with Firebase/Firestore using GCP credentials. Useful for data seeding, migrations, and administrative tasks.
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `node` | Run Node.js or TypeScript scripts with Firebase credentials |
+| `python` | Run Python scripts with Firebase credentials |
+| `container` | Get a container with credentials configured for any language |
+
+### Node.js / TypeScript
+
+```python
+from dagger import dag
+
+# Run a TypeScript script with service account credentials
+result = await dag.gcp_firebase().scripts().node(
+    credentials=credentials,
+    source=source,
+    script="src/seed-data.ts",
+    working_dir="functions",
+)
+
+# Run with access token (for CI/CD with OIDC)
+result = await dag.gcp_firebase().scripts().node(
+    access_token=access_token,
+    project_id="my-project",
+    source=source,
+    script="src/seed-data.ts",
+)
+```
+
+### Python
+
+```python
+from dagger import dag
+
+# Run a Python script with service account credentials
+result = await dag.gcp_firebase().scripts().python(
+    credentials=credentials,
+    source=source,
+    script="seed_data.py",
+    working_dir="scripts",
+    install_command="pip install -r requirements.txt",
+)
+
+# Run with access token (for CI/CD with OIDC)
+result = await dag.gcp_firebase().scripts().python(
+    access_token=access_token,
+    project_id="my-project",
+    source=source,
+    script="seed_data.py",
+)
+```
+
+### Other Languages (Go, Ruby, Java, etc.)
+
+Use `container()` to get a pre-configured container for any language:
+
+```python
+from dagger import dag
+
+# Go example
+container = dag.gcp_firebase().scripts().container(
+    credentials=credentials,
+    source=source,
+    base_image="golang:1.22-alpine",
+)
+result = await container.with_exec(["go", "run", "main.go"]).stdout()
+
+# Ruby example
+container = dag.gcp_firebase().scripts().container(
+    credentials=credentials,
+    source=source,
+    base_image="ruby:3.3-alpine",
+)
+result = await (
+    container
+    .with_exec(["bundle", "install"])
+    .with_exec(["ruby", "seed_data.rb"])
+    .stdout()
+)
+```
+
+### CLI
+
+```bash
+# Run a Node.js script
+dagger call scripts node \
+  --credentials=env:GOOGLE_CREDENTIALS \
+  --source=. \
+  --script="src/seed-data.ts" \
+  --working-dir="functions"
+
+# Run a Python script
+dagger call scripts python \
+  --credentials=env:GOOGLE_CREDENTIALS \
+  --source=. \
+  --script="seed_data.py" \
+  --install-command="pip install firebase-admin"
+```
+
 ## License
 
 Apache 2.0
