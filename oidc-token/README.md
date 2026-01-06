@@ -84,7 +84,7 @@ jobs:
             --audience="//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/github" \
             --output=token.txt
 
-          dagger call -m gcp-auth gcloud-container-from-oidc \
+          dagger call -m gcp-auth gcloud-container-from-oidc-token \
             --oidc-token=file:token.txt \
             --workload-identity-provider="projects/123/locations/global/workloadIdentityPools/pool/providers/github" \
             --project-id="my-project" \
@@ -100,7 +100,7 @@ deploy:
     GITLAB_OIDC_TOKEN:
       aud: https://iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/gitlab
   script:
-    - dagger call -m gcp-auth gcloud-container-from-oidc \
+    - dagger call -m gcp-auth gcloud-container-from-oidc-token \
         --oidc-token=env:GITLAB_OIDC_TOKEN \
         --workload-identity-provider="projects/123/locations/global/workloadIdentityPools/pool/providers/gitlab" \
         --project-id="my-project" \
