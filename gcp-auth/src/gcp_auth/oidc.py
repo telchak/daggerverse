@@ -3,53 +3,6 @@
 import json
 
 
-def generate_github_actions_credentials(
-    workload_identity_provider: str,
-    oidc_token_request_url: str,
-    oidc_token_request_token: str,
-    service_account_email: str | None = None,
-) -> str:
-    """Generate external_account credentials for GitHub Actions OIDC.
-
-    This creates a credentials file that automatically fetches OIDC tokens
-    from GitHub Actions, exactly like google-github-actions/auth does.
-
-    Args:
-        workload_identity_provider: Full resource name of the WIF provider, e.g.:
-            projects/123456/locations/global/workloadIdentityPools/my-pool/providers/github
-        oidc_token_request_url: GitHub's ACTIONS_ID_TOKEN_REQUEST_URL env var.
-        oidc_token_request_token: GitHub's ACTIONS_ID_TOKEN_REQUEST_TOKEN env var.
-        service_account_email: Optional service account to impersonate.
-
-    Returns:
-        JSON string for external_account credentials.
-    """
-    audience = f"//iam.googleapis.com/{workload_identity_provider}"
-
-    # GitHub's OIDC endpoint requires the audience as a query parameter
-    token_url_with_audience = f"{oidc_token_request_url}&audience={audience}"
-
-    credentials = {
-        "type": "external_account",
-        "audience": audience,
-        "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
-        "token_url": "https://sts.googleapis.com/v1/token",
-        "credential_source": {
-            "url": token_url_with_audience,
-            "headers": {"Authorization": f"bearer {oidc_token_request_token}"},
-            "format": {"type": "json", "subject_token_field_name": "value"},
-        },
-    }
-
-    if service_account_email:
-        credentials["service_account_impersonation_url"] = (
-            f"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/"
-            f"{service_account_email}:generateAccessToken"
-        )
-
-    return json.dumps(credentials, indent=2)
-
-
 def generate_file_based_credentials(
     workload_identity_provider: str,
     service_account_email: str | None = None,

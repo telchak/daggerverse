@@ -1,5 +1,6 @@
 """GCP Authentication Module - Dagger utilities for Google Cloud Platform authentication."""
 
+import json
 from typing import Annotated
 
 import dagger
@@ -31,14 +32,45 @@ class GcpAuth:
     # ========== CREDENTIAL HELPERS ==========
 
     @function
-    def with_credentials(
+    async def with_credentials(
         self,
         container: Annotated[dagger.Container, Doc("Container to configure")],
-        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials (JSON)")],
+        credentials: Annotated[dagger.Secret, Doc("GCP credentials (JSON) - service account key or OIDC credentials")],
         credentials_path: Annotated[str, Doc("Path for credentials file")] = "/tmp/gcp-credentials.json",
         export_env_vars: Annotated[bool, Doc("Export GCP environment variables")] = True,
     ) -> dagger.Container:
-        """Add GCP credentials to container and optionally export environment variables."""
+        """Add GCP credentials to container and optionally export environment variables.
+
+        Supports both service account keys and OIDC credentials from credentials_from_oidc_token().
+        OIDC credentials include both the config and token, which are automatically set up.
+        """
+        # Check if this is combined OIDC credentials (from credentials_from_oidc_token)
+        credentials_content = await credentials.plaintext()
+        try:
+            creds_data = json.loads(credentials_content)
+            if "oidc_token" in creds_data and "credentials" in creds_data:
+                # This is combined OIDC credentials - set up both files
+                token_secret = dag.set_secret("oidc_token", creds_data["oidc_token"])
+                creds_secret = dag.set_secret("gcp_credentials", json.dumps(creds_data["credentials"]))
+
+                configured = (
+                    container
+                    .with_mounted_secret("/tmp/oidc-token", token_secret)
+                    .with_mounted_secret(credentials_path, creds_secret)
+                )
+
+                if export_env_vars:
+                    configured = (
+                        configured
+                        .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", credentials_path)
+                        .with_env_variable("CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE", credentials_path)
+                    )
+
+                return configured
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+        # Regular credentials (service account key)
         configured = container.with_mounted_secret(credentials_path, credentials)
 
         if export_env_vars:
@@ -83,17 +115,20 @@ class GcpAuth:
     # ========== GCLOUD CONTAINERS ==========
 
     @function
-    def gcloud_container(
+    async def gcloud_container(
         self,
-        credentials: Annotated[dagger.Secret, Doc("GCP service account credentials (JSON)")],
+        credentials: Annotated[dagger.Secret, Doc("GCP credentials (JSON) - service account key or OIDC credentials")],
         project_id: Annotated[str, Doc("GCP project ID")],
         region: Annotated[str, Doc("Default GCP region")] = "us-central1",
         image: Annotated[str, Doc("Google Cloud SDK image")] = "google/cloud-sdk:alpine",
         components: Annotated[list[str] | None, Doc("Additional gcloud components")] = None,
     ) -> dagger.Container:
-        """Create authenticated gcloud SDK container using service account credentials."""
+        """Create authenticated gcloud SDK container.
+
+        Supports both service account keys and OIDC credentials from credentials_from_oidc_token().
+        """
         container = create_base_gcloud_container(image)
-        container = self.with_credentials(container, credentials)
+        container = await self.with_credentials(container, credentials)
         container = authenticate_with_cred_file(container)
         container = configure_gcloud_project(container, project_id, region)
         return install_gcloud_components(container, components)
@@ -203,25 +238,35 @@ class GcpAuth:
     ) -> dagger.Secret:
         """Get GCP credentials as a Secret from an OIDC token.
 
-        Returns credentials JSON that can be used with any GCP SDK via
-        GOOGLE_APPLICATION_CREDENTIALS. Works with any CI provider.
+        Returns a combined credentials JSON that includes both the GCP credentials
+        config and the OIDC token. This can be used with with_credentials() or
+        gcloud_container() and will work in any container.
 
         Example (GitHub Actions):
             token = dag.oidc_token().github_token(request_token, request_url, audience)
             credentials = dag.gcp_auth().credentials_from_oidc_token(token, wif_provider, project_id)
+            # Use with any container:
+            container = dag.gcp_auth().with_credentials(my_container, credentials)
 
         Example (GitLab CI):
             token = dag.oidc_token().gitlab_token(ci_job_jwt)
             credentials = dag.gcp_auth().credentials_from_oidc_token(token, wif_provider, project_id)
         """
-        gcloud = self.gcloud_container_from_oidc_token(
-            oidc_token=oidc_token,
+        # Generate the external_account credentials config
+        credentials_config = generate_file_based_credentials(
             workload_identity_provider=workload_identity_provider,
-            project_id=project_id,
             service_account_email=service_account_email,
         )
-        credentials_content = await gcloud.file("/tmp/gcp-credentials.json").contents()
-        return dag.set_secret("gcp_credentials", credentials_content)
+
+        # Get the token content
+        token_content = await oidc_token.plaintext()
+
+        # Return combined format that with_credentials() can handle
+        combined = {
+            "credentials": json.loads(credentials_config),
+            "oidc_token": token_content,
+        }
+        return dag.set_secret("gcp_credentials", json.dumps(combined))
 
     @function
     async def credentials_from_github_actions(
