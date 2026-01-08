@@ -1,5 +1,6 @@
 """OIDC Token Module - Universal OIDC token handling for CI/CD providers."""
 
+import time
 from typing import Annotated
 
 import dagger
@@ -31,12 +32,16 @@ curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
     | jq -r '.value'
 '''
 
+        # Use timestamp to bust Dagger's cache - tokens must be fresh
+        cache_buster = str(int(time.time()))
+
         token_value = await (
             dag.container()
             .from_("alpine:latest")
             .with_exec(["apk", "add", "--no-cache", "curl", "jq"])
             .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_TOKEN", request_token)
             .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_URL", request_url)
+            .with_env_variable("CACHE_BUSTER", cache_buster)
             .with_exec(["sh", "-c", script])
             .stdout()
         )

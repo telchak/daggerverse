@@ -1,5 +1,6 @@
 """GCP Authentication Module - Dagger utilities for Google Cloud Platform authentication."""
 
+import time
 from typing import Annotated
 
 import dagger
@@ -218,7 +219,14 @@ class GcpAuth:
             project_id=project_id,
             service_account_email=service_account_email,
         )
-        token_output = await gcloud.with_exec(["gcloud", "auth", "print-access-token"]).stdout()
+        # Use timestamp to bust cache - access tokens must be fresh
+        cache_buster = str(int(time.time()))
+        token_output = await (
+            gcloud
+            .with_env_variable("CACHE_BUSTER", cache_buster)
+            .with_exec(["gcloud", "auth", "print-access-token"])
+            .stdout()
+        )
         return dag.set_secret("gcp_access_token", token_output.strip())
 
     @function
