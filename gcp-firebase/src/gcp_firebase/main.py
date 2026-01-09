@@ -25,12 +25,15 @@ def _with_firebase_credentials(
     # Priority 1: OIDC/WIF authentication (via gcp-auth)
     if oidc_token and workload_identity_provider:
         return dag.gcp_auth().with_oidc_token(
-            container, oidc_token, workload_identity_provider, service_account_email
+            container=container,
+            oidc_token=oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account_email,
         )
 
     # Priority 2: Service account credentials (via gcp-auth)
     if credentials:
-        return dag.gcp_auth().with_credentials(container, credentials)
+        return dag.gcp_auth().with_credentials(container=container, credentials=credentials)
 
     # Priority 3: Access token (deprecated, kept for backward compatibility)
     if access_token:
@@ -274,7 +277,9 @@ class GcpFirebase:
             )
         """
         oidc_token = dag.gcp_auth().oidc_token_from_github_actions(
-            workload_identity_provider, oidc_request_token, oidc_request_url
+            workload_identity_provider=workload_identity_provider,
+            oidc_request_token=oidc_request_token,
+            oidc_request_url=oidc_request_url,
         )
         return await self.deploy(
             project_id=project_id,
@@ -308,7 +313,9 @@ class GcpFirebase:
         and uses Workload Identity Federation for authentication.
         """
         oidc_token = dag.gcp_auth().oidc_token_from_github_actions(
-            workload_identity_provider, oidc_request_token, oidc_request_url
+            workload_identity_provider=workload_identity_provider,
+            oidc_request_token=oidc_request_token,
+            oidc_request_url=oidc_request_url,
         )
         return await self.deploy_preview(
             project_id=project_id,

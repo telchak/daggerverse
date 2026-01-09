@@ -22,7 +22,10 @@ def _with_script_credentials(
     # Priority 1: OIDC/WIF authentication (via gcp-auth)
     if oidc_token and workload_identity_provider:
         container = dag.gcp_auth().with_oidc_token(
-            container, oidc_token, workload_identity_provider, service_account_email
+            container=container,
+            oidc_token=oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account_email,
         )
         if project_id:
             container = container.with_env_variable("GOOGLE_CLOUD_PROJECT", project_id)
@@ -30,7 +33,7 @@ def _with_script_credentials(
 
     # Priority 2: Service account credentials (via gcp-auth)
     if credentials:
-        return dag.gcp_auth().with_credentials(container, credentials)
+        return dag.gcp_auth().with_credentials(container=container, credentials=credentials)
 
     # Priority 3: Access token
     if access_token:
