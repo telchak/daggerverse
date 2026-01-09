@@ -1,51 +1,65 @@
-"""Firebase Scripts - Run scripts with Firebase/Firestore credentials.
-
-This module provides utilities to execute scripts that interact with Firebase services
-(Firestore, Firebase Admin SDK) using GCP credentials or access tokens.
-
-Supported languages:
-- Node.js/TypeScript: Using firebase-admin or @google-cloud/firestore
-- Python: Using firebase-admin or google-cloud-firestore
-- Any language: Via the generic container() method
-
-Authentication options:
-- credentials: Service account JSON key (recommended for most use cases)
-- access_token: GCP access token (for CI/CD with OIDC/Workload Identity)
-
-For more information on Firebase Admin SDKs:
-https://firebase.google.com/docs/firestore/manage-data/add-data
-"""
+"""Firebase Scripts - Run scripts with Firebase/Firestore credentials."""
 
 from typing import Annotated
 
 import dagger
 from dagger import DefaultPath, Doc, dag, function, object_type
 
+from .main import _generate_external_account_credentials
 
-def _with_gcp_credentials(
+
+def _with_script_credentials(
     container: dagger.Container,
+    # OIDC/WIF auth (recommended for CI/CD)
+    oidc_token: dagger.Secret | None = None,
+    workload_identity_provider: str | None = None,
+    service_account_email: str | None = None,
+    # Service account JSON auth
     credentials: dagger.Secret | None = None,
+    # Legacy access token auth
     access_token: dagger.Secret | None = None,
     project_id: str | None = None,
 ) -> dagger.Container:
-    """Configure a container with GCP credentials or access token."""
+    """Configure a container with GCP credentials for scripts.
+
+    Supports three authentication methods (in priority order):
+    1. OIDC/WIF: oidc_token + workload_identity_provider (recommended for CI/CD)
+    2. Service account: credentials JSON file
+    3. Access token: GOOGLE_ACCESS_TOKEN env var
+    """
+    # Priority 1: OIDC/WIF authentication
+    if oidc_token and workload_identity_provider:
+        creds_json = _generate_external_account_credentials(
+            workload_identity_provider, service_account_email
+        )
+        container = (
+            container
+            .with_mounted_secret("/tmp/oidc-token", oidc_token)
+            .with_new_file("/tmp/gcp-credentials.json", contents=creds_json)
+            .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp-credentials.json")
+        )
+        if project_id:
+            container = container.with_env_variable("GOOGLE_CLOUD_PROJECT", project_id)
+        return container
+
+    # Priority 2: Service account credentials
+    if credentials:
+        return (
+            container
+            .with_mounted_secret("/tmp/gcp-credentials.json", credentials)
+            .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp-credentials.json")
+        )
+
+    # Priority 3: Access token
     if access_token:
-        # Use access token (for CI/CD with OIDC)
         container = container.with_secret_variable("GOOGLE_ACCESS_TOKEN", access_token)
         if project_id:
             container = container.with_env_variable("GOOGLE_CLOUD_PROJECT", project_id)
         return container
 
-    if credentials:
-        # Use service account credentials (ADC)
-        credentials_path = "/tmp/gcp-credentials.json"
-        return (
-            container
-            .with_mounted_secret(credentials_path, credentials)
-            .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", credentials_path)
-        )
-
-    raise ValueError("Either credentials or access_token must be provided")
+    raise ValueError(
+        "Must provide one of: (oidc_token + workload_identity_provider), credentials, or access_token"
+    )
 
 
 @object_type
@@ -64,43 +78,25 @@ class FirebaseScripts:
     @function
     async def node(
         self,
-        source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory containing the script")],
-        script: Annotated[str, Doc("Script path relative to working_dir (e.g., 'src/seed-data.ts')")],
-        credentials: Annotated[dagger.Secret | None, Doc("GCP service account credentials (JSON)")] = None,
-        access_token: Annotated[dagger.Secret | None, Doc("GCP access token (for CI/CD with OIDC)")] = None,
-        project_id: Annotated[str | None, Doc("GCP project ID (required with access_token)")] = None,
+        source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory")],
+        script: Annotated[str, Doc("Script path relative to working_dir")],
+        # OIDC/WIF auth (recommended)
+        oidc_token: Annotated[dagger.Secret | None, Doc("OIDC JWT token from CI provider")] = None,
+        workload_identity_provider: Annotated[str | None, Doc("GCP Workload Identity Federation provider")] = None,
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+        # Service account JSON auth
+        credentials: Annotated[dagger.Secret | None, Doc("GCP service account credentials JSON")] = None,
+        # Legacy access token auth
+        access_token: Annotated[dagger.Secret | None, Doc("GCP access token")] = None,
+        project_id: Annotated[str | None, Doc("GCP project ID")] = None,
+        # Script options
         working_dir: Annotated[str, Doc("Working directory relative to source root")] = ".",
         node_version: Annotated[str, Doc("Node.js version")] = "20",
         install_command: Annotated[str, Doc("Package install command")] = "npm ci",
         env: Annotated[list[str] | None, Doc("Environment variables (KEY=VALUE format)")] = None,
     ) -> str:
-        """Run a Node.js or TypeScript script with Firebase credentials.
-
-        The script can use firebase-admin, @google-cloud/firestore, or any GCP SDK.
-        Supports either service account credentials (JSON) or access tokens.
-
-        Example with credentials:
-            dag.gcp_firebase().scripts().node(
-                credentials=credentials,
-                source=source,
-                script="src/seed-data.ts",
-                working_dir="functions",
-            )
-
-        Example with access token (for CI/CD):
-            dag.gcp_firebase().scripts().node(
-                access_token=token,
-                project_id="my-project",
-                source=source,
-                script="src/seed-data.ts",
-            )
-        """
-        # Determine the runner based on file extension
-        # tsx handles ESM TypeScript automatically without extra configuration
-        if script.endswith(".ts"):
-            run_cmd = ["npx", "tsx", script]
-        else:
-            run_cmd = ["node", script]
+        """Run a Node.js or TypeScript script with Firebase credentials."""
+        run_cmd = ["npx", "tsx", script] if script.endswith(".ts") else ["node", script]
 
         container = (
             dag.container()
@@ -109,9 +105,16 @@ class FirebaseScripts:
             .with_workdir(f"/app/{working_dir}" if working_dir != "." else "/app")
             .with_exec(["sh", "-c", install_command])
         )
-        container = _with_gcp_credentials(container, credentials, access_token, project_id)
+        container = _with_script_credentials(
+            container,
+            oidc_token=oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account_email,
+            credentials=credentials,
+            access_token=access_token,
+            project_id=project_id,
+        )
 
-        # Add custom environment variables
         if env:
             for env_var in env:
                 key, _, value = env_var.partition("=")
@@ -122,38 +125,24 @@ class FirebaseScripts:
     @function
     async def python(
         self,
-        source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory containing the script")],
-        script: Annotated[str, Doc("Script path relative to working_dir (e.g., 'seed_data.py')")],
-        credentials: Annotated[dagger.Secret | None, Doc("GCP service account credentials (JSON)")] = None,
-        access_token: Annotated[dagger.Secret | None, Doc("GCP access token (for CI/CD with OIDC)")] = None,
-        project_id: Annotated[str | None, Doc("GCP project ID (required with access_token)")] = None,
+        source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory")],
+        script: Annotated[str, Doc("Script path relative to working_dir")],
+        # OIDC/WIF auth (recommended)
+        oidc_token: Annotated[dagger.Secret | None, Doc("OIDC JWT token from CI provider")] = None,
+        workload_identity_provider: Annotated[str | None, Doc("GCP Workload Identity Federation provider")] = None,
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+        # Service account JSON auth
+        credentials: Annotated[dagger.Secret | None, Doc("GCP service account credentials JSON")] = None,
+        # Legacy access token auth
+        access_token: Annotated[dagger.Secret | None, Doc("GCP access token")] = None,
+        project_id: Annotated[str | None, Doc("GCP project ID")] = None,
+        # Script options
         working_dir: Annotated[str, Doc("Working directory relative to source root")] = ".",
         python_version: Annotated[str, Doc("Python version")] = "3.12",
-        install_command: Annotated[str | None, Doc("Package install command (e.g., 'pip install -r requirements.txt')")] = None,
+        install_command: Annotated[str | None, Doc("Package install command")] = None,
         env: Annotated[list[str] | None, Doc("Environment variables (KEY=VALUE format)")] = None,
     ) -> str:
-        """Run a Python script with Firebase credentials.
-
-        The script can use firebase-admin, google-cloud-firestore, or any GCP SDK.
-        Supports either service account credentials (JSON) or access tokens.
-
-        Example with credentials:
-            dag.gcp_firebase().scripts().python(
-                credentials=credentials,
-                source=source,
-                script="seed_data.py",
-                working_dir="scripts",
-                install_command="pip install -r requirements.txt",
-            )
-
-        Example with access token (for CI/CD):
-            dag.gcp_firebase().scripts().python(
-                access_token=token,
-                project_id="my-project",
-                source=source,
-                script="seed_data.py",
-            )
-        """
+        """Run a Python script with Firebase credentials."""
         container = (
             dag.container()
             .from_(f"python:{python_version}-alpine")
@@ -164,9 +153,16 @@ class FirebaseScripts:
         if install_command:
             container = container.with_exec(["sh", "-c", install_command])
 
-        container = _with_gcp_credentials(container, credentials, access_token, project_id)
+        container = _with_script_credentials(
+            container,
+            oidc_token=oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account_email,
+            credentials=credentials,
+            access_token=access_token,
+            project_id=project_id,
+        )
 
-        # Add custom environment variables
         if env:
             for env_var in env:
                 key, _, value = env_var.partition("=")
@@ -178,58 +174,32 @@ class FirebaseScripts:
     def container(
         self,
         source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory")],
-        base_image: Annotated[str, Doc("Base container image (e.g., 'golang:1.22-alpine', 'ruby:3.3-alpine')")],
-        credentials: Annotated[dagger.Secret | None, Doc("GCP service account credentials (JSON)")] = None,
-        access_token: Annotated[dagger.Secret | None, Doc("GCP access token (for CI/CD with OIDC)")] = None,
-        project_id: Annotated[str | None, Doc("GCP project ID (required with access_token)")] = None,
+        base_image: Annotated[str, Doc("Base container image")],
+        # OIDC/WIF auth (recommended)
+        oidc_token: Annotated[dagger.Secret | None, Doc("OIDC JWT token from CI provider")] = None,
+        workload_identity_provider: Annotated[str | None, Doc("GCP Workload Identity Federation provider")] = None,
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+        # Service account JSON auth
+        credentials: Annotated[dagger.Secret | None, Doc("GCP service account credentials JSON")] = None,
+        # Legacy access token auth
+        access_token: Annotated[dagger.Secret | None, Doc("GCP access token")] = None,
+        project_id: Annotated[str | None, Doc("GCP project ID")] = None,
+        # Options
         working_dir: Annotated[str, Doc("Working directory relative to source root")] = ".",
     ) -> dagger.Container:
-        """Get a container with Firebase credentials configured for any language.
-
-        Returns a container with:
-        - GCP credentials or access token configured
-        - Source directory mounted at /app
-        - Working directory set
-
-        When using credentials:
-        - Credentials mounted at /tmp/gcp-credentials.json
-        - GOOGLE_APPLICATION_CREDENTIALS environment variable set
-
-        When using access_token:
-        - GOOGLE_ACCESS_TOKEN environment variable set
-        - GOOGLE_CLOUD_PROJECT environment variable set (if project_id provided)
-
-        Use this for languages not covered by node() or python(), such as:
-        - Go: google.golang.org/api/option
-        - Java: com.google.auth.oauth2.GoogleCredentials
-        - Ruby: google-cloud-firestore gem
-        - C#: Google.Cloud.Firestore
-
-        Example (Go):
-            container = dag.gcp_firebase().scripts().container(
-                credentials=credentials,
-                source=source,
-                base_image="golang:1.22-alpine",
-            )
-            result = await container.with_exec(["go", "run", "main.go"]).stdout()
-
-        Example (Ruby):
-            container = dag.gcp_firebase().scripts().container(
-                credentials=credentials,
-                source=source,
-                base_image="ruby:3.3-alpine",
-            )
-            result = await (
-                container
-                .with_exec(["bundle", "install"])
-                .with_exec(["ruby", "seed_data.rb"])
-                .stdout()
-            )
-        """
+        """Get a container with Firebase credentials configured for any language."""
         container = (
             dag.container()
             .from_(base_image)
             .with_directory("/app", source)
             .with_workdir(f"/app/{working_dir}" if working_dir != "." else "/app")
         )
-        return _with_gcp_credentials(container, credentials, access_token, project_id)
+        return _with_script_credentials(
+            container,
+            oidc_token=oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account_email,
+            credentials=credentials,
+            access_token=access_token,
+            project_id=project_id,
+        )
