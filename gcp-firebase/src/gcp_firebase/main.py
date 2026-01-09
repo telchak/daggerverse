@@ -1,5 +1,6 @@
 """GCP Firebase Hosting Module - Deploy Angular/web apps to Firebase Hosting."""
 
+import json
 import re
 from typing import Annotated
 
@@ -10,22 +11,144 @@ from .firestore import Firestore
 from .scripts import FirebaseScripts
 
 
+def _generate_external_account_credentials(
+    workload_identity_provider: str,
+    service_account_email: str | None = None,
+    token_file_path: str = "/tmp/oidc-token",
+) -> str:
+    """Generate external_account credentials JSON for OIDC/WIF authentication.
+
+    This creates a credentials file that references an OIDC token file,
+    allowing the Firebase CLI to authenticate via Workload Identity Federation.
+
+    Args:
+        workload_identity_provider: Full resource name of the WIF provider.
+        service_account_email: Optional service account to impersonate.
+        token_file_path: Path where the OIDC token file will be mounted.
+
+    Returns:
+        JSON string for external_account credentials.
+    """
+    audience = f"//iam.googleapis.com/{workload_identity_provider}"
+
+    credentials = {
+        "type": "external_account",
+        "audience": audience,
+        "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+        "token_url": "https://sts.googleapis.com/v1/token",
+        "credential_source": {
+            "file": token_file_path,
+            "format": {"type": "text"},
+        },
+    }
+
+    if service_account_email:
+        credentials["service_account_impersonation_url"] = (
+            f"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/"
+            f"{service_account_email}:generateAccessToken"
+        )
+
+    return json.dumps(credentials, indent=2)
+
+
+def _with_firebase_credentials(
+    container: dagger.Container,
+    # OIDC/WIF auth (recommended)
+    oidc_token: dagger.Secret | None = None,
+    workload_identity_provider: str | None = None,
+    service_account_email: str | None = None,
+    # Service account JSON auth
+    credentials: dagger.Secret | None = None,
+    # Legacy access token auth (deprecated)
+    access_token: dagger.Secret | None = None,
+) -> dagger.Container:
+    """Configure Firebase CLI authentication.
+
+    Supports three authentication methods (in priority order):
+    1. OIDC/WIF: oidc_token + workload_identity_provider (recommended for CI/CD)
+    2. Service account: credentials JSON file
+    3. Access token: FIREBASE_TOKEN (deprecated, for backward compatibility)
+
+    Args:
+        container: Container to configure.
+        oidc_token: OIDC JWT token from CI provider (e.g., GitHub Actions).
+        workload_identity_provider: GCP Workload Identity Federation provider.
+        service_account_email: Service account to impersonate (with OIDC).
+        credentials: GCP service account credentials JSON.
+        access_token: GCP access token (deprecated, uses FIREBASE_TOKEN).
+
+    Returns:
+        Container with Firebase CLI authentication configured.
+
+    Raises:
+        ValueError: If no valid authentication method is provided.
+    """
+    # Priority 1: OIDC/WIF authentication (recommended)
+    if oidc_token and workload_identity_provider:
+        creds_json = _generate_external_account_credentials(
+            workload_identity_provider, service_account_email
+        )
+        return (
+            container
+            .with_mounted_secret("/tmp/oidc-token", oidc_token)
+            .with_new_file("/tmp/gcp-credentials.json", contents=creds_json)
+            .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp-credentials.json")
+        )
+
+    # Priority 2: Service account credentials
+    if credentials:
+        return (
+            container
+            .with_mounted_secret("/tmp/gcp-credentials.json", credentials)
+            .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp-credentials.json")
+        )
+
+    # Priority 3: Access token (deprecated)
+    if access_token:
+        return container.with_secret_variable("FIREBASE_TOKEN", access_token)
+
+    raise ValueError(
+        "Must provide one of: "
+        "(oidc_token + workload_identity_provider), credentials, or access_token"
+    )
+
+
 @object_type
 class GcpFirebase:
     """Firebase Hosting deployment utilities for Dagger pipelines."""
 
     def _firebase_container(
         self,
-        access_token: dagger.Secret,
         node_version: str = "20",
+        # OIDC/WIF auth (recommended)
+        oidc_token: dagger.Secret | None = None,
+        workload_identity_provider: str | None = None,
+        service_account_email: str | None = None,
+        # Service account JSON auth
+        credentials: dagger.Secret | None = None,
+        # Legacy access token auth (deprecated)
+        access_token: dagger.Secret | None = None,
     ) -> dagger.Container:
-        """Create a container with Firebase CLI authenticated via access token."""
-        return (
+        """Create a container with Firebase CLI and authentication configured.
+
+        Supports three authentication methods:
+        1. OIDC/WIF: oidc_token + workload_identity_provider (recommended)
+        2. Service account: credentials JSON
+        3. Access token: FIREBASE_TOKEN (deprecated)
+        """
+        container = (
             dag.container()
             .from_(f"node:{node_version}-alpine")
             .with_exec(["apk", "add", "--no-cache", "openjdk17-jre"])
             .with_exec(["npm", "install", "-g", "firebase-tools"])
-            .with_secret_variable("FIREBASE_TOKEN", access_token)
+        )
+        return _with_firebase_credentials(
+            container,
+            oidc_token=oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account_email,
+            credentials=credentials,
+            access_token=access_token,
         )
 
     @function
@@ -49,18 +172,39 @@ class GcpFirebase:
     @function
     async def deploy(
         self,
-        access_token: Annotated[dagger.Secret, Doc("GCP access token for Firebase")],
         project_id: Annotated[str, Doc("Firebase project ID")],
         source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory")],
+        # OIDC/WIF auth (recommended)
+        oidc_token: Annotated[dagger.Secret | None, Doc("OIDC JWT token from CI provider")] = None,
+        workload_identity_provider: Annotated[str | None, Doc("GCP Workload Identity Federation provider")] = None,
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+        # Service account JSON auth
+        credentials: Annotated[dagger.Secret | None, Doc("GCP service account credentials JSON")] = None,
+        # Legacy access token auth (deprecated)
+        access_token: Annotated[dagger.Secret | None, Doc("GCP access token (deprecated, use OIDC or credentials)")] = None,
+        # Build options
         build_command: Annotated[str, Doc("Build command")] = "npm run build",
         node_version: Annotated[str, Doc("Node.js version")] = "20",
         deploy_functions: Annotated[bool, Doc("Deploy Cloud Functions")] = True,
         force: Annotated[bool, Doc("Force deployment")] = True,
     ) -> str:
-        """Build and deploy to Firebase Hosting."""
+        """Build and deploy to Firebase Hosting.
+
+        Supports three authentication methods:
+        1. OIDC/WIF (recommended): Provide oidc_token + workload_identity_provider
+        2. Service account: Provide credentials (JSON key)
+        3. Access token (deprecated): Provide access_token
+        """
         deploy_target = "hosting,functions" if deploy_functions else "hosting"
         container = (
-            self._firebase_container(access_token, node_version)
+            self._firebase_container(
+                node_version=node_version,
+                oidc_token=oidc_token,
+                workload_identity_provider=workload_identity_provider,
+                service_account_email=service_account_email,
+                credentials=credentials,
+                access_token=access_token,
+            )
             .with_directory("/app", source)
             .with_workdir("/app")
             .with_exec(["npm", "ci"])
@@ -77,17 +221,38 @@ class GcpFirebase:
     @function
     async def deploy_preview(
         self,
-        access_token: Annotated[dagger.Secret, Doc("GCP access token for Firebase")],
         project_id: Annotated[str, Doc("Firebase project ID")],
         channel_id: Annotated[str, Doc("Preview channel ID (e.g., pr-123)")],
         source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory")],
+        # OIDC/WIF auth (recommended)
+        oidc_token: Annotated[dagger.Secret | None, Doc("OIDC JWT token from CI provider")] = None,
+        workload_identity_provider: Annotated[str | None, Doc("GCP Workload Identity Federation provider")] = None,
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+        # Service account JSON auth
+        credentials: Annotated[dagger.Secret | None, Doc("GCP service account credentials JSON")] = None,
+        # Legacy access token auth (deprecated)
+        access_token: Annotated[dagger.Secret | None, Doc("GCP access token (deprecated, use OIDC or credentials)")] = None,
+        # Build options
         build_command: Annotated[str, Doc("Build command")] = "npm run build",
         node_version: Annotated[str, Doc("Node.js version")] = "20",
         expires: Annotated[str, Doc("Channel expiration")] = "7d",
     ) -> str:
-        """Deploy to a Firebase Hosting preview channel. Returns the preview URL."""
+        """Deploy to a Firebase Hosting preview channel. Returns the preview URL.
+
+        Supports three authentication methods:
+        1. OIDC/WIF (recommended): Provide oidc_token + workload_identity_provider
+        2. Service account: Provide credentials (JSON key)
+        3. Access token (deprecated): Provide access_token
+        """
         output = await (
-            self._firebase_container(access_token, node_version)
+            self._firebase_container(
+                node_version=node_version,
+                oidc_token=oidc_token,
+                workload_identity_provider=workload_identity_provider,
+                service_account_email=service_account_email,
+                credentials=credentials,
+                access_token=access_token,
+            )
             .with_directory("/app", source)
             .with_workdir("/app")
             .with_exec(["npm", "ci"])
@@ -110,15 +275,36 @@ class GcpFirebase:
     @function
     async def delete_channel(
         self,
-        access_token: Annotated[dagger.Secret, Doc("GCP access token for Firebase")],
         project_id: Annotated[str, Doc("Firebase project ID")],
         channel_id: Annotated[str, Doc("Preview channel ID to delete")],
+        # OIDC/WIF auth (recommended)
+        oidc_token: Annotated[dagger.Secret | None, Doc("OIDC JWT token from CI provider")] = None,
+        workload_identity_provider: Annotated[str | None, Doc("GCP Workload Identity Federation provider")] = None,
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+        # Service account JSON auth
+        credentials: Annotated[dagger.Secret | None, Doc("GCP service account credentials JSON")] = None,
+        # Legacy access token auth (deprecated)
+        access_token: Annotated[dagger.Secret | None, Doc("GCP access token (deprecated, use OIDC or credentials)")] = None,
+        # Options
         site: Annotated[str | None, Doc("Firebase site (defaults to project ID)")] = None,
         node_version: Annotated[str, Doc("Node.js version")] = "20",
     ) -> str:
-        """Delete a Firebase Hosting preview channel."""
+        """Delete a Firebase Hosting preview channel.
+
+        Supports three authentication methods:
+        1. OIDC/WIF (recommended): Provide oidc_token + workload_identity_provider
+        2. Service account: Provide credentials (JSON key)
+        3. Access token (deprecated): Provide access_token
+        """
         return await (
-            self._firebase_container(access_token, node_version)
+            self._firebase_container(
+                node_version=node_version,
+                oidc_token=oidc_token,
+                workload_identity_provider=workload_identity_provider,
+                service_account_email=service_account_email,
+                credentials=credentials,
+                access_token=access_token,
+            )
             .with_workdir("/tmp/firebase")
             .with_new_file("/tmp/firebase/firebase.json", '{"hosting": {"public": "."}}')
             .with_exec([
@@ -128,6 +314,91 @@ class GcpFirebase:
             ])
             .stdout()
         )
+
+    # ========== GitHub Actions Convenience Methods ==========
+
+    @function
+    async def deploy_from_github_actions(
+        self,
+        workload_identity_provider: Annotated[str, Doc("GCP Workload Identity Federation provider")],
+        project_id: Annotated[str, Doc("Firebase project ID")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory")],
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+        build_command: Annotated[str, Doc("Build command")] = "npm run build",
+        node_version: Annotated[str, Doc("Node.js version")] = "20",
+        deploy_functions: Annotated[bool, Doc("Deploy Cloud Functions")] = True,
+        force: Annotated[bool, Doc("Force deployment")] = True,
+    ) -> str:
+        """Deploy to Firebase Hosting using GitHub Actions OIDC.
+
+        Convenience wrapper that fetches the OIDC token from GitHub Actions
+        and uses Workload Identity Federation for authentication.
+
+        Example:
+            dag.gcp_firebase().deploy_from_github_actions(
+                workload_identity_provider="projects/.../providers/github",
+                project_id="my-project",
+                oidc_request_token=env.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
+                oidc_request_url=env.ACTIONS_ID_TOKEN_REQUEST_URL,
+                source=source,
+            )
+        """
+        oidc_token = dag.oidc_token().github_token(
+            request_token=oidc_request_token,
+            request_url=oidc_request_url,
+            audience=f"//iam.googleapis.com/{workload_identity_provider}",
+        )
+        return await self.deploy(
+            project_id=project_id,
+            source=source,
+            oidc_token=oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account_email,
+            build_command=build_command,
+            node_version=node_version,
+            deploy_functions=deploy_functions,
+            force=force,
+        )
+
+    @function
+    async def deploy_preview_from_github_actions(
+        self,
+        workload_identity_provider: Annotated[str, Doc("GCP Workload Identity Federation provider")],
+        project_id: Annotated[str, Doc("Firebase project ID")],
+        channel_id: Annotated[str, Doc("Preview channel ID (e.g., pr-123)")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory")],
+        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
+        build_command: Annotated[str, Doc("Build command")] = "npm run build",
+        node_version: Annotated[str, Doc("Node.js version")] = "20",
+        expires: Annotated[str, Doc("Channel expiration")] = "7d",
+    ) -> str:
+        """Deploy to Firebase preview channel using GitHub Actions OIDC.
+
+        Convenience wrapper that fetches the OIDC token from GitHub Actions
+        and uses Workload Identity Federation for authentication.
+        """
+        oidc_token = dag.oidc_token().github_token(
+            request_token=oidc_request_token,
+            request_url=oidc_request_url,
+            audience=f"//iam.googleapis.com/{workload_identity_provider}",
+        )
+        return await self.deploy_preview(
+            project_id=project_id,
+            channel_id=channel_id,
+            source=source,
+            oidc_token=oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account_email,
+            build_command=build_command,
+            node_version=node_version,
+            expires=expires,
+        )
+
+    # ========== Utility Methods ==========
 
     @function
     def firestore(self) -> Firestore:
