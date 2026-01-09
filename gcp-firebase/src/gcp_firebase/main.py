@@ -273,10 +273,8 @@ class GcpFirebase:
                 source=source,
             )
         """
-        oidc_token = dag.oidc_token().github_token(
-            request_token=oidc_request_token,
-            request_url=oidc_request_url,
-            audience=f"//iam.googleapis.com/{workload_identity_provider}",
+        oidc_token = dag.gcp_auth().oidc_token_from_github_actions(
+            workload_identity_provider, oidc_request_token, oidc_request_url
         )
         return await self.deploy(
             project_id=project_id,
@@ -309,10 +307,8 @@ class GcpFirebase:
         Convenience wrapper that fetches the OIDC token from GitHub Actions
         and uses Workload Identity Federation for authentication.
         """
-        oidc_token = dag.oidc_token().github_token(
-            request_token=oidc_request_token,
-            request_url=oidc_request_url,
-            audience=f"//iam.googleapis.com/{workload_identity_provider}",
+        oidc_token = dag.gcp_auth().oidc_token_from_github_actions(
+            workload_identity_provider, oidc_request_token, oidc_request_url
         )
         return await self.deploy_preview(
             project_id=project_id,

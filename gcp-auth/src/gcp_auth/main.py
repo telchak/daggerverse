@@ -255,6 +255,28 @@ class GcpAuth:
             service_account_email=service_account_email,
         )
 
+    # ========== OIDC TOKENS ==========
+
+    @function
+    def oidc_token_from_github_actions(
+        self,
+        workload_identity_provider: Annotated[str, Doc("GCP Workload Identity Federation provider")],
+        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+    ) -> dagger.Secret:
+        """Get OIDC JWT token from GitHub Actions with correct GCP audience.
+
+        Returns the raw OIDC token that can be used with with_oidc_token() or
+        passed to other modules that accept OIDC tokens for GCP authentication.
+
+        This handles the GCP-specific audience format (//iam.googleapis.com/...).
+        """
+        return dag.oidc_token().github_token(
+            request_token=oidc_request_token,
+            request_url=oidc_request_url,
+            audience=f"//iam.googleapis.com/{workload_identity_provider}",
+        )
+
     # ========== UTILITIES ==========
 
     @function
