@@ -1,6 +1,5 @@
 """GCP Firebase Hosting Module - Deploy Angular/web apps to Firebase Hosting."""
 
-import json
 import re
 from typing import Annotated
 
@@ -11,105 +10,34 @@ from .firestore import Firestore
 from .scripts import FirebaseScripts
 
 
-def _generate_external_account_credentials(
-    workload_identity_provider: str,
-    service_account_email: str | None = None,
-    token_file_path: str = "/tmp/oidc-token",
-) -> str:
-    """Generate external_account credentials JSON for OIDC/WIF authentication.
-
-    This creates a credentials file that references an OIDC token file,
-    allowing the Firebase CLI to authenticate via Workload Identity Federation.
-
-    Args:
-        workload_identity_provider: Full resource name of the WIF provider.
-        service_account_email: Optional service account to impersonate.
-        token_file_path: Path where the OIDC token file will be mounted.
-
-    Returns:
-        JSON string for external_account credentials.
-    """
-    audience = f"//iam.googleapis.com/{workload_identity_provider}"
-
-    credentials = {
-        "type": "external_account",
-        "audience": audience,
-        "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
-        "token_url": "https://sts.googleapis.com/v1/token",
-        "credential_source": {
-            "file": token_file_path,
-            "format": {"type": "text"},
-        },
-    }
-
-    if service_account_email:
-        credentials["service_account_impersonation_url"] = (
-            f"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/"
-            f"{service_account_email}:generateAccessToken"
-        )
-
-    return json.dumps(credentials, indent=2)
-
-
 def _with_firebase_credentials(
     container: dagger.Container,
-    # OIDC/WIF auth (recommended)
+    # OIDC/WIF auth (recommended) - uses gcp-auth module
     oidc_token: dagger.Secret | None = None,
     workload_identity_provider: str | None = None,
     service_account_email: str | None = None,
-    # Service account JSON auth
+    # Service account JSON auth - uses gcp-auth module
     credentials: dagger.Secret | None = None,
     # Legacy access token auth (deprecated)
     access_token: dagger.Secret | None = None,
 ) -> dagger.Container:
-    """Configure Firebase CLI authentication.
-
-    Supports three authentication methods (in priority order):
-    1. OIDC/WIF: oidc_token + workload_identity_provider (recommended for CI/CD)
-    2. Service account: credentials JSON file
-    3. Access token: FIREBASE_TOKEN (deprecated, for backward compatibility)
-
-    Args:
-        container: Container to configure.
-        oidc_token: OIDC JWT token from CI provider (e.g., GitHub Actions).
-        workload_identity_provider: GCP Workload Identity Federation provider.
-        service_account_email: Service account to impersonate (with OIDC).
-        credentials: GCP service account credentials JSON.
-        access_token: GCP access token (deprecated, uses FIREBASE_TOKEN).
-
-    Returns:
-        Container with Firebase CLI authentication configured.
-
-    Raises:
-        ValueError: If no valid authentication method is provided.
-    """
-    # Priority 1: OIDC/WIF authentication (recommended)
+    """Configure Firebase CLI authentication using gcp-auth module."""
+    # Priority 1: OIDC/WIF authentication (via gcp-auth)
     if oidc_token and workload_identity_provider:
-        creds_json = _generate_external_account_credentials(
-            workload_identity_provider, service_account_email
-        )
-        return (
-            container
-            .with_mounted_secret("/tmp/oidc-token", oidc_token)
-            .with_new_file("/tmp/gcp-credentials.json", contents=creds_json)
-            .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp-credentials.json")
+        return dag.gcp_auth().with_oidc_token(
+            container, oidc_token, workload_identity_provider, service_account_email
         )
 
-    # Priority 2: Service account credentials
+    # Priority 2: Service account credentials (via gcp-auth)
     if credentials:
-        return (
-            container
-            .with_mounted_secret("/tmp/gcp-credentials.json", credentials)
-            .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp-credentials.json")
-        )
+        return dag.gcp_auth().with_credentials(container, credentials)
 
-    # Priority 3: Access token (deprecated)
+    # Priority 3: Access token (deprecated, kept for backward compatibility)
     if access_token:
         return container.with_secret_variable("FIREBASE_TOKEN", access_token)
 
     raise ValueError(
-        "Must provide one of: "
-        "(oidc_token + workload_identity_provider), credentials, or access_token"
+        "Must provide one of: (oidc_token + workload_identity_provider), credentials, or access_token"
     )
 
 

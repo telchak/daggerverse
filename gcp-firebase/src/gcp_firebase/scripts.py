@@ -5,50 +5,32 @@ from typing import Annotated
 import dagger
 from dagger import DefaultPath, Doc, dag, function, object_type
 
-from .main import _generate_external_account_credentials
-
 
 def _with_script_credentials(
     container: dagger.Container,
-    # OIDC/WIF auth (recommended for CI/CD)
+    # OIDC/WIF auth (recommended) - uses gcp-auth module
     oidc_token: dagger.Secret | None = None,
     workload_identity_provider: str | None = None,
     service_account_email: str | None = None,
-    # Service account JSON auth
+    # Service account JSON auth - uses gcp-auth module
     credentials: dagger.Secret | None = None,
     # Legacy access token auth
     access_token: dagger.Secret | None = None,
     project_id: str | None = None,
 ) -> dagger.Container:
-    """Configure a container with GCP credentials for scripts.
-
-    Supports three authentication methods (in priority order):
-    1. OIDC/WIF: oidc_token + workload_identity_provider (recommended for CI/CD)
-    2. Service account: credentials JSON file
-    3. Access token: GOOGLE_ACCESS_TOKEN env var
-    """
-    # Priority 1: OIDC/WIF authentication
+    """Configure a container with GCP credentials using gcp-auth module."""
+    # Priority 1: OIDC/WIF authentication (via gcp-auth)
     if oidc_token and workload_identity_provider:
-        creds_json = _generate_external_account_credentials(
-            workload_identity_provider, service_account_email
-        )
-        container = (
-            container
-            .with_mounted_secret("/tmp/oidc-token", oidc_token)
-            .with_new_file("/tmp/gcp-credentials.json", contents=creds_json)
-            .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp-credentials.json")
+        container = dag.gcp_auth().with_oidc_token(
+            container, oidc_token, workload_identity_provider, service_account_email
         )
         if project_id:
             container = container.with_env_variable("GOOGLE_CLOUD_PROJECT", project_id)
         return container
 
-    # Priority 2: Service account credentials
+    # Priority 2: Service account credentials (via gcp-auth)
     if credentials:
-        return (
-            container
-            .with_mounted_secret("/tmp/gcp-credentials.json", credentials)
-            .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp-credentials.json")
-        )
+        return dag.gcp_auth().with_credentials(container, credentials)
 
     # Priority 3: Access token
     if access_token:
