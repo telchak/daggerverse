@@ -7,11 +7,11 @@ from dagger import Doc, function, object_type
 
 
 @object_type
-class GcpCloudRun:
-    """Google Cloud Run deployment utilities."""
+class CloudRunService:
+    """Cloud Run service operations."""
 
     @function
-    async def deploy_service(
+    async def deploy(
         self,
         gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         image: Annotated[str, Doc("Container image URI")],
@@ -55,7 +55,71 @@ class GcpCloudRun:
         return await gcloud.with_exec(cmd).stdout()
 
     @function
-    async def deploy_job(
+    async def delete(
+        self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
+        service_name: Annotated[str, Doc("Service name")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> str:
+        """Delete a Cloud Run service."""
+        return await gcloud.with_exec([
+            "gcloud", "run", "services", "delete", service_name, "--region", region, "--quiet",
+        ]).stdout()
+
+    @function
+    async def get_url(
+        self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
+        service_name: Annotated[str, Doc("Service name")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> str:
+        """Get the URL of a deployed service."""
+        output = await gcloud.with_exec([
+            "gcloud", "run", "services", "describe", service_name,
+            "--region", region, "--format", "value(status.url)",
+        ]).stdout()
+        return output.strip()
+
+    @function
+    async def exists(
+        self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
+        service_name: Annotated[str, Doc("Service name")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> bool:
+        """Check if a Cloud Run service exists."""
+        result = await gcloud.with_exec([
+            "sh", "-c",
+            f"gcloud run services describe {service_name} --region {region} "
+            f"--format 'value(metadata.name)' 2>/dev/null || echo ''"
+        ]).stdout()
+        return bool(result.strip())
+
+    @function
+    async def get_logs(
+        self,
+        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
+        service_name: Annotated[str, Doc("Service name")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+        limit: Annotated[int, Doc("Maximum number of log entries")] = 50,
+        log_filter: Annotated[str, Doc("Additional log filter (e.g., 'severity>=ERROR')")] = "",
+    ) -> str:
+        """Read logs from a Cloud Run service."""
+        cmd = [
+            "gcloud", "run", "services", "logs", "read", service_name,
+            "--region", region, "--limit", str(limit),
+        ]
+        if log_filter:
+            cmd.extend(["--log-filter", log_filter])
+        return await gcloud.with_exec(cmd).stdout()
+
+
+@object_type
+class CloudRunJob:
+    """Cloud Run job operations."""
+
+    @function
+    async def deploy(
         self,
         gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         image: Annotated[str, Doc("Container image URI")],
@@ -98,7 +162,7 @@ class GcpCloudRun:
         return await gcloud.with_exec(cmd).stdout()
 
     @function
-    async def execute_job(
+    async def execute(
         self,
         gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         job_name: Annotated[str, Doc("Job name")],
@@ -112,19 +176,7 @@ class GcpCloudRun:
         return await gcloud.with_exec(cmd).stdout()
 
     @function
-    async def delete_service(
-        self,
-        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
-        service_name: Annotated[str, Doc("Service name")],
-        region: Annotated[str, Doc("GCP region")] = "us-central1",
-    ) -> str:
-        """Delete a Cloud Run service."""
-        return await gcloud.with_exec([
-            "gcloud", "run", "services", "delete", service_name, "--region", region, "--quiet",
-        ]).stdout()
-
-    @function
-    async def delete_job(
+    async def delete(
         self,
         gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
         job_name: Annotated[str, Doc("Job name")],
@@ -136,30 +188,34 @@ class GcpCloudRun:
         ]).stdout()
 
     @function
-    async def get_service_url(
+    async def get_logs(
         self,
         gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
-        service_name: Annotated[str, Doc("Service name")],
+        job_name: Annotated[str, Doc("Job name")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
+        limit: Annotated[int, Doc("Maximum number of log entries")] = 50,
+        log_filter: Annotated[str, Doc("Additional log filter (e.g., 'severity>=ERROR')")] = "",
     ) -> str:
-        """Get the URL of a deployed service."""
-        output = await gcloud.with_exec([
-            "gcloud", "run", "services", "describe", service_name,
-            "--region", region, "--format", "value(status.url)",
-        ]).stdout()
-        return output.strip()
+        """Read logs from a Cloud Run job."""
+        cmd = [
+            "gcloud", "run", "jobs", "logs", "read", job_name,
+            "--region", region, "--limit", str(limit),
+        ]
+        if log_filter:
+            cmd.extend(["--log-filter", log_filter])
+        return await gcloud.with_exec(cmd).stdout()
+
+
+@object_type
+class GcpCloudRun:
+    """Google Cloud Run deployment utilities."""
 
     @function
-    async def service_exists(
-        self,
-        gcloud: Annotated[dagger.Container, Doc("Authenticated gcloud container")],
-        service_name: Annotated[str, Doc("Service name")],
-        region: Annotated[str, Doc("GCP region")] = "us-central1",
-    ) -> bool:
-        """Check if a Cloud Run service exists."""
-        result = await gcloud.with_exec([
-            "sh", "-c",
-            f"gcloud run services describe {service_name} --region {region} "
-            f"--format 'value(metadata.name)' 2>/dev/null || echo ''"
-        ]).stdout()
-        return bool(result.strip())
+    def service(self) -> CloudRunService:
+        """Access Cloud Run service operations."""
+        return CloudRunService()
+
+    @function
+    def job(self) -> CloudRunJob:
+        """Access Cloud Run job operations."""
+        return CloudRunJob()
