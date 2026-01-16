@@ -59,7 +59,7 @@ Use for CI/CD pipelines. No long-lived credentials needed - uses short-lived OID
 
 ```python
 # GitHub Actions
-oidc_token = await dag.oidc_token().github_token(
+oidc_token = dag.oidc_token().github_token(
     request_token=oidc_request_token,
     request_url=oidc_request_url,
     audience=f"//iam.googleapis.com/{workload_identity_provider}",
@@ -98,7 +98,7 @@ async def deploy_from_github(
 ) -> str:
     # Fetch OIDC token with GCP audience
     audience = f"//iam.googleapis.com/{workload_identity_provider}"
-    oidc_token = await dag.oidc_token().github_token(
+    oidc_token = dag.oidc_token().github_token(
         request_token=oidc_request_token,
         request_url=oidc_request_url,
         audience=audience,
@@ -363,7 +363,7 @@ await dag.gcp_firebase().deploy_from_github_actions(
 **After (v2.x):**
 ```python
 # Fetch token yourself using oidc-token module
-oidc_token = await dag.oidc_token().github_token(
+oidc_token = dag.oidc_token().github_token(
     request_token=token,
     request_url=url,
     audience=f"//iam.googleapis.com/{wif}",

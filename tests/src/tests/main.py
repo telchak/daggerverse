@@ -171,7 +171,7 @@ class Tests:
 
         # Get OIDC token from GitHub Actions with GCP audience (for Firebase)
         audience = f"//iam.googleapis.com/{workload_identity_provider}"
-        firebase_oidc_token = await dag.oidc_token().github_token(
+        firebase_oidc_token = dag.oidc_token().github_token(
             request_token=oidc_token,
             request_url=oidc_url,
             audience=audience,

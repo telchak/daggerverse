@@ -148,7 +148,7 @@ class GcpFirebaseExamples:
         """
         # Step 1: Fetch OIDC token from GitHub Actions with GCP audience
         audience = f"//iam.googleapis.com/{workload_identity_provider}"
-        oidc_token = await dag.oidc_token().github_token(
+        oidc_token = dag.oidc_token().github_token(
             request_token=oidc_request_token,
             request_url=oidc_request_url,
             audience=audience,
@@ -181,7 +181,7 @@ class GcpFirebaseExamples:
         Returns the preview URL.
         """
         audience = f"//iam.googleapis.com/{workload_identity_provider}"
-        oidc_token = await dag.oidc_token().github_token(
+        oidc_token = dag.oidc_token().github_token(
             request_token=oidc_request_token,
             request_url=oidc_request_url,
             audience=audience,
