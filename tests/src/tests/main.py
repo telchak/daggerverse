@@ -169,7 +169,15 @@ class Tests:
         """Run all GCP tests with shared authentication."""
         results = []
 
-        # Authenticate once, use everywhere
+        # Get OIDC token from GitHub Actions with GCP audience (for Firebase)
+        audience = f"//iam.googleapis.com/{workload_identity_provider}"
+        firebase_oidc_token = await dag.oidc_token().github_token(
+            request_token=oidc_token,
+            request_url=oidc_url,
+            audience=audience,
+        )
+
+        # Get gcloud container (for Firestore and other GCP operations)
         gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
             workload_identity_provider=workload_identity_provider,
             project_id=project_id,
@@ -178,10 +186,6 @@ class Tests:
             service_account_email=service_account,
             region=region,
         )
-
-        # Get access token for Firebase
-        token_output = await gcloud.with_exec(["gcloud", "auth", "print-access-token"]).stdout()
-        access_token = dag.set_secret("firebase_token", token_output.strip())
 
         # === gcp-auth ===
         results.append("=== gcp-auth ===")
@@ -244,20 +248,37 @@ class Tests:
         source = dag.git("https://github.com/telchak/firebase-dagger-template.git").branch("main").tree()
         firebase = dag.gcp_firebase()
 
-        # Hosting
+        # Hosting (using OIDC token)
         dist = firebase.build(source=source)
         entries = await dist.entries()
         results.append(f"PASS: build -> {len(entries)} files")
         try:
             preview_url = await firebase.deploy_preview(
-                access_token=access_token, project_id=project_id, channel_id=channel_id, source=source,
+                project_id=project_id,
+                channel_id=channel_id,
+                source=source,
+                oidc_token=firebase_oidc_token,
+                workload_identity_provider=workload_identity_provider,
+                service_account_email=service_account,
             )
-            results.append(f"PASS: deploy_preview -> {preview_url}")
-            await firebase.delete_channel(access_token=access_token, project_id=project_id, channel_id=channel_id)
-            results.append("PASS: delete_channel")
+            results.append(f"PASS: deploy_preview (OIDC) -> {preview_url}")
+            await firebase.delete_channel(
+                project_id=project_id,
+                channel_id=channel_id,
+                oidc_token=firebase_oidc_token,
+                workload_identity_provider=workload_identity_provider,
+                service_account_email=service_account,
+            )
+            results.append("PASS: delete_channel (OIDC)")
         except Exception:
             try:
-                await firebase.delete_channel(access_token=access_token, project_id=project_id, channel_id=channel_id)
+                await firebase.delete_channel(
+                    project_id=project_id,
+                    channel_id=channel_id,
+                    oidc_token=firebase_oidc_token,
+                    workload_identity_provider=workload_identity_provider,
+                    service_account_email=service_account,
+                )
             except Exception:
                 pass
             raise

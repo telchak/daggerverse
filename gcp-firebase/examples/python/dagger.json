@@ -1,6 +1,6 @@
 {
   "name": "gcp-firebase-examples",
-  "engineVersion": "v0.19.7",
+  "engineVersion": "v0.19.8",
   "sdk": {
     "source": "python"
   },
@@ -10,8 +10,8 @@
       "source": "../.."
     },
     {
-      "name": "gcp-auth",
-      "source": "../../../gcp-auth"
+      "name": "oidc-token",
+      "source": "../../../oidc-token"
     }
   ]
 }

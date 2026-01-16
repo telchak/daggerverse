@@ -6,34 +6,41 @@ from typing import Annotated
 import dagger
 from dagger import DefaultPath, Doc, dag, function, object_type
 
+from .credentials import with_oidc_token, with_service_account_credentials
 from .firestore import Firestore
 from .scripts import FirebaseScripts
 
 
 def _with_firebase_credentials(
     container: dagger.Container,
-    # OIDC/WIF auth (recommended) - uses gcp-auth module
+    # OIDC/WIF auth (recommended)
     oidc_token: dagger.Secret | None = None,
     workload_identity_provider: str | None = None,
     service_account_email: str | None = None,
-    # Service account JSON auth - uses gcp-auth module
+    # Service account JSON auth
     credentials: dagger.Secret | None = None,
     # Legacy access token auth (deprecated)
     access_token: dagger.Secret | None = None,
 ) -> dagger.Container:
-    """Configure Firebase CLI authentication using gcp-auth module."""
-    # Priority 1: OIDC/WIF authentication (via gcp-auth)
+    """Configure Firebase CLI authentication.
+
+    Supports three authentication methods:
+    1. OIDC/WIF (recommended): Provide oidc_token + workload_identity_provider
+    2. Service account: Provide credentials (JSON key)
+    3. Access token (deprecated): Provide access_token
+    """
+    # Priority 1: OIDC/WIF authentication
     if oidc_token and workload_identity_provider:
-        return dag.gcp_auth().with_oidc_token(
+        return with_oidc_token(
             container=container,
             oidc_token=oidc_token,
             workload_identity_provider=workload_identity_provider,
             service_account_email=service_account_email,
         )
 
-    # Priority 2: Service account credentials (via gcp-auth)
+    # Priority 2: Service account credentials
     if credentials:
-        return dag.gcp_auth().with_credentials(container=container, credentials=credentials)
+        return with_service_account_credentials(container=container, credentials=credentials)
 
     # Priority 3: Access token (deprecated, kept for backward compatibility)
     if access_token:
@@ -244,89 +251,6 @@ class GcpFirebase:
                 "--non-interactive", "--force",
             ])
             .stdout()
-        )
-
-    # ========== GitHub Actions Convenience Methods ==========
-
-    @function
-    async def deploy_from_github_actions(
-        self,
-        workload_identity_provider: Annotated[str, Doc("GCP Workload Identity Federation provider")],
-        project_id: Annotated[str, Doc("Firebase project ID")],
-        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
-        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
-        source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory")],
-        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
-        build_command: Annotated[str, Doc("Build command")] = "npm run build",
-        node_version: Annotated[str, Doc("Node.js version")] = "20",
-        deploy_functions: Annotated[bool, Doc("Deploy Cloud Functions")] = True,
-        force: Annotated[bool, Doc("Force deployment")] = True,
-    ) -> str:
-        """Deploy to Firebase Hosting using GitHub Actions OIDC.
-
-        Convenience wrapper that fetches the OIDC token from GitHub Actions
-        and uses Workload Identity Federation for authentication.
-
-        Example:
-            dag.gcp_firebase().deploy_from_github_actions(
-                workload_identity_provider="projects/.../providers/github",
-                project_id="my-project",
-                oidc_request_token=env.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
-                oidc_request_url=env.ACTIONS_ID_TOKEN_REQUEST_URL,
-                source=source,
-            )
-        """
-        oidc_token = dag.gcp_auth().oidc_token_from_github_actions(
-            workload_identity_provider=workload_identity_provider,
-            oidc_request_token=oidc_request_token,
-            oidc_request_url=oidc_request_url,
-        )
-        return await self.deploy(
-            project_id=project_id,
-            source=source,
-            oidc_token=oidc_token,
-            workload_identity_provider=workload_identity_provider,
-            service_account_email=service_account_email,
-            build_command=build_command,
-            node_version=node_version,
-            deploy_functions=deploy_functions,
-            force=force,
-        )
-
-    @function
-    async def deploy_preview_from_github_actions(
-        self,
-        workload_identity_provider: Annotated[str, Doc("GCP Workload Identity Federation provider")],
-        project_id: Annotated[str, Doc("Firebase project ID")],
-        channel_id: Annotated[str, Doc("Preview channel ID (e.g., pr-123)")],
-        oidc_request_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
-        oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
-        source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory")],
-        service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
-        build_command: Annotated[str, Doc("Build command")] = "npm run build",
-        node_version: Annotated[str, Doc("Node.js version")] = "20",
-        expires: Annotated[str, Doc("Channel expiration")] = "7d",
-    ) -> str:
-        """Deploy to Firebase preview channel using GitHub Actions OIDC.
-
-        Convenience wrapper that fetches the OIDC token from GitHub Actions
-        and uses Workload Identity Federation for authentication.
-        """
-        oidc_token = dag.gcp_auth().oidc_token_from_github_actions(
-            workload_identity_provider=workload_identity_provider,
-            oidc_request_token=oidc_request_token,
-            oidc_request_url=oidc_request_url,
-        )
-        return await self.deploy_preview(
-            project_id=project_id,
-            channel_id=channel_id,
-            source=source,
-            oidc_token=oidc_token,
-            workload_identity_provider=workload_identity_provider,
-            service_account_email=service_account_email,
-            build_command=build_command,
-            node_version=node_version,
-            expires=expires,
         )
 
     # ========== Utility Methods ==========

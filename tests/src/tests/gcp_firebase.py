@@ -1,4 +1,9 @@
-"""Tests for gcp-firebase module."""
+"""Tests for gcp-firebase module.
+
+Tests the three authentication approaches:
+- OIDC Token + Workload Identity Federation (for Hosting and Scripts)
+- gcloud container (for Firestore operations that require gcloud CLI)
+"""
 
 import time
 
@@ -18,12 +23,25 @@ async def test_gcp_firebase(
     oidc_url: dagger.Secret,
     region: str = "europe-west9",
 ) -> str:
-    """Run gcp-firebase module tests (Hosting + Firestore + Scripts)."""
+    """Run gcp-firebase module tests (Hosting + Firestore + Scripts).
+
+    Uses OIDC token + WIF for Firebase Hosting and Scripts.
+    Uses gcloud container (via gcp-auth) for Firestore operations.
+    """
     results = []
     channel_id = f"dagger-test-{int(time.time())}"
     database_id = f"dagger-test-{int(time.time())}"
 
-    # Get gcloud container from gcp-auth
+    # Get OIDC token from GitHub Actions with GCP audience
+    # This is the recommended authentication method for Firebase operations
+    audience = f"//iam.googleapis.com/{workload_identity_provider}"
+    firebase_oidc_token = await dag.oidc_token().github_token(
+        request_token=oidc_token,
+        request_url=oidc_url,
+        audience=audience,
+    )
+
+    # Get gcloud container from gcp-auth (needed for Firestore operations)
     gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
         workload_identity_provider=workload_identity_provider,
         project_id=project_id,
@@ -31,10 +49,6 @@ async def test_gcp_firebase(
         oidc_request_url=oidc_url,
         service_account_email=service_account,
     )
-
-    # Get access token from gcloud (already authenticated via OIDC)
-    token_output = await gcloud.with_exec(["gcloud", "auth", "print-access-token"]).stdout()
-    access_token = dag.set_secret("gcp_access_token", token_output.strip())
 
     # Clone firebase-dagger-template from GitHub
     source = dag.git("https://github.com/telchak/firebase-dagger-template.git").branch("main").tree()
@@ -44,10 +58,10 @@ async def test_gcp_firebase(
 
     firebase = dag.gcp_firebase()
 
-    # ========== HOSTING TESTS ==========
-    results.append("--- Firebase Hosting ---")
+    # ========== HOSTING TESTS (using OIDC token) ==========
+    results.append("--- Firebase Hosting (OIDC auth) ---")
 
-    # Test build
+    # Test build (no auth required)
     dist = firebase.build(source=source)
     entries = await dist.entries()
     if len(entries) == 0:
@@ -55,34 +69,46 @@ async def test_gcp_firebase(
     results.append(f"PASS: build -> {len(entries)} files")
 
     try:
-        # Test deploy_preview
+        # Test deploy_preview with OIDC token
         preview_url = await firebase.deploy_preview(
-            access_token=access_token, project_id=project_id,
-            channel_id=channel_id, source=source,
+            project_id=project_id,
+            channel_id=channel_id,
+            source=source,
+            oidc_token=firebase_oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account,
         )
         if not preview_url.startswith("https://"):
             raise ValueError(f"Invalid preview URL: {preview_url}")
-        results.append(f"PASS: deploy_preview -> {preview_url}")
+        results.append(f"PASS: deploy_preview (OIDC) -> {preview_url}")
 
-        # Test delete_channel
+        # Test delete_channel with OIDC token
         await firebase.delete_channel(
-            access_token=access_token, project_id=project_id, channel_id=channel_id,
+            project_id=project_id,
+            channel_id=channel_id,
+            oidc_token=firebase_oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account,
         )
-        results.append("PASS: delete_channel")
+        results.append("PASS: delete_channel (OIDC)")
 
     except Exception as e:
         results.append(f"FAIL: {e}")
         try:
             await firebase.delete_channel(
-                access_token=access_token, project_id=project_id, channel_id=channel_id,
+                project_id=project_id,
+                channel_id=channel_id,
+                oidc_token=firebase_oidc_token,
+                workload_identity_provider=workload_identity_provider,
+                service_account_email=service_account,
             )
             results.append(f"CLEANUP: deleted channel {channel_id}")
         except Exception:
             pass
         raise
 
-    # ========== FIRESTORE TESTS ==========
-    results.append("--- Firestore ---")
+    # ========== FIRESTORE TESTS (using gcloud container) ==========
+    results.append("--- Firestore (gcloud auth) ---")
 
     firestore = firebase.firestore()
 
@@ -116,38 +142,42 @@ async def test_gcp_firebase(
         await firestore.update(gcloud=gcloud, database_id=database_id, delete_protection=False)
         results.append("PASS: UPDATE - disabled delete protection")
 
-        # ========== SCRIPTS TESTS ==========
-        # Run scripts using access_token (works with OIDC authentication)
-        results.append("--- Scripts ---")
+        # ========== SCRIPTS TESTS (using OIDC token) ==========
+        results.append("--- Scripts (OIDC auth) ---")
 
         scripts = firebase.scripts()
 
-        # Test scripts().node() - TypeScript script with access token
+        # Test scripts().node() - TypeScript script with OIDC token
         node_output = await scripts.node(
-            access_token=access_token,
-            project_id=project_id,
             source=scripts_source,
             script="seed-data.ts",
+            oidc_token=firebase_oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account,
+            project_id=project_id,
             working_dir=".",
             install_command="npm install",  # No package-lock.json in fixtures
             env=[f"FIRESTORE_DATABASE_ID={database_id}"],
         )
         if '"status":"success"' not in node_output:
             raise Exception(f"Node script failed: {node_output}")
-        results.append("PASS: scripts().node() - TypeScript seed script executed")
+        results.append("PASS: scripts().node() - TypeScript seed script executed (OIDC)")
 
-        # Test scripts().container() - verify access token is set
+        # Test scripts().container() - verify OIDC credentials are configured
         container = scripts.container(
-            access_token=access_token,
-            project_id=project_id,
             source=scripts_source,
             base_image="alpine:latest",
+            oidc_token=firebase_oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account,
+            project_id=project_id,
         )
-        # Verify GOOGLE_ACCESS_TOKEN env var is set
-        env_check = await container.with_exec(["sh", "-c", "echo $GOOGLE_ACCESS_TOKEN | head -c 20"]).stdout()
-        if len(env_check.strip()) < 10:
-            raise Exception("GOOGLE_ACCESS_TOKEN not set correctly")
-        results.append("PASS: scripts().container() - GOOGLE_ACCESS_TOKEN set correctly")
+
+        # Verify GOOGLE_APPLICATION_CREDENTIALS env var is set
+        gac_check = await container.with_exec(["sh", "-c", "echo $GOOGLE_APPLICATION_CREDENTIALS"]).stdout()
+        if "/tmp/gcp-credentials.json" not in gac_check:
+            raise Exception("GOOGLE_APPLICATION_CREDENTIALS not set correctly for OIDC")
+        results.append("PASS: scripts().container() - GOOGLE_APPLICATION_CREDENTIALS set (OIDC)")
 
         # Verify GOOGLE_CLOUD_PROJECT env var is set
         project_check = await container.with_exec(["sh", "-c", "echo $GOOGLE_CLOUD_PROJECT"]).stdout()
@@ -155,7 +185,13 @@ async def test_gcp_firebase(
             raise Exception("GOOGLE_CLOUD_PROJECT not set correctly")
         results.append("PASS: scripts().container() - GOOGLE_CLOUD_PROJECT set correctly")
 
-        # DELETE
+        # Verify credentials file exists
+        cred_file_check = await container.with_exec(["cat", "/tmp/gcp-credentials.json"]).stdout()
+        if "external_account" not in cred_file_check:
+            raise Exception("Credentials file does not contain external_account type")
+        results.append("PASS: scripts().container() - WIF credentials file configured")
+
+        # DELETE database
         await firestore.delete(gcloud=gcloud, database_id=database_id)
         results.append("PASS: DELETE - database deleted")
 

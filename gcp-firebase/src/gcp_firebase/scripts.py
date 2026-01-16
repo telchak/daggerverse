@@ -5,23 +5,31 @@ from typing import Annotated
 import dagger
 from dagger import DefaultPath, Doc, dag, function, object_type
 
+from .credentials import with_oidc_token, with_service_account_credentials
+
 
 def _with_script_credentials(
     container: dagger.Container,
-    # OIDC/WIF auth (recommended) - uses gcp-auth module
+    # OIDC/WIF auth (recommended)
     oidc_token: dagger.Secret | None = None,
     workload_identity_provider: str | None = None,
     service_account_email: str | None = None,
-    # Service account JSON auth - uses gcp-auth module
+    # Service account JSON auth
     credentials: dagger.Secret | None = None,
     # Legacy access token auth
     access_token: dagger.Secret | None = None,
     project_id: str | None = None,
 ) -> dagger.Container:
-    """Configure a container with GCP credentials using gcp-auth module."""
-    # Priority 1: OIDC/WIF authentication (via gcp-auth)
+    """Configure a container with GCP credentials.
+
+    Supports three authentication methods:
+    1. OIDC/WIF (recommended): Provide oidc_token + workload_identity_provider
+    2. Service account: Provide credentials (JSON key)
+    3. Access token: Provide access_token
+    """
+    # Priority 1: OIDC/WIF authentication
     if oidc_token and workload_identity_provider:
-        container = dag.gcp_auth().with_oidc_token(
+        container = with_oidc_token(
             container=container,
             oidc_token=oidc_token,
             workload_identity_provider=workload_identity_provider,
@@ -31,9 +39,9 @@ def _with_script_credentials(
             container = container.with_env_variable("GOOGLE_CLOUD_PROJECT", project_id)
         return container
 
-    # Priority 2: Service account credentials (via gcp-auth)
+    # Priority 2: Service account credentials
     if credentials:
-        return dag.gcp_auth().with_credentials(container=container, credentials=credentials)
+        return with_service_account_credentials(container=container, credentials=credentials)
 
     # Priority 3: Access token
     if access_token:
