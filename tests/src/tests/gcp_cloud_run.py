@@ -39,7 +39,8 @@ async def _test_cloud_run_crud(
     """
     results = [format_component_header("Cloud Run Service")]
     ops = {}
-    service_name = f"test-{auth_method.value}-{int(time.time())}"
+    # Cloud Run names only allow lowercase alphanumeric and dashes
+    service_name = f"test-{auth_method.value.replace('_', '-')}-{int(time.time())}"
     test_image = "gcr.io/google-samples/hello-app:1.0"
 
     svc = dag.gcp_cloud_run().service()

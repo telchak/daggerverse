@@ -49,7 +49,8 @@ async def _test_hosting_crud(
     results = [format_component_header("Hosting")]
     ops = {}
     firebase = dag.gcp_firebase()
-    channel_id = f"test-{auth_method.value}-{int(time.time())}"
+    # Firebase channel IDs only allow lowercase alphanumeric and dashes
+    channel_id = f"test-{auth_method.value.replace('_', '-')}-{int(time.time())}"
 
     # Build (no auth required)
     dist = firebase.build(source=source)
@@ -159,7 +160,8 @@ async def _test_firestore_crud(
     """
     results = [format_component_header("Firestore")]
     ops = {}
-    database_id = f"test-{auth_method.value}-{int(time.time())}"
+    # Firestore database IDs only allow lowercase alphanumeric and dashes
+    database_id = f"test-{auth_method.value.replace('_', '-')}-{int(time.time())}"
     firestore = dag.gcp_firebase().firestore()
 
     try:
