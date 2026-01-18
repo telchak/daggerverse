@@ -106,7 +106,8 @@ jobs:
           OUTPUT=$(dagger call -m tests "$MODULE" $ARGS 2>&1) || { echo "$OUTPUT"; exit 1; }
           echo "$OUTPUT"
 
-          RESULTS=$(echo "$OUTPUT" | grep -E '^PASS:|^FAIL:' || true)
+          # Match both old format (PASS:/FAIL:) and new format ([OK]/[!!]/[--])
+          RESULTS=$(echo "$OUTPUT" | grep -E '^\s*\[(OK|!!|--)\]|^PASS:|^FAIL:' || true)
           echo "output<<EOF" >> $GITHUB_OUTPUT
           echo "$RESULTS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT

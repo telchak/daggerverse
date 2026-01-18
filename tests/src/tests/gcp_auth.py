@@ -185,7 +185,8 @@ async def test_gcp_auth_access_token(
         )
 
         results.append(format_component_header("Access Token (from OIDC)"))
-        access_token = await gcp_auth.access_token_from_oidc_token(
+        # Note: Cross-module calls returning Secret don't need await
+        access_token = gcp_auth.access_token_from_oidc_token(
             oidc_token=oidc_jwt,
             workload_identity_provider=workload_identity_provider,
             project_id=project_id,
@@ -213,7 +214,8 @@ async def test_gcp_auth_access_token(
 
         # Test access_token_from_github_actions
         results.append(format_component_header("Access Token (GitHub Actions)"))
-        access_token_gh = await gcp_auth.access_token_from_github_actions(
+        # Note: Cross-module calls returning Secret don't need await
+        access_token_gh = gcp_auth.access_token_from_github_actions(
             workload_identity_provider=workload_identity_provider,
             project_id=project_id,
             oidc_request_token=oidc_token,

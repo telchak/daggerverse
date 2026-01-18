@@ -488,7 +488,8 @@ async def test_gcp_firebase_access_token(
     elif oidc_token and oidc_url and workload_identity_provider:
         results.append("  NOTE: access_token from OIDC")
         # Generate access token from OIDC (for testing legacy method)
-        access_token = await dag.gcp_auth().access_token_from_github_actions(
+        # Note: Cross-module calls returning Secret don't need await
+        access_token = dag.gcp_auth().access_token_from_github_actions(
             workload_identity_provider=workload_identity_provider,
             project_id=project_id,
             oidc_request_token=oidc_token,
