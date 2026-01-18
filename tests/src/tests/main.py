@@ -1,4 +1,10 @@
-"""Tests Module - Centralized test orchestration for all daggerverse modules."""
+"""Tests Module - Centralized test orchestration for all daggerverse modules.
+
+Supports multiple authentication methods for GCP modules:
+- OIDC (recommended): Workload Identity Federation via GitHub Actions
+- Service Account: Direct JSON key file (optional)
+- Access Token (legacy): Pre-fetched bearer token
+"""
 
 import time
 from typing import Annotated
@@ -19,7 +25,15 @@ from .semver import test_semver
 
 @object_type
 class Tests:
-    """Test orchestration for daggerverse modules."""
+    """Test orchestration for daggerverse modules.
+
+    GCP tests support multiple authentication methods:
+    - OIDC via GitHub Actions (always tested)
+    - Service Account JSON key (tested if credentials provided)
+    - Access Token (legacy, tested with deprecation warning)
+    """
+
+    # ========== NON-GCP TESTS ==========
 
     @function
     async def calver(self) -> str:
@@ -45,6 +59,17 @@ class Tests:
         return await test_semver(source=source)
 
     @function
+    async def all_no_credentials(self) -> str:
+        """Run all tests that don't require credentials."""
+        results = []
+        results.append(f"=== calver ===\n{await test_calver()}")
+        results.append(f"=== health-check ===\n{await test_health_check()}")
+        results.append(f"=== oidc-token ===\n{await test_oidc_token()}")
+        return "\n\n".join(results)
+
+    # ========== GCP MODULE TESTS (MULTI-AUTH) ==========
+
+    @function
     async def gcp_auth(
         self,
         workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
@@ -53,8 +78,9 @@ class Tests:
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
+        credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key (optional)")] = None,
     ) -> str:
-        """Run gcp-auth module tests using GitHub Actions OIDC."""
+        """Run gcp-auth module tests with all available auth methods."""
         return await test_gcp_auth(
             workload_identity_provider=workload_identity_provider,
             service_account=service_account,
@@ -62,6 +88,7 @@ class Tests:
             oidc_token=oidc_token,
             oidc_url=oidc_url,
             region=region,
+            credentials=credentials,
         )
 
     @function
@@ -74,8 +101,9 @@ class Tests:
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
+        credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key (optional)")] = None,
     ) -> str:
-        """Run gcp-artifact-registry module tests using GitHub Actions OIDC."""
+        """Run gcp-artifact-registry module tests with all available auth methods."""
         return await test_gcp_artifact_registry(
             workload_identity_provider=workload_identity_provider,
             service_account=service_account,
@@ -84,6 +112,7 @@ class Tests:
             oidc_token=oidc_token,
             oidc_url=oidc_url,
             region=region,
+            credentials=credentials,
         )
 
     @function
@@ -95,8 +124,9 @@ class Tests:
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
+        credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key (optional)")] = None,
     ) -> str:
-        """Run gcp-cloud-run module CRUD tests using GitHub Actions OIDC."""
+        """Run gcp-cloud-run module CRUD tests with all available auth methods."""
         return await test_gcp_cloud_run(
             workload_identity_provider=workload_identity_provider,
             service_account=service_account,
@@ -104,6 +134,7 @@ class Tests:
             oidc_token=oidc_token,
             oidc_url=oidc_url,
             region=region,
+            credentials=credentials,
         )
 
     @function
@@ -115,8 +146,9 @@ class Tests:
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
+        credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key (optional)")] = None,
     ) -> str:
-        """Run gcp-vertex-ai module tests using GitHub Actions OIDC."""
+        """Run gcp-vertex-ai module tests with all available auth methods."""
         return await test_gcp_vertex_ai(
             workload_identity_provider=workload_identity_provider,
             service_account=service_account,
@@ -124,6 +156,7 @@ class Tests:
             oidc_token=oidc_token,
             oidc_url=oidc_url,
             region=region,
+            credentials=credentials,
         )
 
     @function
@@ -135,8 +168,9 @@ class Tests:
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         region: Annotated[str, Doc("GCP region for Firestore")] = "europe-west9",
+        credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key (optional)")] = None,
     ) -> str:
-        """Run gcp-firebase module tests (Hosting + Firestore)."""
+        """Run gcp-firebase module tests with all available auth methods."""
         return await test_gcp_firebase(
             workload_identity_provider=workload_identity_provider,
             service_account=service_account,
@@ -144,16 +178,10 @@ class Tests:
             oidc_token=oidc_token,
             oidc_url=oidc_url,
             region=region,
+            credentials=credentials,
         )
 
-    @function
-    async def all_no_credentials(self) -> str:
-        """Run all tests that don't require credentials."""
-        results = []
-        results.append(f"=== calver ===\n{await test_calver()}")
-        results.append(f"=== health-check ===\n{await test_health_check()}")
-        results.append(f"=== oidc-token ===\n{await test_oidc_token()}")
-        return "\n\n".join(results)
+    # ========== COMBINED GCP TESTS ==========
 
     @function
     async def all_gcp(
@@ -165,11 +193,105 @@ class Tests:
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         region: Annotated[str, Doc("GCP region")] = "europe-west9",
+        credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key (optional)")] = None,
     ) -> str:
-        """Run all GCP tests with shared authentication."""
+        """Run all GCP module tests with all available auth methods.
+
+        Each module is tested with:
+        - OIDC (always, via GitHub Actions)
+        - Service Account (if credentials provided)
+        - Access Token (legacy, with deprecation warning)
+        """
         results = []
 
-        # Get OIDC token from GitHub Actions with GCP audience (for Firebase)
+        # Test each module with all auth methods
+        results.append("=" * 60)
+        results.append("GCP-AUTH MODULE")
+        results.append("=" * 60)
+        results.append(await test_gcp_auth(
+            workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
+            project_id=project_id,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
+            credentials=credentials,
+        ))
+
+        results.append("\n" + "=" * 60)
+        results.append("GCP-ARTIFACT-REGISTRY MODULE")
+        results.append("=" * 60)
+        results.append(await test_gcp_artifact_registry(
+            workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
+            project_id=project_id,
+            repository=repository,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
+            credentials=credentials,
+        ))
+
+        results.append("\n" + "=" * 60)
+        results.append("GCP-VERTEX-AI MODULE")
+        results.append("=" * 60)
+        results.append(await test_gcp_vertex_ai(
+            workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
+            project_id=project_id,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
+            credentials=credentials,
+        ))
+
+        results.append("\n" + "=" * 60)
+        results.append("GCP-CLOUD-RUN MODULE")
+        results.append("=" * 60)
+        results.append(await test_gcp_cloud_run(
+            workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
+            project_id=project_id,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
+            credentials=credentials,
+        ))
+
+        results.append("\n" + "=" * 60)
+        results.append("GCP-FIREBASE MODULE")
+        results.append("=" * 60)
+        results.append(await test_gcp_firebase(
+            workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
+            project_id=project_id,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
+            credentials=credentials,
+        ))
+
+        return "\n".join(results)
+
+    @function
+    async def all_gcp_quick(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        repository: Annotated[str, Doc("Artifact Registry repository name")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "europe-west9",
+    ) -> str:
+        """Run quick GCP tests (OIDC only, minimal CRUD).
+
+        This is a faster test that only uses OIDC authentication and
+        runs minimal operations. Use all_gcp() for comprehensive testing.
+        """
+        results = []
+
+        # Get OIDC token from GitHub Actions with GCP audience
         audience = f"//iam.googleapis.com/{workload_identity_provider}"
         firebase_oidc_token = dag.oidc_token().github_token(
             request_token=oidc_token,
@@ -177,7 +299,7 @@ class Tests:
             audience=audience,
         )
 
-        # Get gcloud container (for Firestore and other GCP operations)
+        # Get gcloud container
         gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
             workload_identity_provider=workload_identity_provider,
             project_id=project_id,
@@ -188,28 +310,24 @@ class Tests:
         )
 
         # === gcp-auth ===
-        results.append("=== gcp-auth ===")
+        results.append("=== gcp-auth (OIDC) ===")
         email = await gcloud.with_exec(
             ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
         ).stdout()
         results.append(f"PASS: gcloud auth -> {email.strip()}")
-        proj = await gcloud.with_exec(["gcloud", "config", "get", "project"]).stdout()
-        results.append(f"PASS: gcloud project -> {proj.strip()}")
 
         # === gcp-artifact-registry ===
-        results.append("\n=== gcp-artifact-registry ===")
+        results.append("\n=== gcp-artifact-registry (OIDC) ===")
         ar = dag.gcp_artifact_registry()
         uri = await ar.get_image_uri(
             project_id="test-project", repository="test-repo", image_name="test-image", tag="v1.0.0",
         )
-        if uri != "us-central1-docker.pkg.dev/test-project/test-repo/test-image:v1.0.0":
-            raise ValueError(f"Unexpected URI: {uri}")
         results.append(f"PASS: get_image_uri -> {uri}")
         await ar.list_images(gcloud=gcloud, project_id=project_id, repository=repository, region=region)
         results.append(f"PASS: list_images -> {repository}")
 
         # === gcp-vertex-ai ===
-        results.append("\n=== gcp-vertex-ai ===")
+        results.append("\n=== gcp-vertex-ai (OIDC) ===")
         vai = dag.gcp_vertex_ai()
         await vai.list_models(gcloud=gcloud, region=region)
         results.append("PASS: list_models")
@@ -217,41 +335,34 @@ class Tests:
         results.append("PASS: list_endpoints")
 
         # === gcp-cloud-run ===
-        results.append("\n=== gcp-cloud-run ===")
-        service_name = f"dagger-test-{int(time.time())}"
-        cr = dag.gcp_cloud_run()
+        results.append("\n=== gcp-cloud-run (OIDC) ===")
+        service_name = f"quick-test-{int(time.time())}"
+        svc = dag.gcp_cloud_run().service()
         try:
-            await cr.deploy_service(
+            await svc.deploy(
                 gcloud=gcloud, image="gcr.io/google-samples/hello-app:1.0",
                 service_name=service_name, region=region, allow_unauthenticated=True,
             )
-            results.append(f"PASS: deploy_service -> {service_name}")
-            exists = await cr.service_exists(gcloud=gcloud, service_name=service_name, region=region)
-            if not exists:
-                raise Exception(f"Service {service_name} not found")
-            results.append("PASS: service_exists")
-            url = await cr.get_service_url(gcloud=gcloud, service_name=service_name, region=region)
-            results.append(f"PASS: get_service_url -> {url}")
-            await cr.delete_service(gcloud=gcloud, service_name=service_name, region=region)
-            results.append("PASS: delete_service")
+            results.append(f"PASS: deploy -> {service_name}")
+            await svc.delete(gcloud=gcloud, service_name=service_name, region=region)
+            results.append("PASS: delete")
         except Exception:
             try:
-                await cr.delete_service(gcloud=gcloud, service_name=service_name, region=region)
+                await svc.delete(gcloud=gcloud, service_name=service_name, region=region)
             except Exception:
                 pass
             raise
 
         # === gcp-firebase ===
-        results.append("\n=== gcp-firebase ===")
-        channel_id = f"dagger-test-{int(time.time())}"
-        database_id = f"dagger-test-{int(time.time())}"
+        results.append("\n=== gcp-firebase (OIDC) ===")
+        channel_id = f"quick-test-{int(time.time())}"
         source = dag.git("https://github.com/telchak/firebase-dagger-template.git").branch("main").tree()
         firebase = dag.gcp_firebase()
 
-        # Hosting (using OIDC token)
         dist = firebase.build(source=source)
         entries = await dist.entries()
         results.append(f"PASS: build -> {len(entries)} files")
+
         try:
             preview_url = await firebase.deploy_preview(
                 project_id=project_id,
@@ -261,7 +372,7 @@ class Tests:
                 workload_identity_provider=workload_identity_provider,
                 service_account_email=service_account,
             )
-            results.append(f"PASS: deploy_preview (OIDC) -> {preview_url}")
+            results.append(f"PASS: deploy_preview -> {preview_url}")
             await firebase.delete_channel(
                 project_id=project_id,
                 channel_id=channel_id,
@@ -269,7 +380,7 @@ class Tests:
                 workload_identity_provider=workload_identity_provider,
                 service_account_email=service_account,
             )
-            results.append("PASS: delete_channel (OIDC)")
+            results.append("PASS: delete_channel")
         except Exception:
             try:
                 await firebase.delete_channel(
@@ -279,27 +390,6 @@ class Tests:
                     workload_identity_provider=workload_identity_provider,
                     service_account_email=service_account,
                 )
-            except Exception:
-                pass
-            raise
-
-        # Firestore
-        firestore = firebase.firestore()
-        try:
-            await firestore.create(gcloud=gcloud, database_id=database_id, location=region)
-            results.append(f"PASS: firestore.create -> {database_id}")
-            exists = await firestore.exists(gcloud=gcloud, database_id=database_id)
-            if not exists:
-                raise Exception(f"Database {database_id} not found")
-            results.append("PASS: firestore.exists")
-            await firestore.update(gcloud=gcloud, database_id=database_id, delete_protection=False)
-            results.append("PASS: firestore.update")
-            await firestore.delete(gcloud=gcloud, database_id=database_id)
-            results.append("PASS: firestore.delete")
-        except Exception:
-            try:
-                await firestore.update(gcloud=gcloud, database_id=database_id, delete_protection=False)
-                await firestore.delete(gcloud=gcloud, database_id=database_id)
             except Exception:
                 pass
             raise

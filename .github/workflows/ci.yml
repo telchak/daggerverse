@@ -78,11 +78,12 @@ jobs:
         id: test
         env:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
         run: |
           MODULE="${{ matrix.module }}"
           ARGS=""
 
-          # GCP modules need OIDC credentials
+          # GCP modules need OIDC credentials and optionally SA key
           if [[ "$MODULE" == gcp-* ]]; then
             ARGS="--workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
             ARGS="$ARGS --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}"
@@ -90,6 +91,10 @@ jobs:
             ARGS="$ARGS --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN"
             ARGS="$ARGS --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL"
             ARGS="$ARGS --region=europe-west9"
+            # Add service account key for multi-auth testing
+            if [[ -n "$GCP_SA_KEY" ]]; then
+              ARGS="$ARGS --credentials=env:GCP_SA_KEY"
+            fi
           fi
 
           # Module-specific args
