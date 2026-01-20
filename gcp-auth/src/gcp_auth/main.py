@@ -1,6 +1,6 @@
 """GCP Authentication Module - Dagger utilities for Google Cloud Platform authentication."""
 
-import time
+import uuid
 from typing import Annotated
 
 import dagger
@@ -219,8 +219,8 @@ class GcpAuth:
             project_id=project_id,
             service_account_email=service_account_email,
         )
-        # Use timestamp to bust cache - access tokens must be fresh
-        cache_buster = str(int(time.time()))
+        # Use UUID to bust cache - ensures fresh token even with rapid sequential calls
+        cache_buster = str(uuid.uuid4())
         token_output = await (
             gcloud
             .with_env_variable("CACHE_BUSTER", cache_buster)

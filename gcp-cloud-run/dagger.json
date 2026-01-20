@@ -1,7 +1,7 @@
 {
   "name": "gcp-cloud-run",
   "description": "Google Cloud Run deployment utilities for services and jobs",
-  "engineVersion": "v0.19.7",
+  "engineVersion": "v0.19.8",
   "sdk": {
     "source": "python"
   }

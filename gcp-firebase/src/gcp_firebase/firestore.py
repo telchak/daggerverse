@@ -1,9 +1,25 @@
 """Firestore Database Management - Create, update, and delete Firestore databases."""
 
+import re
 from typing import Annotated
 
 import dagger
 from dagger import Doc, function, object_type
+
+
+# Validation pattern for Firestore database ID
+# Must be 4-63 chars, lowercase letters, numbers, and hyphens
+_DATABASE_ID_PATTERN = re.compile(r'^[a-z][a-z0-9-]{3,62}$')
+
+
+def _validate_database_id(database_id: str) -> str:
+    """Validate Firestore database ID format."""
+    if not _DATABASE_ID_PATTERN.match(database_id):
+        raise ValueError(
+            f"Invalid database ID: '{database_id}'. Must be 4-63 characters, "
+            "lowercase letters, numbers, and hyphens, starting with a letter."
+        )
+    return database_id
 
 
 @object_type
@@ -78,8 +94,14 @@ class Firestore:
         database_id: Annotated[str, Doc("Database ID to check")],
     ) -> bool:
         """Check if a Firestore database exists."""
-        result = await gcloud.with_exec([
-            "sh", "-c",
-            f"gcloud firestore databases describe --database={database_id} --format='value(name)' 2>/dev/null || echo ''",
-        ]).stdout()
-        return bool(result.strip())
+        # Validate input to prevent command injection
+        _validate_database_id(database_id)
+
+        try:
+            result = await gcloud.with_exec([
+                "gcloud", "firestore", "databases", "describe",
+                f"--database={database_id}", "--format=value(name)",
+            ]).stdout()
+            return bool(result.strip())
+        except dagger.ExecError:
+            return False

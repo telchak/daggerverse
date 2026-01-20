@@ -5,7 +5,7 @@ Container health checking utilities using HTTP, TCP, and exec probes.
 ## Installation
 
 ```bash
-dagger install github.com/YOUR_ORG/daggerverse/health-check
+dagger install github.com/telchak/daggerverse/health-check
 ```
 
 ## Functions

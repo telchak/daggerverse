@@ -1,10 +1,18 @@
 """CalVer Module - Calendar Versioning utilities for Dagger pipelines."""
 
+import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
 import dagger
 from dagger import Doc, dag, function, object_type
+
+
+# Configure module logger
+_logger = logging.getLogger(__name__)
+
+# Default container images
+_GIT_IMAGE = "alpine/git:latest"
 
 
 @object_type
@@ -48,7 +56,7 @@ class Calver:
             # Check if HEAD commit already has a CalVer tag matching pattern
             existing_tag = await self._get_tag_for_head(source, pattern)
             if existing_tag:
-                print(f"Found existing tag on current commit: {existing_tag}")
+                _logger.info("Found existing tag on current commit: %s", existing_tag)
                 return existing_tag
 
             # No existing tag on HEAD, find max MICRO from all tags
@@ -78,17 +86,28 @@ class Calver:
 
         return version
 
-    async def _get_tag_for_head(self, source: dagger.Directory, pattern: str) -> str | None:
+    async def _get_tag_for_head(
+        self,
+        source: dagger.Directory,
+        pattern: str,
+    ) -> str | None:
         """Check if HEAD commit has a tag matching the CalVer pattern.
 
         Uses git directly to find tags pointing at HEAD, which is more reliable
         than using the Dagger GitRepository API in CI environments.
+
+        Args:
+            source: Git repository directory
+            pattern: CalVer pattern prefix to match (e.g., "2024.01.")
+
+        Returns:
+            The matching tag if found, None otherwise
         """
         try:
             # Use git directly to find all tags pointing at HEAD
             result = await (
                 dag.container()
-                .from_("alpine/git:latest")
+                .from_(_GIT_IMAGE)
                 .with_mounted_directory("/repo", source)
                 .with_workdir("/repo")
                 .with_exec(["git", "tag", "--points-at", "HEAD"])
@@ -100,17 +119,32 @@ class Calver:
                 tag = tag.strip()
                 if tag and tag.startswith(pattern):
                     return tag
-        except Exception as e:
-            print(f"Warning: Could not check tags on HEAD: {e}")
+        except Exception:
+            # Don't expose exception details which may contain sensitive information
+            _logger.warning("Could not check tags on HEAD")
 
         return None
 
-    async def _create_and_push_tag(self, source: dagger.Directory, version: str, github_token: dagger.Secret | None) -> None:
-        """Create and push a git tag to the remote repository."""
+    async def _create_and_push_tag(
+        self,
+        source: dagger.Directory,
+        version: str,
+        github_token: dagger.Secret | None,
+    ) -> None:
+        """Create and push a git tag to the remote repository.
+
+        Args:
+            source: Git repository directory
+            version: Version string to use as the tag name
+            github_token: GitHub token for authenticated push (optional)
+
+        Raises:
+            No exceptions raised - failures are logged as warnings
+        """
         try:
             git_container = (
                 dag.container()
-                .from_("alpine/git:latest")
+                .from_(_GIT_IMAGE)
                 .with_mounted_directory("/repo", source)
                 .with_workdir("/repo")
             )
@@ -134,22 +168,26 @@ class Calver:
                         # HTTPS URL - extract path
                         repo_path = remote_url.split("github.com/")[1].replace(".git", "")
 
-                    # Get token value
-                    token_value = await github_token.plaintext()
+                    # Push using token via environment variable to avoid exposing in command args
+                    await (
+                        git_container
+                        .with_secret_variable("GH_TOKEN", github_token)
+                        .with_exec([
+                            "sh", "-c",
+                            f'git push "https://x-access-token:$GH_TOKEN@github.com/{repo_path}.git" {version}'
+                        ])
+                        .sync()
+                    )
 
-                    # Set up authenticated URL and push
-                    auth_url = f"https://x-access-token:{token_value}@github.com/{repo_path}.git"
-                    await git_container.with_exec([
-                        "git", "push", auth_url, version
-                    ]).sync()
-
-                    print(f"Created and pushed tag: {version}")
+                    _logger.info("Created and pushed tag: %s", version)
                 else:
-                    print(f"Warning: Non-GitHub remote, skipping push: {remote_url}")
+                    # Don't expose the remote URL which may contain sensitive information
+                    _logger.warning("Non-GitHub remote detected, skipping push")
             else:
                 # Try to push without explicit token (relies on mounted git config)
                 await git_container.with_exec(["git", "push", "origin", version]).sync()
-                print(f"Created and pushed tag: {version}")
+                _logger.info("Created and pushed tag: %s", version)
 
-        except Exception as e:
-            print(f"Warning: Could not push tag {version}: {e}")
+        except Exception:
+            # Don't expose exception details which may contain sensitive information
+            _logger.warning("Could not push tag %s", version)

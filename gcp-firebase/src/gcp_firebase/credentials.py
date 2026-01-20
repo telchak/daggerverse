@@ -4,6 +4,11 @@ This module provides credential configuration for GCP authentication without
 external dependencies, supporting:
 - OIDC tokens with Workload Identity Federation
 - Service account JSON credentials
+
+NOTE: The generate_wif_credentials_json() function is intentionally duplicated
+from gcp-auth/src/gcp_auth/oidc.py (generate_file_based_credentials) to keep
+this module self-contained with no external dependencies.
+If you modify this function, please keep the other copy in sync.
 """
 
 import json

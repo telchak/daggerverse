@@ -1,10 +1,42 @@
 """OIDC Token Module - Universal OIDC token handling for CI/CD providers."""
 
-import time
+import re
+import uuid
 from typing import Annotated
 
 import dagger
 from dagger import Doc, dag, function, object_type
+
+
+# Default container images
+_ALPINE_IMAGE = "alpine:latest"
+
+# Validation pattern for OIDC audience claims
+# Supports:
+# - GCP WIF: //iam.googleapis.com/projects/{project}/locations/{location}/workloadIdentityPools/{pool}/providers/{provider}
+# - Generic URLs: https://example.com/audience
+# - Simple identifiers: my-audience-123
+_AUDIENCE_PATTERN = re.compile(
+    r'^('
+    r'//iam\.googleapis\.com/projects/\d+/locations/[a-z-]+/workloadIdentityPools/[a-zA-Z0-9_-]+/providers/[a-zA-Z0-9_-]+'
+    r'|https?://[a-zA-Z0-9._~:/?#\[\]@!$&\'()*+,;=-]+'
+    r'|[a-zA-Z0-9_.-]+'
+    r')$'
+)
+
+
+def _validate_audience(audience: str) -> str:
+    """Validate audience claim to prevent shell injection."""
+    if not audience:
+        raise ValueError("Audience cannot be empty")
+    if len(audience) > 500:
+        raise ValueError("Audience too long (max 500 characters)")
+    if not _AUDIENCE_PATTERN.match(audience):
+        raise ValueError(
+            f"Invalid audience format: '{audience}'. "
+            "Must be a GCP WIF provider URL, HTTPS URL, or simple alphanumeric identifier."
+        )
+    return audience
 
 
 @object_type
@@ -25,6 +57,9 @@ class OidcToken:
 
         Requires `id-token: write` permission in your workflow.
         """
+        # Validate audience to prevent shell injection
+        _validate_audience(audience)
+
         # Script that fetches the token from GitHub's OIDC endpoint
         script = f'''
 curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
@@ -32,12 +67,12 @@ curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
     | jq -r '.value'
 '''
 
-        # Use timestamp to bust Dagger's cache - tokens must be fresh
-        cache_buster = str(int(time.time()))
+        # Use UUID to bust Dagger's cache - ensures fresh token even with rapid sequential calls
+        cache_buster = str(uuid.uuid4())
 
         token_value = await (
             dag.container()
-            .from_("alpine:latest")
+            .from_(_ALPINE_IMAGE)
             .with_exec(["apk", "add", "--no-cache", "curl", "jq"])
             .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_TOKEN", request_token)
             .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_URL", request_url)
@@ -97,7 +132,7 @@ echo "$PAYLOAD" | tr '_-' '/+' | base64 -d | jq .
 '''
         return await (
             dag.container()
-            .from_("alpine:latest")
+            .from_(_ALPINE_IMAGE)
             .with_exec(["apk", "add", "--no-cache", "jq"])
             .with_secret_variable("OIDC_TOKEN", token)
             .with_exec(["sh", "-c", script])

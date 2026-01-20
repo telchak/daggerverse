@@ -1,7 +1,7 @@
 {
   "name": "calver",
-  "description": "Calendar Versioning (CalVer) utilities for generating version strings in Dagger pipelines",
-  "engineVersion": "v0.19.7",
+  "description": "Calendar Versioning (CalVer) utilities for generating date-based version strings",
+  "engineVersion": "v0.19.8",
   "sdk": {
     "source": "python"
   }
