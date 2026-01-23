@@ -41,15 +41,25 @@ jobs:
       - name: Validate modules
         run: |
           echo "## Modules" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
             [ -f "$module/dagger.json" ] || { echo "ERROR: $module/dagger.json missing"; exit 1; }
             grep -q '"description"' "$module/dagger.json" || { echo "ERROR: $module missing description"; exit 1; }
             [ -f "$module/README.md" ] || { echo "ERROR: $module/README.md missing"; exit 1; }
             [ -d "$module/examples" ] || { echo "ERROR: $module/examples missing"; exit 1; }
             cd $module && FUNCS=$(dagger functions 2>/dev/null | tail -n +2 | awk '{print $1}') && cd ..
-            echo "<details><summary><b>$module</b></summary>" >> $GITHUB_STEP_SUMMARY
-            for func in $FUNCS; do echo "- \`$func\`" >> $GITHUB_STEP_SUMMARY; done
-            echo "</details>" >> $GITHUB_STEP_SUMMARY
+            DESC=$(jq -r '.description // "No description"' "$module/dagger.json")
+            {
+              echo "<details>"
+              echo "<summary><strong>$module</strong> - $DESC</summary>"
+              echo ""
+              echo "| Function |"
+              echo "|----------|"
+              for func in $FUNCS; do echo "| \`$func\` |"; done
+              echo ""
+              echo "</details>"
+              echo ""
+            } >> $GITHUB_STEP_SUMMARY
           done
 
   test:
@@ -79,6 +89,7 @@ jobs:
         env:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           MODULE="${{ matrix.module }}"
           ARGS=""
@@ -165,11 +176,16 @@ jobs:
         run: |
           git fetch --tags
           VERSION=$(dagger call -m ./calver generate --source=. --format="vYYYY.MM.MICRO")
-          NOTES="## Module Versions\n\n| Module | Version |\n|--------|---------|"
+
+          # Build release notes
+          NOTES="## Module Versions\n\n"
+          NOTES="$NOTES| Module | Version | Engine |\n|--------|---------|--------|"
           for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
             VER=$(dagger call -m ./semver current --source=. --tag-prefix="${module}/" --initial-version="v0.0.0")
-            NOTES="$NOTES\n| $module | $VER |"
+            ENGINE=$(jq -r '.engineVersion // "unknown"' "$module/dagger.json")
+            NOTES="$NOTES\n| $module | $VER | $ENGINE |"
           done
+
           if gh release view "$VERSION" > /dev/null 2>&1; then
             echo -e "$NOTES" | gh release edit "$VERSION" --notes-file -
           else

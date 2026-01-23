@@ -1,0 +1,17 @@
+{
+  "name": "gcp-cloud-run-agent-examples",
+  "engineVersion": "v0.19.8",
+  "sdk": {
+    "source": "python"
+  },
+  "dependencies": [
+    {
+      "name": "gcp-cloud-run-agent",
+      "source": "../.."
+    },
+    {
+      "name": "gcp-auth",
+      "source": "../../../gcp-auth"
+    }
+  ]
+}
