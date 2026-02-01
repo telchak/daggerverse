@@ -21,14 +21,14 @@ A collection of small, independent, reusable Dagger modules for CI/CD pipelines.
 Install modules with a specific version:
 
 ```bash
-dagger install github.com/YOUR_ORG/daggerverse/calver@v1.0.0
-dagger install github.com/YOUR_ORG/daggerverse/gcp-auth@v1.0.0
+dagger install github.com/telchak/daggerverse/calver@v1.0.0
+dagger install github.com/telchak/daggerverse/gcp-auth@v1.0.0
 ```
 
 Or use the latest from main (not recommended for production):
 
 ```bash
-dagger install github.com/YOUR_ORG/daggerverse/calver
+dagger install github.com/telchak/daggerverse/calver
 ```
 
 ## Architecture

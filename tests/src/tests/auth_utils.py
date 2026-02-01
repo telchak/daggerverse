@@ -7,6 +7,7 @@ with different credential types:
 - Access Token (legacy): Pre-fetched bearer token
 """
 
+import sys
 import warnings
 from enum import Enum
 
@@ -23,8 +24,12 @@ class AuthMethod(Enum):
 
 
 def warn_legacy_access_token() -> None:
-    """Emit deprecation warning for access token authentication."""
-    warnings.warn(
+    """Emit deprecation warning for access token authentication.
+
+    Uses both warnings.warn() for programmatic handling and stderr for visibility,
+    since DeprecationWarning is hidden by default in Python.
+    """
+    message = (
         "\n"
         "=" * 70 + "\n"
         "WARNING: Access Token authentication is LEGACY and NOT RECOMMENDED.\n"
@@ -37,10 +42,14 @@ def warn_legacy_access_token() -> None:
         "Recommended alternatives:\n"
         "- OIDC + Workload Identity Federation (for CI/CD pipelines)\n"
         "- Service Account JSON key (for local development)\n"
-        "=" * 70,
-        DeprecationWarning,
-        stacklevel=2,
+        "=" * 70
     )
+
+    # Emit warning for programmatic handling
+    warnings.warn(message, DeprecationWarning, stacklevel=2)
+
+    # Also print to stderr for visibility (DeprecationWarning is hidden by default)
+    print(message, file=sys.stderr)
 
 
 async def get_access_token_from_service_account(
@@ -53,7 +62,7 @@ async def get_access_token_from_service_account(
     This uses the service account key to authenticate with gcloud,
     then extracts an access token for APIs that accept Bearer tokens.
     """
-    import time
+    import uuid
 
     gcloud = dag.gcp_auth().gcloud_container(
         credentials=credentials,
@@ -61,8 +70,8 @@ async def get_access_token_from_service_account(
         region=region,
     )
 
-    # Use timestamp to bust cache - access tokens must be fresh
-    cache_buster = str(int(time.time()))
+    # Use UUID to bust cache - ensures fresh token even with rapid sequential calls
+    cache_buster = str(uuid.uuid4())
     token_output = await (
         gcloud
         .with_env_variable("CACHE_BUSTER", cache_buster)

@@ -22,6 +22,10 @@
       "source": "../gcp-cloud-run"
     },
     {
+      "name": "gcp-cloud-run-agent",
+      "source": "../gcp-cloud-run-agent"
+    },
+    {
       "name": "gcp-firebase",
       "source": "../gcp-firebase"
     },

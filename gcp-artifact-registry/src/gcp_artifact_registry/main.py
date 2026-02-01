@@ -1,9 +1,61 @@
 """GCP Artifact Registry Module - Operations for Google Cloud Artifact Registry."""
 
+import re
 from typing import Annotated
 
 import dagger
 from dagger import Doc, dag, function, object_type
+
+
+# Validation patterns for GCP resource names
+_GCP_PROJECT_ID_PATTERN = re.compile(r'^[a-z][a-z0-9-]{5,29}$')
+_GCP_REGION_PATTERN = re.compile(r'^[a-z]+-[a-z]+\d+(-[a-z])?$')
+_REPOSITORY_NAME_PATTERN = re.compile(r'^[a-z][a-z0-9-]{0,62}$')
+_PACKAGE_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$')
+_VERSION_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._+-]{0,127}$')
+_SAFE_GLOB_PATTERN = re.compile(r'^[a-zA-Z0-9.*_-]+$')
+
+
+def _validate_project_id(project_id: str) -> str:
+    """Validate GCP project ID format."""
+    if not _GCP_PROJECT_ID_PATTERN.match(project_id):
+        raise ValueError(f"Invalid GCP project ID: '{project_id}'")
+    return project_id
+
+
+def _validate_region(region: str) -> str:
+    """Validate GCP region format."""
+    if not _GCP_REGION_PATTERN.match(region):
+        raise ValueError(f"Invalid GCP region format: '{region}'")
+    return region
+
+
+def _validate_repository(repository: str) -> str:
+    """Validate Artifact Registry repository name."""
+    if not _REPOSITORY_NAME_PATTERN.match(repository):
+        raise ValueError(f"Invalid repository name: '{repository}'")
+    return repository
+
+
+def _validate_package(package: str) -> str:
+    """Validate package name."""
+    if not _PACKAGE_NAME_PATTERN.match(package):
+        raise ValueError(f"Invalid package name: '{package}'")
+    return package
+
+
+def _validate_version(version: str) -> str:
+    """Validate version string."""
+    if not _VERSION_PATTERN.match(version):
+        raise ValueError(f"Invalid version: '{version}'")
+    return version
+
+
+def _validate_glob_pattern(pattern: str) -> str:
+    """Validate file glob pattern to prevent injection."""
+    if not _SAFE_GLOB_PATTERN.match(pattern):
+        raise ValueError(f"Invalid file pattern: '{pattern}'. Only alphanumeric, *, ., _, - allowed.")
+    return pattern
 
 
 @object_type
@@ -104,6 +156,14 @@ class GcpArtifactRegistry:
         file_pattern: Annotated[str, Doc("Glob pattern for files")] = "*",
     ) -> str:
         """Upload files to a generic Artifact Registry repository."""
+        # Validate all inputs to prevent command injection
+        _validate_project_id(project_id)
+        _validate_repository(repository)
+        _validate_package(package)
+        _validate_version(version)
+        _validate_region(region)
+        _validate_glob_pattern(file_pattern)
+
         upload_cmd = (
             f"for file in {file_pattern}; do "
             f"[ -f \"$file\" ] && gcloud artifacts generic upload "

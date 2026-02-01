@@ -1,0 +1,22 @@
+{
+  "name": "gcp-cloud-run-agent",
+  "description": "AI-powered Cloud Run deployment and troubleshooting agent",
+  "engineVersion": "v0.19.8",
+  "sdk": {
+    "source": "python"
+  },
+  "dependencies": [
+    {
+      "name": "cloud-run-tools",
+      "source": "./cloud-run-tools"
+    },
+    {
+      "name": "gcp-cloud-run",
+      "source": "../gcp-cloud-run"
+    },
+    {
+      "name": "gcp-artifact-registry",
+      "source": "../gcp-artifact-registry"
+    }
+  ]
+}

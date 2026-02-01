@@ -1,5 +1,6 @@
 """SemVer Module - Semantic Versioning with Conventional Commits for Dagger pipelines."""
 
+import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -7,6 +8,26 @@ from typing import Annotated
 
 import dagger
 from dagger import Doc, dag, function, object_type
+
+
+# Configure module logger
+_logger = logging.getLogger(__name__)
+
+# Default container images
+_GIT_IMAGE = "alpine/git:latest"
+
+# Validation pattern for tag prefixes (safe characters for git tags and shell)
+_TAG_PREFIX_PATTERN = re.compile(r'^[a-zA-Z0-9._/-]*$')
+
+
+def _validate_tag_prefix(tag_prefix: str) -> str:
+    """Validate tag prefix to prevent shell injection."""
+    if tag_prefix and not _TAG_PREFIX_PATTERN.match(tag_prefix):
+        raise ValueError(
+            f"Invalid tag prefix: '{tag_prefix}'. "
+            "Only letters, numbers, dots, underscores, hyphens, and slashes are allowed."
+        )
+    return tag_prefix
 
 
 class BumpType(Enum):
@@ -79,6 +100,9 @@ class Semver:
 
         For monorepos, use tag_prefix to filter tags and commits by path.
         """
+        # Validate tag_prefix to prevent shell injection
+        _validate_tag_prefix(tag_prefix)
+
         # Get commits and determine bump type
         bump_type = await self._analyze_commits(source, tag_prefix)
 
@@ -100,6 +124,7 @@ class Semver:
         tag_prefix: Annotated[str, Doc("Tag prefix for monorepo")] = "",
     ) -> str:
         """Analyze commits and return the bump type (major/minor/patch/none)."""
+        _validate_tag_prefix(tag_prefix)
         result = await self._analyze_commits(source, tag_prefix)
         return result.value
 
@@ -111,6 +136,7 @@ class Semver:
         initial_version: Annotated[str, Doc("Version if no tags exist")] = "0.0.0",
     ) -> str:
         """Get the current version from the latest matching tag."""
+        _validate_tag_prefix(tag_prefix)
         version = await self._get_latest_version(source, tag_prefix, initial_version)
         return str(version)
 
@@ -130,6 +156,7 @@ class Semver:
         If the current commit already has a matching tag, returns that tag (idempotent).
         If the calculated tag already exists on a different commit, returns a message.
         """
+        _validate_tag_prefix(tag_prefix)
         next_version = await self.next(source, tag_prefix, default_bump, initial_version)
         tag_name = f"{tag_prefix}{next_version}"
 
@@ -163,6 +190,7 @@ class Semver:
 
         Use this for manual releases where you want to specify the exact bump type.
         """
+        _validate_tag_prefix(tag_prefix)
         bt = BumpType[bump_type.upper()]
         current = await self._get_latest_version(source, tag_prefix, initial_version)
         next_version = current.bump(bt)
@@ -181,6 +209,8 @@ class Semver:
 
         Use this for manual releases where you want to specify the exact version.
         """
+        _validate_tag_prefix(tag_prefix)
+
         # Ensure version has 'v' prefix
         if not version.startswith("v"):
             version = f"v{version}"
@@ -210,6 +240,7 @@ class Semver:
             )
             return bool(result.strip())
         except Exception:
+            _logger.debug("Tag %s does not exist or could not be checked", tag)
             return False
 
     @function
@@ -223,6 +254,7 @@ class Semver:
         Useful for detecting which modules in a monorepo need releases.
         Returns newline-separated list of changed file paths.
         """
+        _validate_tag_prefix(tag_prefix)
         git = self._git_container(source)
 
         # Get the last tag
@@ -320,6 +352,7 @@ class Semver:
             tag = tags_output.strip()
             return tag if tag else None
         except Exception:
+            _logger.debug("Could not get latest tag with prefix '%s'", tag_prefix)
             return None
 
     async def _get_latest_version(
@@ -354,6 +387,7 @@ class Semver:
             tag = tag_output.strip()
             return tag if tag else None
         except Exception:
+            _logger.debug("Could not check tags on HEAD with prefix '%s'", tag_prefix)
             return None
 
     async def _create_and_push_tag(
@@ -377,7 +411,8 @@ class Semver:
         remote_url = remote_url.strip()
 
         if "github.com" not in remote_url:
-            raise ValueError(f"Non-GitHub remote not supported: {remote_url}")
+            # Don't expose the remote URL which may contain sensitive information
+            raise ValueError("Non-GitHub remote not supported. Only GitHub repositories are supported for tag pushing.")
 
         # Extract repo path
         if remote_url.startswith("git@github.com:"):
@@ -385,17 +420,22 @@ class Semver:
         else:
             repo_path = remote_url.split("github.com/")[1].replace(".git", "")
 
-        # Push with token auth
-        token = await github_token.plaintext()
-        auth_url = f"https://x-access-token:{token}@github.com/{repo_path}.git"
-
-        await git.with_exec(["git", "push", auth_url, tag]).sync()
+        # Push using token via environment variable to avoid exposing in command args
+        await (
+            git
+            .with_secret_variable("GH_TOKEN", github_token)
+            .with_exec([
+                "sh", "-c",
+                f'git push "https://x-access-token:$GH_TOKEN@github.com/{repo_path}.git" {tag}'
+            ])
+            .sync()
+        )
 
     def _git_container(self, source: dagger.Directory) -> dagger.Container:
         """Create a container with git and the source mounted."""
         return (
             dag.container()
-            .from_("alpine/git:latest")
+            .from_(_GIT_IMAGE)
             .with_mounted_directory("/repo", source)
             .with_workdir("/repo")
         )

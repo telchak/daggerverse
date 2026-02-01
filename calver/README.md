@@ -14,7 +14,7 @@ Calendar Versioning (CalVer) utilities for Dagger pipelines.
 ## Installation
 
 ```bash
-dagger install github.com/YOUR_ORG/daggerverse/calver
+dagger install github.com/telchak/daggerverse/calver
 ```
 
 ## Quick Start

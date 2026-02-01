@@ -1,6 +1,6 @@
 {
   "name": "semver",
-  "description": "Semantic Versioning utilities with Conventional Commits support for Dagger pipelines",
+  "description": "Semantic Versioning utilities with Conventional Commits support for automated releases",
   "engineVersion": "v0.19.8",
   "sdk": {
     "source": "python"

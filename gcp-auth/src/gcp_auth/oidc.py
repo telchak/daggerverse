@@ -1,4 +1,10 @@
-"""OIDC credential generation for GCP Workload Identity Federation."""
+"""OIDC credential generation for GCP Workload Identity Federation.
+
+NOTE: The generate_file_based_credentials() function is intentionally duplicated
+in gcp-firebase/src/gcp_firebase/credentials.py (as generate_wif_credentials_json)
+to keep gcp-firebase self-contained with no external dependencies.
+If you modify this function, please keep the other copy in sync.
+"""
 
 import json
 
