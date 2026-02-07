@@ -16,7 +16,7 @@ from .calver import test_calver
 from .gcp_artifact_registry import test_gcp_artifact_registry
 from .gcp_auth import test_gcp_auth
 from .gcp_cloud_run import test_gcp_cloud_run
-from .gcp_cloud_run_agent import test_gcp_cloud_run_agent
+from .gcp_orchestrator_agent import test_gcp_orchestrator_agent
 from .gcp_firebase import test_gcp_firebase
 from .gcp_vertex_ai import test_gcp_vertex_ai
 from .health_check import test_health_check
@@ -139,7 +139,7 @@ class Tests:
         )
 
     @function
-    async def gcp_cloud_run_agent(
+    async def gcp_orchestrator_agent(
         self,
         workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
         service_account: Annotated[str, Doc("Service account email")],
@@ -149,8 +149,8 @@ class Tests:
         region: Annotated[str, Doc("GCP region")] = "us-central1",
         credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key (unused, accepted for CI compatibility)")] = None,
     ) -> str:
-        """Run gcp-cloud-run-agent module tests."""
-        return await test_gcp_cloud_run_agent(
+        """Run gcp-orchestrator-agent module tests."""
+        return await test_gcp_orchestrator_agent(
             workload_identity_provider=workload_identity_provider,
             service_account=service_account,
             project_id=project_id,

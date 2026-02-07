@@ -1,5 +1,5 @@
 [project]
-name = "gcp-cloud-run-agent"
+name = "orchestrator-tools"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = ["dagger-io"]

@@ -1,12 +1,12 @@
 {
-  "name": "gcp-cloud-run-agent-examples",
+  "name": "gcp-orchestrator-agent-examples",
   "engineVersion": "v0.19.8",
   "sdk": {
     "source": "python"
   },
   "dependencies": [
     {
-      "name": "gcp-cloud-run-agent",
+      "name": "gcp-orchestrator-agent",
       "source": "../.."
     },
     {

@@ -1,0 +1,30 @@
+{
+  "name": "orchestrator-tools",
+  "description": "Multi-service GCP tools for the orchestrator agent",
+  "engineVersion": "v0.19.8",
+  "sdk": {
+    "source": "python"
+  },
+  "dependencies": [
+    {
+      "name": "gcp-cloud-run",
+      "source": "../../gcp-cloud-run"
+    },
+    {
+      "name": "gcp-artifact-registry",
+      "source": "../../gcp-artifact-registry"
+    },
+    {
+      "name": "gcp-firebase",
+      "source": "../../gcp-firebase"
+    },
+    {
+      "name": "gcp-vertex-ai",
+      "source": "../../gcp-vertex-ai"
+    },
+    {
+      "name": "health-check",
+      "source": "../../health-check"
+    }
+  ]
+}
