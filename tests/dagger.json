@@ -22,8 +22,8 @@
       "source": "../gcp-cloud-run"
     },
     {
-      "name": "gcp-cloud-run-agent",
-      "source": "../gcp-cloud-run-agent"
+      "name": "gcp-orchestrator-agent",
+      "source": "../gcp-orchestrator-agent"
     },
     {
       "name": "gcp-firebase",
