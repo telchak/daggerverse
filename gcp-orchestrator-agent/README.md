@@ -95,18 +95,21 @@ When `--source` is provided and contains a `DAGGER.md`, the agent reads it and u
 
 ## GCP Documentation Search (Optional)
 
-The agent can search Google's official developer documentation in real time during deployments and troubleshooting. This gives it access to the latest GCP docs for Firebase, Cloud Run, Vertex AI, Android, Maps, and more.
+The agent can search Google's official developer documentation in real time during deployments and troubleshooting, using the [Developer Knowledge API](https://developers.google.com/knowledge/api) ([announcement blog post](https://developers.googleblog.com/introducing-the-developer-knowledge-api-and-mcp-server/)). This gives it access to the latest GCP docs for Firebase, Cloud Run, Vertex AI, Android, Maps, and more.
 
 ### Setup
 
 1. Enable the Developer Knowledge API in your GCP project:
    ```shell
    gcloud services enable developerknowledge.googleapis.com --project=PROJECT_ID
-   ```
+   ```   
 
 2. Create an API key restricted to the Developer Knowledge API:
    ```shell
-   gcloud services api-keys create --project=PROJECT_ID --display-name="DK API Key"
+   gcloud services api-keys create \
+     --api-target=service=developerknowledge.googleapis.com \
+     --display-name="DK API Key" \
+     --project=PROJECT_ID
    ```
 
 3. Pass the key when calling the agent:
@@ -196,19 +199,6 @@ dagger call deploy \
 ```
 
 Dagger will automatically detect which provider to use based on the environment variables set. You can also use a `.env` file in the current directory.
-
-## Migration from gcp-cloud-run-agent
-
-If you were using `gcp-cloud-run-agent`, update your references:
-
-| Before | After |
-|--------|-------|
-| `gcp-cloud-run-agent` | `gcp-orchestrator-agent` |
-| `dag.gcp_cloud_run_agent()` | `dag.gcp_orchestrator_agent()` |
-| `cloud-run-tools` | `orchestrator-tools` |
-| `CloudRunTools` | `OrchestratorTools` |
-
-The `deploy` and `troubleshoot` entrypoints have the same signatures, with the addition of optional `credentials` (for Firebase) on the constructor and optional `source` on `troubleshoot` (for DAGGER.md context).
 
 ## Dependencies
 

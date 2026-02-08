@@ -18,6 +18,7 @@ async def test_gcp_orchestrator_agent(
     oidc_token: dagger.Secret,
     oidc_url: dagger.Secret,
     region: str = "us-central1",
+    developer_knowledge_api_key: dagger.Secret | None = None,
 ) -> str:
     """Test gcp-orchestrator-agent deploy with OIDC authentication.
 
@@ -49,6 +50,7 @@ async def test_gcp_orchestrator_agent(
             gcloud=gcloud,
             project_id=project_id,
             region=region,
+            developer_knowledge_api_key=developer_knowledge_api_key,
         ).deploy(
             assignment=assignment,
             service_name=service_name,

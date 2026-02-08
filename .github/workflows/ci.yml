@@ -89,6 +89,7 @@ jobs:
         env:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GCP_DEVELOPER_KNOWLEDGE_API_KEY: ${{ secrets.GCP_DEVELOPER_KNOWLEDGE_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           MODULE="${{ matrix.module }}"
@@ -106,6 +107,11 @@ jobs:
             if [[ -n "$GCP_SA_KEY" ]]; then
               ARGS="$ARGS --credentials=env:GCP_SA_KEY"
             fi
+          fi
+
+          # Add Developer Knowledge API key for orchestrator agent
+          if [[ "$MODULE" == gcp-orchestrator-agent ]] && [[ -n "$GCP_DEVELOPER_KNOWLEDGE_API_KEY" ]]; then
+            ARGS="$ARGS --developer-knowledge-api-key=env:GCP_DEVELOPER_KNOWLEDGE_API_KEY"
           fi
 
           # Module-specific args
