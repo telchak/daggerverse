@@ -1,7 +1,7 @@
 {
   "name": "gcp-artifact-registry",
   "description": "Google Cloud Artifact Registry operations for publishing and managing container images",
-  "engineVersion": "v0.19.7",
+  "engineVersion": "v0.19.11",
   "sdk": {
     "source": "python"
   }

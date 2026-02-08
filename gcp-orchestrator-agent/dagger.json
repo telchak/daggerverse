@@ -1,7 +1,7 @@
 {
   "name": "gcp-orchestrator-agent",
   "description": "AI-powered multi-service GCP deployment and troubleshooting agent",
-  "engineVersion": "v0.19.8",
+  "engineVersion": "v0.19.11",
   "sdk": {
     "source": "python"
   },
