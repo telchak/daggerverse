@@ -25,6 +25,11 @@
     {
       "matchDepNames": ["dagger/dagger"],
       "groupName": "dagger engine"
+    },
+    {
+      "description": "uv_build version is dictated by Dagger's Python SDK template — do not update independently",
+      "matchPackageNames": ["uv_build"],
+      "enabled": false
     }
   ]
 }
