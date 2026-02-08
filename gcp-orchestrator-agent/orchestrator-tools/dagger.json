@@ -1,7 +1,7 @@
 {
   "name": "orchestrator-tools",
   "description": "Multi-service GCP tools for the orchestrator agent",
-  "engineVersion": "v0.19.8",
+  "engineVersion": "v0.19.11",
   "sdk": {
     "source": "python"
   },
