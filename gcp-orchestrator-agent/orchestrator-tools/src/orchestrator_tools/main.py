@@ -13,9 +13,16 @@ class OrchestratorTools:
     gcloud: Annotated[dagger.Container | None, Doc("Authenticated gcloud container")] = field(default=None)
     project_id: Annotated[str, Doc("GCP project ID")] = field(default="")
     region: Annotated[str, Doc("GCP region")] = field(default="")
-    credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key (required for Firebase)")] = field(
+    credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key for Firebase")] = field(default=None)
+    firebase_oidc_token: Annotated[dagger.Secret | None, Doc("OIDC JWT token for Firebase (from CI provider)")] = field(
         default=None
     )
+    firebase_workload_identity_provider: Annotated[
+        str, Doc("GCP Workload Identity Federation provider for Firebase")
+    ] = field(default="")
+    firebase_service_account_email: Annotated[
+        str, Doc("Service account to impersonate for Firebase")
+    ] = field(default="")
     developer_knowledge_api_key: Annotated[
         dagger.Secret | None, Doc("Google Developer Knowledge API key (enables GCP docs search)")
     ] = field(default=None)
@@ -164,14 +171,26 @@ class OrchestratorTools:
 
     # ========== Firebase Hosting ==========
 
-    def _require_credentials(self) -> dagger.Secret:
-        """Validate that credentials are available for Firebase operations."""
-        if self.credentials is None:
-            raise ValueError(
-                "Firebase operations require 'credentials' (service account JSON key). "
-                "Pass credentials when constructing the orchestrator agent."
-            )
-        return self.credentials
+    def _firebase_auth_kwargs(self) -> dict:
+        """Build authentication kwargs for gcp-firebase calls.
+
+        Priority: 1) OIDC/WIF  2) Service account credentials  3) Error
+        """
+        if self.firebase_oidc_token and self.firebase_workload_identity_provider:
+            kwargs: dict = {
+                "oidc_token": self.firebase_oidc_token,
+                "workload_identity_provider": self.firebase_workload_identity_provider,
+            }
+            if self.firebase_service_account_email:
+                kwargs["service_account_email"] = self.firebase_service_account_email
+            return kwargs
+        if self.credentials:
+            return {"credentials": self.credentials}
+        raise ValueError(
+            "Firebase operations require authentication. Provide either:\n"
+            "  - firebase_oidc_token + firebase_workload_identity_provider (recommended for CI/CD)\n"
+            "  - credentials (service account JSON key)"
+        )
 
     @function
     async def deploy_firebase_hosting(
@@ -186,9 +205,9 @@ class OrchestratorTools:
             .deploy(
                 project_id=self.project_id,
                 source=source,
-                credentials=self._require_credentials(),
                 build_command=build_command,
                 node_version=node_version,
+                **self._firebase_auth_kwargs(),
             )
         )
 
@@ -208,10 +227,10 @@ class OrchestratorTools:
                 project_id=self.project_id,
                 channel_id=channel_id,
                 source=source,
-                credentials=self._require_credentials(),
                 build_command=build_command,
                 node_version=node_version,
                 expires=expires,
+                **self._firebase_auth_kwargs(),
             )
         )
 
@@ -226,7 +245,7 @@ class OrchestratorTools:
             .delete_channel(
                 project_id=self.project_id,
                 channel_id=channel_id,
-                credentials=self._require_credentials(),
+                **self._firebase_auth_kwargs(),
             )
         )
 

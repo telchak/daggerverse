@@ -16,7 +16,7 @@ from .calver import test_calver
 from .gcp_artifact_registry import test_gcp_artifact_registry
 from .gcp_auth import test_gcp_auth
 from .gcp_cloud_run import test_gcp_cloud_run
-from .gcp_orchestrator_agent import test_gcp_orchestrator_agent
+from .gcp_orchestrator_agent import test_gcp_orchestrator_agent, test_gcp_orchestrator_agent_firebase
 from .gcp_firebase import test_gcp_firebase
 from .gcp_vertex_ai import test_gcp_vertex_ai
 from .health_check import test_health_check
@@ -150,8 +150,16 @@ class Tests:
         credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key (unused, accepted for CI compatibility)")] = None,
         developer_knowledge_api_key: Annotated[dagger.Secret | None, Doc("Google Developer Knowledge API key (optional)")] = None,
     ) -> str:
-        """Run gcp-orchestrator-agent module tests."""
-        return await test_gcp_orchestrator_agent(
+        """Run gcp-orchestrator-agent module tests.
+
+        Tests Cloud Run deploy, Firebase Hosting deploy (OIDC/WIF),
+        and troubleshooting diagnostics.
+        """
+        results = []
+
+        # Cloud Run deploy test
+        results.append("=== Cloud Run Deploy ===")
+        results.append(await test_gcp_orchestrator_agent(
             workload_identity_provider=workload_identity_provider,
             service_account=service_account,
             project_id=project_id,
@@ -159,7 +167,20 @@ class Tests:
             oidc_url=oidc_url,
             region=region,
             developer_knowledge_api_key=developer_knowledge_api_key,
-        )
+        ))
+
+        # Firebase Hosting deploy test (OIDC/WIF)
+        results.append("\n=== Firebase Hosting Deploy (OIDC/WIF) ===")
+        results.append(await test_gcp_orchestrator_agent_firebase(
+            workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
+            project_id=project_id,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
+        ))
+
+        return "\n".join(results)
 
     @function
     async def gcp_vertex_ai(

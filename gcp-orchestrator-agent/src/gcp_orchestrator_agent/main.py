@@ -16,9 +16,16 @@ class GcpOrchestratorAgent:
     gcloud: Annotated[dagger.Container | None, Doc("Authenticated gcloud container")] = field(default=None)
     project_id: Annotated[str, Doc("GCP project ID")] = field(default="")
     region: Annotated[str, Doc("GCP region")] = field(default="us-central1")
-    credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key (required for Firebase)")] = field(
-        default=None
-    )
+    credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key for Firebase")] = field(default=None)
+    firebase_oidc_token: Annotated[
+        dagger.Secret | None, Doc("OIDC JWT token for Firebase authentication (from CI provider)")
+    ] = field(default=None)
+    firebase_workload_identity_provider: Annotated[
+        str, Doc("GCP Workload Identity Federation provider for Firebase")
+    ] = field(default="")
+    firebase_service_account_email: Annotated[
+        str, Doc("Service account email to impersonate for Firebase")
+    ] = field(default="")
     developer_knowledge_api_key: Annotated[
         dagger.Secret | None,
         Doc("Google Developer Knowledge API key (optional, enables searching GCP documentation)"),
@@ -84,6 +91,9 @@ class GcpOrchestratorAgent:
             project_id=self.project_id,
             region=self.region,
             credentials=self.credentials,
+            firebase_oidc_token=self.firebase_oidc_token,
+            firebase_workload_identity_provider=self.firebase_workload_identity_provider,
+            firebase_service_account_email=self.firebase_service_account_email,
             developer_knowledge_api_key=self.developer_knowledge_api_key,
         )
 
@@ -126,6 +136,9 @@ class GcpOrchestratorAgent:
             project_id=self.project_id,
             region=self.region,
             credentials=self.credentials,
+            firebase_oidc_token=self.firebase_oidc_token,
+            firebase_workload_identity_provider=self.firebase_workload_identity_provider,
+            firebase_service_account_email=self.firebase_service_account_email,
             developer_knowledge_api_key=self.developer_knowledge_api_key,
         )
 
