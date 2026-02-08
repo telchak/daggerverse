@@ -148,6 +148,7 @@ class Tests:
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
         credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key (unused, accepted for CI compatibility)")] = None,
+        developer_knowledge_api_key: Annotated[dagger.Secret | None, Doc("Google Developer Knowledge API key (optional)")] = None,
     ) -> str:
         """Run gcp-orchestrator-agent module tests."""
         return await test_gcp_orchestrator_agent(
@@ -157,6 +158,7 @@ class Tests:
             oidc_token=oidc_token,
             oidc_url=oidc_url,
             region=region,
+            developer_knowledge_api_key=developer_knowledge_api_key,
         )
 
     @function

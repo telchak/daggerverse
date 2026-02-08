@@ -1,0 +1,30 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "dagger.json engineVersion",
+      "fileMatch": ["(^|/)dagger\\.json$"],
+      "matchStrings": ["\"engineVersion\":\\s*\"v(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "dagger/dagger",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "dagger-for-github action version input",
+      "fileMatch": ["\\.github/workflows/.*\\.yml$"],
+      "matchStrings": ["uses:\\s*dagger/dagger-for-github@[^\\n]+\\n.*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "dagger/dagger",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchDepNames": ["dagger/dagger"],
+      "groupName": "dagger engine"
+    }
+  ]
+}
