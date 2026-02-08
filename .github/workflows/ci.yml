@@ -91,6 +91,7 @@ jobs:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           GCP_DEVELOPER_KNOWLEDGE_API_KEY: ${{ secrets.GCP_DEVELOPER_KNOWLEDGE_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
         run: |
           MODULE="${{ matrix.module }}"
           ARGS=""
