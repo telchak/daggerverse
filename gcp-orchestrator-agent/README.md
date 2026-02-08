@@ -36,7 +36,21 @@ dagger call deploy \
   --assignment="Deploy gcr.io/google-samples/hello-app:1.0, allow unauthenticated access"
 ```
 
-### Firebase Hosting
+### Firebase Hosting (OIDC/WIF)
+
+```shell
+dagger call deploy \
+  --gcloud=<authenticated-container> \
+  --project-id=my-project \
+  --firebase-oidc-token=env:FIREBASE_OIDC_TOKEN \
+  --firebase-workload-identity-provider="projects/PROJECT_NUM/locations/global/..." \
+  --firebase-service-account-email="sa@project.iam.gserviceaccount.com" \
+  --service-name=my-site \
+  --source=. \
+  --assignment="Deploy to Firebase Hosting"
+```
+
+### Firebase Hosting (Service Account JSON)
 
 ```shell
 dagger call deploy \
@@ -129,7 +143,53 @@ When the API key is not provided, these tools are simply not used. The agent wor
 
 ## Authentication
 
-This module requires an authenticated `gcloud` container (via `gcp-auth` module). For Firebase operations, also provide `--credentials` (service account JSON key).
+### Cloud Run, Artifact Registry, Vertex AI
+
+These services only need an authenticated `gcloud` container (via the `gcp-auth` module):
+
+```shell
+dagger call deploy \
+  --gcloud=<authenticated-container> \
+  --project-id=my-project \
+  --service-name=my-service \
+  --assignment="Deploy my-image to Cloud Run"
+```
+
+### Firebase Hosting — OIDC/WIF (recommended for CI/CD)
+
+```shell
+dagger call deploy \
+  --gcloud=<authenticated-container> \
+  --project-id=my-project \
+  --firebase-oidc-token=env:FIREBASE_OIDC_TOKEN \
+  --firebase-workload-identity-provider="projects/PROJECT_NUM/locations/global/..." \
+  --firebase-service-account-email="sa@project.iam.gserviceaccount.com" \
+  --service-name=my-site \
+  --source=. \
+  --assignment="Deploy to Firebase Hosting"
+```
+
+### Firebase Hosting — Service Account JSON
+
+```shell
+dagger call deploy \
+  --gcloud=<authenticated-container> \
+  --project-id=my-project \
+  --credentials=file:./service-account.json \
+  --service-name=my-site \
+  --source=. \
+  --assignment="Deploy to Firebase Hosting"
+```
+
+### Summary
+
+| Service | `gcloud` | `credentials` | `firebase-oidc-token` + `firebase-workload-identity-provider` |
+|---------|----------|---------------|--------------------------------------------------------------|
+| Cloud Run | Required | — | — |
+| Artifact Registry | Required | — | — |
+| Vertex AI | Required | — | — |
+| Firebase Hosting | Required | Option B | Option A (recommended) |
+| Health Check | — | — | — |
 
 ## LLM Configuration
 
