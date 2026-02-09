@@ -8,7 +8,11 @@
   "dependencies": [
     {
       "name": "orchestrator-tools",
-      "source": "./orchestrator-tools"
+      "source": "orchestrator-tools"
+    },
+    {
+      "name": "gcp-auth",
+      "source": "../gcp-auth"
     },
     {
       "name": "gcp-cloud-run",

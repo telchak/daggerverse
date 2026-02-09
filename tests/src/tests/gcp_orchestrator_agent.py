@@ -1,7 +1,7 @@
 """Tests for gcp-orchestrator-agent module.
 
-Tests the AI agent's ability to deploy services using OIDC authentication
-via GitHub Actions:
+Tests the AI agent's ability to deploy services using unified OIDC authentication
+(agent builds gcloud internally from raw credentials):
 - Cloud Run deployment and verification
 - Firebase Hosting preview deployment via OIDC/WIF
 - Troubleshooting diagnostics
@@ -23,16 +23,25 @@ async def test_gcp_orchestrator_agent(
     region: str = "us-central1",
     developer_knowledge_api_key: dagger.Secret | None = None,
 ) -> str:
-    """Test gcp-orchestrator-agent deploy with OIDC authentication.
+    """Test gcp-orchestrator-agent deploy with unified OIDC authentication.
 
+    Passes raw OIDC credentials — the agent builds gcloud internally.
     Deploys a sample container via the AI agent, verifies the service
     exists and has a valid URL, then cleans up.
     """
     results = []
     service_name = f"agent-test-{int(time.time())}"
 
-    # Authenticate via OIDC
-    gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
+    # Get OIDC token with GCP audience for the agent
+    audience = f"//iam.googleapis.com/{workload_identity_provider}"
+    agent_oidc_token = dag.oidc_token().github_token(
+        request_token=oidc_token,
+        request_url=oidc_url,
+        audience=audience,
+    )
+
+    # Build a gcloud container separately for verification/cleanup only
+    verify_gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
         workload_identity_provider=workload_identity_provider,
         project_id=project_id,
         oidc_request_token=oidc_token,
@@ -44,13 +53,15 @@ async def test_gcp_orchestrator_agent(
     svc = dag.gcp_cloud_run().service()
 
     try:
-        # Deploy via agent
+        # Deploy via agent using unified OIDC credentials (agent builds gcloud internally)
         assignment = (
             f"Deploy gcr.io/google-samples/hello-app:1.0 as service {service_name}, "
             "allow unauthenticated access, use scale-to-zero"
         )
         result = await dag.gcp_orchestrator_agent(
-            gcloud=gcloud,
+            oidc_token=agent_oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account,
             project_id=project_id,
             region=region,
             developer_knowledge_api_key=developer_knowledge_api_key,
@@ -61,14 +72,11 @@ async def test_gcp_orchestrator_agent(
         results.append(f"[OK] Agent deploy completed: {result[:100]}...")
 
         # Use a cache-busted gcloud container for verification.
-        # The agent's internal service_exists call (before deploying) caches
-        # a stale "not found" result in Dagger. Adding a unique env var
-        # creates a fresh container layer that bypasses the cache.
-        verify_gcloud = gcloud.with_env_variable("_CACHE_BUST", str(uuid.uuid4()))
+        cache_busted = verify_gcloud.with_env_variable("_CACHE_BUST", str(uuid.uuid4()))
 
         # Verify service exists
         exists = await svc.exists(
-            gcloud=verify_gcloud,
+            gcloud=cache_busted,
             service_name=service_name,
             region=region,
         )
@@ -78,7 +86,7 @@ async def test_gcp_orchestrator_agent(
 
         # Verify URL
         url = await svc.get_url(
-            gcloud=verify_gcloud,
+            gcloud=cache_busted,
             service_name=service_name,
             region=region,
         )
@@ -88,7 +96,7 @@ async def test_gcp_orchestrator_agent(
 
         # Cleanup
         await svc.delete(
-            gcloud=verify_gcloud,
+            gcloud=cache_busted,
             service_name=service_name,
             region=region,
         )
@@ -98,7 +106,7 @@ async def test_gcp_orchestrator_agent(
         results.append(f"[!!] Error: {e}")
         # Cleanup attempt
         try:
-            cleanup_gcloud = gcloud.with_env_variable("_CACHE_BUST", str(uuid.uuid4()))
+            cleanup_gcloud = verify_gcloud.with_env_variable("_CACHE_BUST", str(uuid.uuid4()))
             await svc.delete(
                 gcloud=cleanup_gcloud,
                 service_name=service_name,
@@ -120,14 +128,23 @@ async def test_gcp_orchestrator_agent_troubleshoot(
     oidc_url: dagger.Secret,
     region: str = "us-central1",
 ) -> str:
-    """Test gcp-orchestrator-agent troubleshoot with OIDC authentication.
+    """Test gcp-orchestrator-agent troubleshoot with unified OIDC authentication.
 
-    Deploys a service directly, then asks the agent to troubleshoot it,
-    verifying the diagnosis contains the service name.
+    Deploys a service directly, then asks the agent (with raw OIDC credentials)
+    to troubleshoot it, verifying the diagnosis contains the service name.
     """
     results = []
     service_name = f"agent-diag-{int(time.time())}"
 
+    # Get OIDC token with GCP audience
+    audience = f"//iam.googleapis.com/{workload_identity_provider}"
+    agent_oidc_token = dag.oidc_token().github_token(
+        request_token=oidc_token,
+        request_url=oidc_url,
+        audience=audience,
+    )
+
+    # Build gcloud for direct deploy + cleanup
     gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
         workload_identity_provider=workload_identity_provider,
         project_id=project_id,
@@ -150,9 +167,11 @@ async def test_gcp_orchestrator_agent_troubleshoot(
         )
         results.append(f"[OK] Deployed {service_name} for troubleshooting test")
 
-        # Troubleshoot via agent
+        # Troubleshoot via agent using unified OIDC credentials
         diagnosis = await dag.gcp_orchestrator_agent(
-            gcloud=gcloud,
+            oidc_token=agent_oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account,
             project_id=project_id,
             region=region,
         ).troubleshoot(
@@ -199,48 +218,36 @@ async def test_gcp_orchestrator_agent_firebase(
     oidc_url: dagger.Secret,
     region: str = "us-central1",
 ) -> str:
-    """Test gcp-orchestrator-agent Firebase deploy with OIDC/WIF authentication.
+    """Test gcp-orchestrator-agent Firebase deploy with unified OIDC authentication.
 
-    Asks the AI agent to deploy a Firebase Hosting preview channel using
-    OIDC/WIF auth fields, verifies the result contains a preview URL,
-    then cleans up the channel directly.
+    Passes raw OIDC credentials — the agent builds gcloud internally and
+    reuses the same OIDC credentials for Firebase. No separate firebase_* flags.
     """
     results = []
     channel_id = f"agent-fb-{int(time.time())}"
     source = dag.git("https://github.com/telchak/firebase-dagger-template.git").branch("main").tree()
 
-    # Get OIDC token with GCP audience for Firebase
+    # Get OIDC token with GCP audience (used for both agent auth and Firebase)
     audience = f"//iam.googleapis.com/{workload_identity_provider}"
-    firebase_oidc_token = dag.oidc_token().github_token(
+    agent_oidc_token = dag.oidc_token().github_token(
         request_token=oidc_token,
         request_url=oidc_url,
         audience=audience,
     )
 
-    # Authenticate gcloud for the agent (needed for non-Firebase tools)
-    gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
-        workload_identity_provider=workload_identity_provider,
-        project_id=project_id,
-        oidc_request_token=oidc_token,
-        oidc_request_url=oidc_url,
-        service_account_email=service_account,
-        region=region,
-    )
-
     try:
-        # Deploy Firebase preview via agent with OIDC/WIF auth
+        # Deploy Firebase preview via agent with unified OIDC credentials
         assignment = (
             f"Deploy to Firebase Hosting preview channel '{channel_id}'. "
             "Use the provided source directory. Do NOT run a build command — "
             "the source is pre-built with an index.html."
         )
         result = await dag.gcp_orchestrator_agent(
-            gcloud=gcloud,
+            oidc_token=agent_oidc_token,
+            workload_identity_provider=workload_identity_provider,
+            service_account_email=service_account,
             project_id=project_id,
             region=region,
-            firebase_oidc_token=firebase_oidc_token,
-            firebase_workload_identity_provider=workload_identity_provider,
-            firebase_service_account_email=service_account,
         ).deploy(
             assignment=assignment,
             service_name=channel_id,
@@ -264,7 +271,7 @@ async def test_gcp_orchestrator_agent_firebase(
             await dag.gcp_firebase().delete_channel(
                 project_id=project_id,
                 channel_id=channel_id,
-                oidc_token=firebase_oidc_token,
+                oidc_token=agent_oidc_token,
                 workload_identity_provider=workload_identity_provider,
                 service_account_email=service_account,
             )
