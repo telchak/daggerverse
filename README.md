@@ -202,6 +202,7 @@ This project is under active development. Here's what's coming next:
 - [ ] Add `gcp-kubernetes-engine` module (GKE cluster and workload management)
 - [ ] Add `gcp-cloud-sql` module (instance provisioning, database management)
 - [ ] Add GCP developer agents (specialized AI agents for GCP workflows)
+- [ ] Add Scaleway modules
 
 Have a feature request? [Open an issue](https://github.com/telchak/daggerverse/issues)!
 
