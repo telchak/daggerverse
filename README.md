@@ -125,20 +125,6 @@ Tests run automatically on push/PR via GitHub Actions:
 | Module loads | Error | Validates module syntax |
 | Example modules load | Error | Validates examples work |
 
-## Module Guidelines
-
-### Design Principles
-
-- Keep modules small and focused
-- Single responsibility per module
-- Use `Doc` annotations for parameters
-
-### Naming Conventions
-
-- **Modules**: `kebab-case` (e.g., `gcp-auth`)
-- **Functions**: `snake_case` (e.g., `verify_credentials`)
-- **Parameters**: `snake_case` (e.g., `project_id`)
-
 ## Architecture
 
 Modules are designed to be independent, with one exception: `gcp-auth` depends on `oidc-token` for GitHub Actions OIDC token exchange. GCP modules accept pre-authenticated containers from `gcp-auth`:
@@ -197,92 +183,15 @@ Commit message format:
 | `chore:`, `docs:`, `ci:`, `test:`, `build:`, `style:` | Patch (default) | `chore: update dependencies` |
 | `feat!:` or `BREAKING CHANGE:` | Major | `feat!: remove deprecated API` |
 
-## Adding a New Module
-
-### 1. Create the module structure
-
-```bash
-# Initialize Dagger module (creates the directory automatically)
-dagger init --sdk=python --name=my-module my-module/
-
-# Create required files
-mkdir my-module/examples
-touch my-module/README.md
-```
-
-### 2. Required files
-
-| File | Required | Description |
-|------|----------|-------------|
-| `dagger.json` | ✅ | Must include `"description"` field |
-| `README.md` | ✅ | Documentation with usage examples |
-| `examples/` | ✅ | Directory with example code |
-| `src/main.py` | ✅ | Module implementation |
-
-Example `dagger.json`:
-```json
-{
-  "name": "my-module",
-  "sdk": "python",
-  "description": "Short description of what this module does"
-}
-```
-
-### 3. Add tests
-
-Create a test file `tests/src/tests/my_module.py`:
-
-```python
-from dagger import dag
-
-async def test_my_module() -> str:
-    """Test my-module functions."""
-    results = []
-    result = await dag.my_module().some_function()
-    results.append(f"PASS: some_function returned {result}")
-    return "\n".join(results)
-```
-
-Then add to `tests/src/tests/main.py`:
-
-```python
-from .my_module import test_my_module
-
-# In the Tests class:
-@function
-async def my_module(self) -> str:
-    """Run my-module tests."""
-    return await test_my_module()
-```
-
-### 4. CI auto-discovery
-
-The CI workflow automatically discovers all modules. No changes needed unless:
-
-- **GCP modules**: Name your module `gcp-*` and OIDC credentials are automatically passed
-- **Special arguments**: Add a case in `.github/workflows/ci.yml`:
-  ```bash
-  case "$MODULE" in
-    my-module) ARGS="$ARGS --special-arg=value" ;;
-  esac
-  ```
-
-### 5. Test locally
-
-```bash
-# Run your module's tests
-dagger call -m tests my-module
-
-# Validate module structure
-dagger call -m . functions  # from module directory
-```
-
 ## Contributing
 
-1. Follow the established patterns
-2. Keep modules small and focused
-3. Add tests to the `tests/` module
-4. Update documentation
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide, including:
+
+- Development setup and prerequisites
+- How to add a new module (required files, tests, CI integration)
+- Commit message conventions (Conventional Commits)
+- Pull request process and review guidelines
+- Module design principles and naming conventions
 
 ## Roadmap
 
