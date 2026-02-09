@@ -4,7 +4,7 @@ Diagnose and troubleshoot the reported issue with a GCP service.
 
 ## Inputs Available
 
-- **service_name**: The service to troubleshoot
+- **service_name** (may not be present): The service to troubleshoot. If not provided, determine it from the DAGGER.md repository context or the issue description. If you cannot determine it, report what's missing.
 - **issue**: The reported issue description to diagnose
 - **project_id**: The GCP project ID
 - **region**: The GCP region
@@ -70,3 +70,4 @@ Write your diagnosis to the `result` output. Include:
 - Root cause analysis
 - Recommended actions to resolve the issue
 - If a DAGGER.md context is present, reference any project-specific configuration that may be relevant
+- **Priority order**: explicit inputs > DAGGER.md context > gcloud config > defaults
