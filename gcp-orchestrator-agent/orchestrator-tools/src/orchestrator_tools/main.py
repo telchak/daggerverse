@@ -194,7 +194,7 @@ class OrchestratorTools:
     async def deploy_firebase_hosting(
         self,
         source: Annotated[dagger.Directory, Doc("Source directory with firebase.json")],
-        build_command: Annotated[str, Doc("Build command")] = "npm run build",
+        build_command: Annotated[str, Doc("Build command (empty string to skip build for pre-built sources)")] = "npm run build",
         node_version: Annotated[str, Doc("Node.js version")] = "20",
     ) -> str:
         """Deploy a web application to Firebase Hosting."""
@@ -214,7 +214,7 @@ class OrchestratorTools:
         self,
         source: Annotated[dagger.Directory, Doc("Source directory with firebase.json")],
         channel_id: Annotated[str, Doc("Preview channel ID (e.g. pr-123)")],
-        build_command: Annotated[str, Doc("Build command")] = "npm run build",
+        build_command: Annotated[str, Doc("Build command (empty string to skip build for pre-built sources)")] = "npm run build",
         node_version: Annotated[str, Doc("Node.js version")] = "20",
         expires: Annotated[str, Doc("Channel expiration (e.g. '7d')")] = "7d",
     ) -> str:
