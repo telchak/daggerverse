@@ -206,6 +206,10 @@ This project is under active development. Here's what's coming next:
 
 Have a feature request? [Open an issue](https://github.com/telchak/daggerverse/issues)!
 
+## Sponsoring
+
+Every CI run exercises real infrastructure — GitHub Actions runners, GCP services (Cloud Run, Firebase, Artifact Registry, Vertex AI), and LLM API calls (Claude) for the AI agent tests. If you find these modules useful, consider [sponsoring the project](https://github.com/sponsors/telchak) to help cover these ongoing costs.
+
 ## License
 
 Apache 2.0 - See [LICENSE](LICENSE) for details.
