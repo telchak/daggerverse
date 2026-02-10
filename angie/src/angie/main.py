@@ -1,5 +1,6 @@
 """Angie — AI-powered Angular development agent with MCP integration."""
 
+import json
 from typing import Annotated
 
 import dagger
@@ -244,29 +245,37 @@ class Angie:
         body = await issue.body()
         url = await issue.url()
 
-        # Route the issue to the best agent function
-        context_md = await self._read_context_file(workspace)
+        # Classify the issue to pick the best agent function
         router_prompt = await self._load_prompt("router_prompt.md").contents()
 
-        env = (
+        router_env = (
             dag.env()
-            .with_workspace(workspace)
             .with_string_input("issue_title", title, "The GitHub issue title")
             .with_string_input("issue_body", body, "The GitHub issue body")
+            .with_string_output("function_name", "The function to call: assist, upgrade, build, or write_tests")
+            .with_string_output("params_json", "JSON object with function parameters")
         )
 
         router = (
             dag.llm()
-            .with_env(env.with_current_module())
-            .with_mcp_server("angular", self._angular_mcp_service())
-            .with_system_prompt(router_prompt + context_md)
-            .with_blocked_function("Angie", "develop_github_issue")
-            .with_blocked_function("Angie", "task")
-            .with_blocked_function("Angie", "review")
+            .with_env(router_env)
+            .with_system_prompt(router_prompt)
             .with_prompt(f"## GitHub Issue: {title}\n\n{body}")
         )
 
-        result = router.env().workspace()
+        function_name = await router.env().output("function_name").as_string()
+        params_json = await router.env().output("params_json").as_string()
+        params = json.loads(params_json)
+
+        # Call the chosen function with extracted parameters
+        if function_name == "upgrade":
+            result = await self.upgrade(source=workspace, **params)
+        elif function_name == "build":
+            result = await self.build(source=workspace, **params)
+        elif function_name == "write_tests":
+            result = await self.write_tests(source=workspace, **params)
+        else:
+            result = await self.assist(assignment=body, source=workspace)
 
         # Create a PR from the modified workspace
         pr = gh.create_pull_request(
