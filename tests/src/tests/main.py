@@ -16,6 +16,15 @@ from .calver import test_calver
 from .gcp_artifact_registry import test_gcp_artifact_registry
 from .gcp_auth import test_gcp_auth
 from .gcp_cloud_run import test_gcp_cloud_run
+from .angular_agent import (
+    _clone_realworld,
+    test_angie_assist,
+    test_angie_build,
+    test_angie_develop_github_issue,
+    test_angie_review,
+    test_angie_upgrade_dry_run,
+    test_angie_write_tests,
+)
 from .gcp_orchestrator_agent import test_gcp_orchestrator_agent, test_gcp_orchestrator_agent_firebase
 from .gcp_firebase import test_gcp_firebase
 from .gcp_vertex_ai import test_gcp_vertex_ai
@@ -58,6 +67,62 @@ class Tests:
     ) -> str:
         """Run semver module tests."""
         return await test_semver(source=source)
+
+    @function
+    async def angie(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Angular project source (defaults to RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Angie (Angular agent) module tests.
+
+        Clones the RealWorld Angular example app (Angular 21, standalone
+        components, vitest, playwright) and runs all agent entrypoints
+        against it. Pass --source to test against a different Angular project.
+        """
+        if source is None:
+            source = _clone_realworld()
+
+        results = []
+
+        results.append("=== Assist ===")
+        results.append(await test_angie_assist(source=source))
+
+        results.append("\n=== Review ===")
+        results.append(await test_angie_review(source=source))
+
+        results.append("\n=== Write Tests ===")
+        results.append(await test_angie_write_tests(source=source))
+
+        results.append("\n=== Build ===")
+        results.append(await test_angie_build(source=source))
+
+        results.append("\n=== Upgrade (dry run) ===")
+        results.append(await test_angie_upgrade_dry_run(source=source))
+
+        return "\n".join(results)
+
+    @function
+    async def angie_develop_github_issue(
+        self,
+        github_token: Annotated[dagger.Secret, Doc("GitHub PAT with contents, pull-requests, and issues write access to the test repo")],
+        issue_id: Annotated[int, Doc("Test issue number")] = 1,
+        repository: Annotated[str, Doc("Test repository URL")] = "https://github.com/telchak/angular-dagger-template",
+    ) -> str:
+        """Run Angie develop-github-issue test.
+
+        Tests the full issue-to-PR workflow against telchak/angular-dagger-template.
+        The router reads issue #1 (Add unit tests for AppComponent) and should
+        route to write_tests, then create a PR with the generated test files.
+        """
+        result = await test_angie_develop_github_issue(
+            github_token=github_token,
+            issue_id=issue_id,
+            repository=repository,
+        )
+        return result
 
     @function
     async def all_no_credentials(self) -> str:

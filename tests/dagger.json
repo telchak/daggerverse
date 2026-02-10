@@ -1,10 +1,14 @@
 {
   "name": "tests",
-  "engineVersion": "v0.19.8",
+  "engineVersion": "v0.19.11",
   "sdk": {
     "source": "python"
   },
   "dependencies": [
+    {
+      "name": "angie",
+      "source": "../angie"
+    },
     {
       "name": "calver",
       "source": "../calver"

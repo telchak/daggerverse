@@ -1,0 +1,15 @@
+{
+  "name": "angie",
+  "description": "AI-powered Angular development agent with MCP integration",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "python"
+  },
+  "dependencies": [
+    {
+      "name": "github-issue",
+      "source": "github.com/kpenfound/dag/github-issue@b316e472d3de5bb0e54fe3991be68dc85e33ef38",
+      "pin": "b316e472d3de5bb0e54fe3991be68dc85e33ef38"
+    }
+  ]
+}
