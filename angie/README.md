@@ -28,7 +28,7 @@ dagger install github.com/certainty-labs/daggerverse/angie@<version>
 | `write-tests` | Generate unit/integration/e2e tests for components and services |
 | `build` | Build, compile, or lint the project — diagnoses errors and suggests fixes |
 | `upgrade` | Upgrade Angular version — detects current version, applies breaking changes |
-| `develop-github-issue` | Read a GitHub issue, implement it, create a PR, and comment on the issue |
+| `develop-github-issue` | Read a GitHub issue, route to the best agent, create a PR, and comment on the issue |
 
 ## Quick Start
 
@@ -104,7 +104,7 @@ dagger call upgrade \
 
 ## GitHub Integration
 
-The `develop-github-issue` function enables a full issue-to-PR workflow: read a GitHub issue, implement the changes with the `assist` agent, create a Pull Request, and comment on the issue with a summary — all in one step.
+The `develop-github-issue` function enables a full issue-to-PR workflow: read a GitHub issue, automatically select the best agent function (`assist`, `upgrade`, `build`, or `write-tests`) based on the issue content, implement the changes, create a Pull Request, and comment on the issue with a summary — all in one step.
 
 ### Parameters
 

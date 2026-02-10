@@ -228,9 +228,11 @@ class Angie:
         source: Annotated[dagger.Directory | None, Doc("Override source directory (uses constructor source if omitted)")] = None,
         base: Annotated[str, Doc("Base branch for the pull request")] = "main",
     ) -> str:
-        """Read a GitHub issue, implement it with the assist agent, and create a Pull Request.
+        """Read a GitHub issue, route it to the best agent, and create a Pull Request.
 
-        Comments on the issue with a summary of the work done and a link to the PR.
+        A router LLM reads the issue and selects the optimal function — assist,
+        upgrade, build, or write-tests — then calls it with extracted parameters.
+        Comments on the issue with a summary and a link to the PR.
         Returns the PR URL.
         """
         workspace = source or self.source
@@ -242,8 +244,29 @@ class Angie:
         body = await issue.body()
         url = await issue.url()
 
-        # Run the coding agent
-        result = await self.assist(assignment=body, source=workspace)
+        # Route the issue to the best agent function
+        context_md = await self._read_context_file(workspace)
+        router_prompt = await self._load_prompt("router_prompt.md").contents()
+
+        env = (
+            dag.env()
+            .with_workspace(workspace)
+            .with_string_input("issue_title", title, "The GitHub issue title")
+            .with_string_input("issue_body", body, "The GitHub issue body")
+        )
+
+        router = (
+            dag.llm()
+            .with_env(env.with_current_module())
+            .with_mcp_server("angular", self._angular_mcp_service())
+            .with_system_prompt(router_prompt + context_md)
+            .with_blocked_function("Angie", "develop_github_issue")
+            .with_blocked_function("Angie", "task")
+            .with_blocked_function("Angie", "review")
+            .with_prompt(f"## GitHub Issue: {title}\n\n{body}")
+        )
+
+        result = router.env().workspace()
 
         # Create a PR from the modified workspace
         pr = gh.create_pull_request(
