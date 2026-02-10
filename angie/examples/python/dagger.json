@@ -1,0 +1,13 @@
+{
+  "name": "angie-examples",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "python"
+  },
+  "dependencies": [
+    {
+      "name": "angie",
+      "source": "../.."
+    }
+  ]
+}

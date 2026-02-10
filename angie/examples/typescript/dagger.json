@@ -1,0 +1,13 @@
+{
+  "name": "angie-examples",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "typescript"
+  },
+  "dependencies": [
+    {
+      "name": "angie",
+      "source": "../.."
+    }
+  ]
+}
