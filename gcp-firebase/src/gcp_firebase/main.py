@@ -93,19 +93,19 @@ class GcpFirebase:
     def build(
         self,
         source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory")],
-        build_command: Annotated[str, Doc("Build command")] = "npm run build",
+        build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = "npm run build",
         node_version: Annotated[str, Doc("Node.js version")] = "20",
     ) -> dagger.Directory:
         """Build the web application and return the dist directory."""
-        return (
+        container = (
             dag.container()
             .from_(f"node:{node_version}-alpine")
             .with_directory("/app", source)
             .with_workdir("/app")
-            .with_exec(["npm", "ci"])
-            .with_exec(["sh", "-c", build_command])
-            .directory("/app/dist")
         )
+        if build_command.strip():
+            container = container.with_exec(["npm", "ci"]).with_exec(["sh", "-c", build_command])
+        return container.directory("/app/dist")
 
     @function
     async def deploy(
@@ -121,7 +121,7 @@ class GcpFirebase:
         # Legacy access token auth (deprecated)
         access_token: Annotated[dagger.Secret | None, Doc("GCP access token (deprecated, use OIDC or credentials)")] = None,
         # Build options
-        build_command: Annotated[str, Doc("Build command")] = "npm run build",
+        build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = "npm run build",
         node_version: Annotated[str, Doc("Node.js version")] = "20",
         deploy_functions: Annotated[bool, Doc("Deploy Cloud Functions")] = True,
         force: Annotated[bool, Doc("Force deployment")] = True,
@@ -145,9 +145,9 @@ class GcpFirebase:
             )
             .with_directory("/app", source)
             .with_workdir("/app")
-            .with_exec(["npm", "ci"])
-            .with_exec(["sh", "-c", build_command])
         )
+        if build_command.strip():
+            container = container.with_exec(["npm", "ci"]).with_exec(["sh", "-c", build_command])
         if deploy_functions:
             container = container.with_exec(["sh", "-c", "cd functions && npm ci"])
 
@@ -171,7 +171,7 @@ class GcpFirebase:
         # Legacy access token auth (deprecated)
         access_token: Annotated[dagger.Secret | None, Doc("GCP access token (deprecated, use OIDC or credentials)")] = None,
         # Build options
-        build_command: Annotated[str, Doc("Build command")] = "npm run build",
+        build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = "npm run build",
         node_version: Annotated[str, Doc("Node.js version")] = "20",
         expires: Annotated[str, Doc("Channel expiration")] = "7d",
     ) -> str:
@@ -182,7 +182,7 @@ class GcpFirebase:
         2. Service account: Provide credentials (JSON key)
         3. Access token (deprecated): Provide access_token
         """
-        output = await (
+        container = (
             self._firebase_container(
                 node_version=node_version,
                 oidc_token=oidc_token,
@@ -193,8 +193,11 @@ class GcpFirebase:
             )
             .with_directory("/app", source)
             .with_workdir("/app")
-            .with_exec(["npm", "ci"])
-            .with_exec(["sh", "-c", build_command])
+        )
+        if build_command.strip():
+            container = container.with_exec(["npm", "ci"]).with_exec(["sh", "-c", build_command])
+        output = await (
+            container
             .with_exec([
                 "firebase", "hosting:channel:deploy", channel_id,
                 "--project", project_id, "--expires", expires, "--non-interactive",
