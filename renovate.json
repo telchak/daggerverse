@@ -28,7 +28,7 @@
     },
     {
       "description": "uv_build version is dictated by Dagger's Python SDK template — do not update independently",
-      "matchPackageNames": ["uv_build"],
+      "matchPackageNames": ["uv_build", "uv-build", "uv.build"],
       "enabled": false
     }
   ]
