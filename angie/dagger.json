@@ -1,0 +1,8 @@
+{
+  "name": "angie",
+  "description": "AI-powered Angular development agent with MCP integration",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "python"
+  }
+}
