@@ -28,6 +28,7 @@ dagger install github.com/certainty-labs/daggerverse/angie@<version>
 | `write-tests` | Generate unit/integration/e2e tests for components and services |
 | `build` | Build, compile, or lint the project — diagnoses errors and suggests fixes |
 | `upgrade` | Upgrade Angular version — detects current version, applies breaking changes |
+| `develop-github-issue` | Read a GitHub issue, implement it, create a PR, and comment on the issue |
 
 ## Quick Start
 
@@ -100,6 +101,76 @@ dagger call upgrade \
   --target-version="19" \
   --dry-run
 ```
+
+## GitHub Integration
+
+The `develop-github-issue` function enables a full issue-to-PR workflow: read a GitHub issue, implement the changes with the `assist` agent, create a Pull Request, and comment on the issue with a summary — all in one step.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `--github-token` | GitHub token (as a Dagger secret) with `repo` and `pull-requests` permissions | Yes |
+| `--issue-id` | GitHub issue number | Yes |
+| `--repository` | GitHub repository URL (e.g. `https://github.com/owner/repo`) | Yes |
+| `--source` | Angular project source directory | No (uses constructor source) |
+| `--base` | Base branch for the PR | No (defaults to `main`) |
+
+### CLI Usage
+
+```shell
+dagger call develop-github-issue \
+  --github-token=env:GITHUB_TOKEN \
+  --issue-id=42 \
+  --repository="https://github.com/owner/my-angular-app" \
+  --source=.
+```
+
+### GitHub Actions Workflow
+
+Create `.github/workflows/develop.yml` in your repository:
+
+```yaml
+name: Angie — Develop Issue
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  develop:
+    if: github.event.label.name == 'angie'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dagger
+        uses: dagger/dagger-for-github@v7
+        with:
+          verb: call
+          version: "latest"
+          module: github.com/certainty-labs/daggerverse/angie
+          args: >-
+            develop-github-issue
+            --github-token=env:GITHUB_TOKEN
+            --issue-id=${{ github.event.issue.number }}
+            --repository="${{ github.server_url }}/${{ github.repository }}"
+            --source=.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Optional: DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+```
+
+### Setup
+
+1. **Enable PR creation in Actions**: Go to repository Settings → Actions → General → Workflow permissions → select "Read and write permissions" and check "Allow GitHub Actions to create and approve pull requests"
+2. **Add LLM API key**: Go to Settings → Secrets and variables → Actions → add your LLM provider key (e.g. `ANTHROPIC_API_KEY`)
+3. **Label an issue**: Add the `angie` label to any issue — the workflow will trigger, implement the changes, and open a PR
 
 ## Constructor Options
 

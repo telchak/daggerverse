@@ -3,7 +3,7 @@
  *
  * Demonstrates local development and CI/CD use cases.
  */
-import { dag, Directory, object, func } from "@dagger.io/dagger"
+import { dag, Directory, Secret, object, func } from "@dagger.io/dagger"
 
 @object()
 export class AngieExamples {
@@ -52,6 +52,33 @@ export class AngieExamples {
     targetVersion: string,
   ): Promise<Directory> {
     return dag.angie({ source }).upgrade({ targetVersion, dryRun: true })
+  }
+
+  // ========== GITHUB INTEGRATION ==========
+
+  /**
+   * Example: Read a GitHub issue, implement it, and create a PR.
+   *
+   * In GitHub Actions (triggered by labeling an issue):
+   *   dagger call -m github.com/certainty-labs/daggerverse/angie \
+   *     develop-github-issue \
+   *     --github-token=env:GITHUB_TOKEN \
+   *     --issue-id=42 \
+   *     --repository="https://github.com/owner/repo" \
+   *     --source=.
+   */
+  @func()
+  async developGithubIssue(
+    source: Directory,
+    githubToken: Secret,
+    issueId: number,
+    repository: string,
+  ): Promise<string> {
+    return dag.angie({ source }).developGithubIssue({
+      githubToken,
+      issueId,
+      repository,
+    })
   }
 
   // ========== CI/CD PIPELINE ==========

@@ -87,6 +87,7 @@ class Angie:
             .with_blocked_function("Angie", "write_tests")
             .with_blocked_function("Angie", "build")
             .with_blocked_function("Angie", "upgrade")
+            .with_blocked_function("Angie", "develop_github_issue")
             .with_prompt_file(self._load_prompt(prompt_file))
         )
 
@@ -215,6 +216,53 @@ class Angie:
 
         work = await self._build_llm(env, "upgrade_prompt.md", workspace)
         return work.env().workspace()
+
+    # --- GitHub integration ---
+
+    @function
+    async def develop_github_issue(
+        self,
+        github_token: Annotated[dagger.Secret, Doc("GitHub token with repo and pull-request permissions")],
+        issue_id: Annotated[int, Doc("GitHub issue number")],
+        repository: Annotated[str, Doc("GitHub repository URL (e.g. 'https://github.com/owner/repo')")],
+        source: Annotated[dagger.Directory | None, Doc("Override source directory (uses constructor source if omitted)")] = None,
+        base: Annotated[str, Doc("Base branch for the pull request")] = "main",
+    ) -> str:
+        """Read a GitHub issue, implement it with the assist agent, and create a Pull Request.
+
+        Comments on the issue with a summary of the work done and a link to the PR.
+        Returns the PR URL.
+        """
+        workspace = source or self.source
+        gh = dag.github_issue(token=github_token)
+
+        # Read the issue
+        issue = gh.read(repository, issue_id)
+        title = await issue.title()
+        body = await issue.body()
+        url = await issue.url()
+
+        # Run the coding agent
+        result = await self.assist(assignment=body, source=workspace)
+
+        # Create a PR from the modified workspace
+        pr = gh.create_pull_request(
+            repo=repository,
+            title=title,
+            body=f"{body}\n\nCloses {url}",
+            source=result,
+            base=base,
+        )
+        pr_url = await pr.url()
+
+        # Comment on the issue with the PR link
+        await gh.write_comment(
+            repo=repository,
+            issue_id=issue_id,
+            body=f"I've implemented this issue and opened a pull request: {pr_url}",
+        )
+
+        return pr_url
 
     # --- Workspace tools (exposed to LLM via with_current_module) ---
 
@@ -364,6 +412,7 @@ class Angie:
             .with_blocked_function("Angie", "write_tests")
             .with_blocked_function("Angie", "build")
             .with_blocked_function("Angie", "upgrade")
+            .with_blocked_function("Angie", "develop_github_issue")
             .with_blocked_function("Angie", "task")
             .with_prompt(f"## Task: {description}\n\n{prompt}")
         )

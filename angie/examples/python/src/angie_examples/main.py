@@ -3,7 +3,7 @@
 from typing import Annotated
 
 import dagger
-from dagger import Doc, dag, function, object_type
+from dagger import Doc, Secret, dag, function, object_type
 
 
 @object_type
@@ -61,6 +61,32 @@ class AngieExamples:
         return dag.angie(source=source).upgrade(
             target_version=target_version,
             dry_run=True,
+        )
+
+    # ========== GITHUB INTEGRATION ==========
+
+    @function
+    async def develop_github_issue(
+        self,
+        source: Annotated[dagger.Directory, Doc("Angular project source directory")],
+        github_token: Annotated[Secret, Doc("GitHub token with repo + PR permissions")],
+        issue_id: Annotated[int, Doc("GitHub issue number")],
+        repository: Annotated[str, Doc("GitHub repository URL")],
+    ) -> str:
+        """Example: Read a GitHub issue, implement it, and create a PR.
+
+        In GitHub Actions (triggered by labeling an issue):
+          dagger call -m github.com/certainty-labs/daggerverse/angie \\
+            develop-github-issue \\
+            --github-token=env:GITHUB_TOKEN \\
+            --issue-id=42 \\
+            --repository="https://github.com/owner/repo" \\
+            --source=.
+        """
+        return await dag.angie(source=source).develop_github_issue(
+            github_token=github_token,
+            issue_id=issue_id,
+            repository=repository,
         )
 
     # ========== CI/CD PIPELINE ==========
