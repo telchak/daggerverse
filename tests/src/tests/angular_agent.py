@@ -18,35 +18,30 @@ def _clone_realworld() -> dagger.Directory:
 
 
 async def test_angie_assist(source: dagger.Directory) -> str:
-    """Test assist: ask the agent to explain the project architecture."""
+    """Test assist: ask the agent to add a component — returns a Directory."""
     agent = dag.angie(source=source)
 
     result = await agent.assist(
         assignment=(
-            "Analyze this Angular project and explain its architecture. "
-            "List the main features, routing structure, and how state management "
-            "is handled. Mention the Angular version and key dependencies."
+            "Analyze this Angular project and describe its architecture. "
+            "List the main features, routing structure, and key dependencies. "
+            "Then create a file called ARCHITECTURE.md with your findings."
         ),
     )
 
-    if not result:
-        raise Exception("assist returned empty result")
+    # result is a Directory — verify it has files
+    entries = await result.entries()
+    if not entries:
+        raise Exception("assist returned empty directory")
 
-    # The agent should identify it as an Angular app and mention key aspects
-    result_lower = result.lower()
-    checks = []
-    if "angular" in result_lower:
-        checks.append("mentions Angular")
-    if "component" in result_lower:
-        checks.append("mentions components")
-    if "route" in result_lower or "routing" in result_lower:
-        checks.append("mentions routing")
+    has_new_file = "ARCHITECTURE.md" in entries
+    has_source = "src" in entries
 
-    return f"PASS: assist ({len(result)} chars, detected: {', '.join(checks) or 'none'})"
+    return f"PASS: assist (files={len(entries)}, new_file={has_new_file}, has_src={has_source})"
 
 
 async def test_angie_review(source: dagger.Directory) -> str:
-    """Test review: review the project for Angular best practices."""
+    """Test review: review the project for Angular best practices — returns str."""
     agent = dag.angie(source=source)
 
     result = await agent.review(
@@ -67,7 +62,7 @@ async def test_angie_review(source: dagger.Directory) -> str:
 
 
 async def test_angie_write_tests(source: dagger.Directory) -> str:
-    """Test write-tests: generate tests for a specific component."""
+    """Test write-tests: generate tests — returns a Directory with test files."""
     agent = dag.angie(source=source)
 
     result = await agent.write_tests(
@@ -75,40 +70,37 @@ async def test_angie_write_tests(source: dagger.Directory) -> str:
         test_framework="vitest",
     )
 
-    if not result:
-        raise Exception("write_tests returned empty result")
+    # result is a Directory — verify it still has project files
+    entries = await result.entries()
+    if not entries:
+        raise Exception("write_tests returned empty directory")
 
-    # The agent should produce test-related output
-    result_lower = result.lower()
-    has_test_content = any(
-        keyword in result_lower
-        for keyword in ("describe", "test", "spec", "expect", "it(")
-    )
+    # Check for test files in the workspace
+    test_files = await result.glob("**/*.spec.ts")
+    has_source = "src" in entries
 
-    return f"PASS: write_tests ({len(result)} chars, test_content={has_test_content})"
+    return f"PASS: write_tests (files={len(entries)}, spec_files={len(test_files)}, has_src={has_source})"
 
 
 async def test_angie_build(source: dagger.Directory) -> str:
-    """Test build: analyze the build configuration."""
+    """Test build: analyze and fix build — returns a Directory."""
     agent = dag.angie(source=source)
 
     result = await agent.build()
 
-    if not result:
-        raise Exception("build returned empty result")
+    # result is a Directory — verify it has project files
+    entries = await result.entries()
+    if not entries:
+        raise Exception("build returned empty directory")
 
-    # The agent should analyze angular.json, package.json, tsconfig
-    result_lower = result.lower()
-    has_build_info = any(
-        keyword in result_lower
-        for keyword in ("angular.json", "package.json", "tsconfig", "build", "ng build")
-    )
+    has_source = "src" in entries
+    has_config = "angular.json" in entries
 
-    return f"PASS: build ({len(result)} chars, build_info={has_build_info})"
+    return f"PASS: build (files={len(entries)}, has_src={has_source}, has_config={has_config})"
 
 
 async def test_angie_upgrade_dry_run(source: dagger.Directory) -> str:
-    """Test upgrade: dry-run upgrade analysis (no file modifications)."""
+    """Test upgrade: dry-run upgrade — returns a Directory (unchanged in dry-run)."""
     agent = dag.angie(source=source)
 
     result = await agent.upgrade(
@@ -116,14 +108,12 @@ async def test_angie_upgrade_dry_run(source: dagger.Directory) -> str:
         dry_run=True,
     )
 
-    if not result:
-        raise Exception("upgrade dry_run returned empty result")
+    # result is a Directory — should still have project files
+    entries = await result.entries()
+    if not entries:
+        raise Exception("upgrade dry_run returned empty directory")
 
-    # The agent should detect the current version and analyze upgrade path
-    result_lower = result.lower()
-    has_version_info = any(
-        keyword in result_lower
-        for keyword in ("version", "angular", "upgrade", "breaking", "current")
-    )
+    has_source = "src" in entries
+    has_package = "package.json" in entries
 
-    return f"PASS: upgrade dry_run ({len(result)} chars, version_info={has_version_info})"
+    return f"PASS: upgrade dry_run (files={len(entries)}, has_src={has_source}, has_package={has_package})"

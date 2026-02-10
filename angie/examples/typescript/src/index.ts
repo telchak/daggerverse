@@ -15,12 +15,15 @@ export class AngieExamples {
    * Run from your Angular project root:
    *   dagger call -m github.com/certainty-labs/daggerverse/angie \
    *     assist --source=. --assignment="Add a search component with debounce"
+   *
+   * Export modified files back:
+   *   dagger call -m ... assist --source=. --assignment="..." export --path=.
    */
   @func()
   async assistLocal(
     source: Directory,
     assignment: string = "Analyze this project and describe its architecture.",
-  ): Promise<string> {
+  ): Promise<Directory> {
     return dag.angie({ source }).assist({ assignment })
   }
 
@@ -47,7 +50,7 @@ export class AngieExamples {
   async upgradeLocal(
     source: Directory,
     targetVersion: string,
-  ): Promise<string> {
+  ): Promise<Directory> {
     return dag.angie({ source }).upgrade({ targetVersion, dryRun: true })
   }
 
@@ -80,7 +83,7 @@ export class AngieExamples {
   async ciGenerateTests(
     source: Directory,
     target: string = "",
-  ): Promise<string> {
+  ): Promise<Directory> {
     return dag.angie({ source }).writeTests({ target })
   }
 
@@ -95,7 +98,7 @@ export class AngieExamples {
   async ciBuildAndFix(
     source: Directory,
     command: string = "ng build --configuration production",
-  ): Promise<string> {
+  ): Promise<Directory> {
     return dag.angie({ source }).build({ command })
   }
 
@@ -110,7 +113,7 @@ export class AngieExamples {
   async ciUpgradeCheck(
     source: Directory,
     targetVersion: string,
-  ): Promise<string> {
+  ): Promise<Directory> {
     return dag.angie({ source }).upgrade({ targetVersion, dryRun: true })
   }
 }

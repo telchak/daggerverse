@@ -15,7 +15,7 @@ class Angie:
     and searching files.
 
     Pass your Angular project as --source and use the agent entrypoints
-    (assist, review, write-tests, build) to work with your code.
+    (assist, review, write-tests, build, upgrade) to work with your code.
     """
 
     source: Annotated[
@@ -97,23 +97,23 @@ class Angie:
         self,
         assignment: Annotated[str, Doc("What you want the agent to do (e.g. 'Add a login component with reactive forms')")],
         source: Annotated[dagger.Directory | None, Doc("Override source directory (uses constructor source if omitted)")] = None,
-    ) -> str:
+    ) -> dagger.Directory:
         """General Angular coding assistant.
 
         Reads code, answers questions, implements features, refactors,
         and uses Angular CLI MCP tools for docs and best practices.
+        Returns the modified workspace directory.
         """
         workspace = source or self.source
 
         env = (
             dag.env()
+            .with_workspace(workspace)
             .with_string_input("assignment", assignment, "The coding task to accomplish")
-            .with_directory_input("source", workspace, "Angular project source directory")
-            .with_string_output("result", "The result of the coding task")
         )
 
         work = await self._build_llm(env, "assist_prompt.md", workspace)
-        return await work.env().output("result").as_string()
+        return work.env().workspace()
 
     @function
     async def review(
@@ -125,12 +125,13 @@ class Angie:
         """Review Angular code for best practices, performance, accessibility, and type safety.
 
         Provides structured feedback with issues, suggestions, and a summary.
+        Returns the review as text (no files modified).
         """
         workspace = source or self.source
 
         env = (
             dag.env()
-            .with_directory_input("source", workspace, "Angular project source directory")
+            .with_workspace(workspace)
             .with_string_output("result", "The code review result")
         )
 
@@ -148,18 +149,15 @@ class Angie:
         source: Annotated[dagger.Directory | None, Doc("Source directory (uses constructor source if omitted)")] = None,
         target: Annotated[str, Doc("Specific file or component to write tests for (optional)")] = "",
         test_framework: Annotated[str, Doc("Test framework preference: 'jest', 'karma', 'vitest' (optional)")] = "",
-    ) -> str:
+    ) -> dagger.Directory:
         """Generate unit, integration, or e2e tests for Angular components and services.
 
         Follows Angular testing patterns and uses the project's existing test setup.
+        Returns the workspace directory with generated test files.
         """
         workspace = source or self.source
 
-        env = (
-            dag.env()
-            .with_directory_input("source", workspace, "Angular project source directory")
-            .with_string_output("result", "The test generation result")
-        )
+        env = dag.env().with_workspace(workspace)
 
         if target:
             env = env.with_string_input("target", target, "Specific file or component to write tests for")
@@ -167,31 +165,28 @@ class Angie:
             env = env.with_string_input("test_framework", test_framework, "Test framework preference")
 
         work = await self._build_llm(env, "write_tests_prompt.md", workspace)
-        return await work.env().output("result").as_string()
+        return work.env().workspace()
 
     @function
     async def build(
         self,
         source: Annotated[dagger.Directory | None, Doc("Source directory (uses constructor source if omitted)")] = None,
         command: Annotated[str, Doc("Build command to run (e.g. 'ng build --configuration production')")] = "",
-    ) -> str:
+    ) -> dagger.Directory:
         """Build, compile, or lint an Angular project.
 
         Diagnoses build errors and suggests fixes using Angular CLI MCP tools.
+        Returns the workspace directory with any fixes applied.
         """
         workspace = source or self.source
 
-        env = (
-            dag.env()
-            .with_directory_input("source", workspace, "Angular project source directory")
-            .with_string_output("result", "The build result including any errors and fixes")
-        )
+        env = dag.env().with_workspace(workspace)
 
         if command:
             env = env.with_string_input("command", command, "Build command to run")
 
         work = await self._build_llm(env, "build_prompt.md", workspace)
-        return await work.env().output("result").as_string()
+        return work.env().workspace()
 
     @function
     async def upgrade(
@@ -199,30 +194,27 @@ class Angie:
         target_version: Annotated[str, Doc("Target Angular version (e.g. '19', '18.2', '20.0.0')")],
         source: Annotated[dagger.Directory | None, Doc("Source directory (uses constructor source if omitted)")] = None,
         dry_run: Annotated[bool, Doc("Analyze and report changes without modifying files")] = False,
-    ) -> str:
+    ) -> dagger.Directory:
         """Upgrade an Angular project to a target version.
 
         Detects the current Angular version, researches breaking changes and
         migration steps between versions, analyzes the codebase for impacted
         code, and applies the necessary modifications.
-
-        Uses the Angular CLI MCP modernize tool and official update guide
-        to ensure a complete and correct upgrade.
+        Returns the workspace directory with upgrade changes applied.
         """
         workspace = source or self.source
 
         env = (
             dag.env()
+            .with_workspace(workspace)
             .with_string_input("target_version", target_version, "Target Angular version to upgrade to")
-            .with_directory_input("source", workspace, "Angular project source directory")
-            .with_string_output("result", "The upgrade result with changes applied and summary")
         )
 
         if dry_run:
             env = env.with_string_input("dry_run", "true", "Only analyze and report, do not modify files")
 
         work = await self._build_llm(env, "upgrade_prompt.md", workspace)
-        return await work.env().output("result").as_string()
+        return work.env().workspace()
 
     # --- Workspace tools (exposed to LLM via with_current_module) ---
 
@@ -253,30 +245,41 @@ class Angie:
         old_string: Annotated[str, Doc("The exact string to find and replace")],
         new_string: Annotated[str, Doc("The replacement string")],
         replace_all: Annotated[bool, Doc("Replace all occurrences (default: first only)")] = False,
-    ) -> str:
-        """Edit a file by replacing a string. The old_string must match exactly."""
-        contents = await self.source.file(file_path).contents()
+    ) -> dagger.Changeset:
+        """Edit a file by replacing a string. The old_string must match exactly.
+
+        Returns a changeset showing the diff.
+        """
+        before = self.source
+        contents = await before.file(file_path).contents()
 
         if old_string not in contents:
-            return f"ERROR: old_string not found in {file_path}"
+            msg = f"old_string not found in {file_path}"
+            raise ValueError(msg)
 
         if replace_all:
             new_contents = contents.replace(old_string, new_string)
         else:
             new_contents = contents.replace(old_string, new_string, 1)
 
-        self.source = self.source.with_new_file(file_path, new_contents)
-        return f"OK: edited {file_path}"
+        after = before.with_new_file(file_path, new_contents)
+        self.source = after
+        return after.changes(before)
 
     @function
     async def write_file(
         self,
         file_path: Annotated[str, Doc("Path to the file relative to the workspace root")],
         contents: Annotated[str, Doc("The full file contents to write")],
-    ) -> str:
-        """Create or overwrite a file in the workspace."""
-        self.source = self.source.with_new_file(file_path, contents)
-        return f"OK: wrote {file_path}"
+    ) -> dagger.Changeset:
+        """Create or overwrite a file in the workspace.
+
+        Returns a changeset showing the diff.
+        """
+        before = self.source
+        after = before.with_new_file(file_path, contents)
+        self.source = after
+        return after.changes(before)
 
     @function
     async def glob(
@@ -345,9 +348,9 @@ class Angie:
 
         env = (
             dag.env()
+            .with_workspace(self.source)
             .with_string_input("task_description", description, "The sub-task description")
             .with_string_input("task_prompt", prompt, "Detailed instructions for the sub-task")
-            .with_directory_input("source", self.source, "Angular project source (read-only)")
             .with_string_output("result", "The sub-task result")
         )
 
