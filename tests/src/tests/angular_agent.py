@@ -3,6 +3,9 @@
 Uses the RealWorld Angular example app as a realistic test target:
 https://github.com/realworld-apps/angular-realworld-example-app
 (Angular 21, standalone components, vitest, playwright, signals)
+
+The develop-github-issue test uses a dedicated test repo:
+https://github.com/telchak/angular-dagger-template
 """
 
 import dagger
@@ -10,6 +13,9 @@ from dagger import dag
 
 REALWORLD_REPO = "https://github.com/realworld-apps/angular-realworld-example-app.git"
 REALWORLD_BRANCH = "main"
+
+TEST_TEMPLATE_REPO = "https://github.com/telchak/angular-dagger-template"
+TEST_TEMPLATE_ISSUE_ID = 1
 
 
 def _clone_realworld() -> dagger.Directory:
@@ -117,3 +123,37 @@ async def test_angie_upgrade_dry_run(source: dagger.Directory) -> str:
     has_package = "package.json" in entries
 
     return f"PASS: upgrade dry_run (files={len(entries)}, has_src={has_source}, has_package={has_package})"
+
+
+def _clone_template() -> dagger.Directory:
+    """Clone the Angular test template repo."""
+    return dag.git(f"{TEST_TEMPLATE_REPO}.git").branch("main").tree()
+
+
+async def test_angie_develop_github_issue(
+    github_token: dagger.Secret,
+    issue_id: int = TEST_TEMPLATE_ISSUE_ID,
+    repository: str = TEST_TEMPLATE_REPO,
+) -> str:
+    """Test develop-github-issue: route an issue, implement it, create a PR.
+
+    Uses telchak/angular-dagger-template issue #1 (Add unit tests for AppComponent).
+    The router should select write_tests. Verifies a PR URL is returned.
+    """
+    source = _clone_template()
+    agent = dag.angie(source=source)
+
+    pr_url = await agent.develop_github_issue(
+        github_token=github_token,
+        issue_id=issue_id,
+        repository=repository,
+        source=source,
+    )
+
+    if not pr_url:
+        raise Exception("develop_github_issue returned empty result")
+
+    if not pr_url.startswith("https://"):
+        raise Exception(f"develop_github_issue returned invalid PR URL: {pr_url}")
+
+    return f"PASS: develop_github_issue (pr_url={pr_url})"

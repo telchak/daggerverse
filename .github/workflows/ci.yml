@@ -143,8 +143,65 @@ jobs:
           echo "${{ steps.test.outputs.output }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
+  test-angie-github-issue:
+    needs: [validate]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Dagger
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "0.19.11"
+          verb: version
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+      - name: Test angie develop-github-issue
+        id: test
+        env:
+          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+          ANGIE_TEST_GITHUB_TOKEN: ${{ secrets.ANGIE_TEST_GITHUB_TOKEN }}
+        run: |
+          OUTPUT=$(dagger call -m tests angie-develop-github-issue \
+            --github-token=env:ANGIE_TEST_GITHUB_TOKEN \
+            2>&1) || { echo "$OUTPUT"; exit 1; }
+          echo "$OUTPUT"
+
+          RESULTS=$(echo "$OUTPUT" | grep -E '^\s*\[(OK|!!|--)\]|^PASS:|^FAIL:' || true)
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESULTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Cleanup test PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.ANGIE_TEST_GITHUB_TOKEN }}
+        run: |
+          PR_URL=$(echo "${{ steps.test.outputs.output }}" | grep -oP 'pr_url=\K[^\)]+' || true)
+          if [[ -n "$PR_URL" ]]; then
+            gh pr close "$PR_URL" --delete-branch || true
+            echo "Closed PR and deleted branch: $PR_URL"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Test: angie-develop-github-issue" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.test.outcome }}" == "success" ]; then
+            echo ":white_check_mark: **PASSED**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo ":x: **FAILED**" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.test.outputs.output }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
   release:
-    needs: [discover, test]
+    needs: [discover, test, test-angie-github-issue]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:

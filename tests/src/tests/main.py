@@ -20,6 +20,7 @@ from .angular_agent import (
     _clone_realworld,
     test_angie_assist,
     test_angie_build,
+    test_angie_develop_github_issue,
     test_angie_review,
     test_angie_upgrade_dry_run,
     test_angie_write_tests,
@@ -102,6 +103,26 @@ class Tests:
         results.append(await test_angie_upgrade_dry_run(source=source))
 
         return "\n".join(results)
+
+    @function
+    async def angie_develop_github_issue(
+        self,
+        github_token: Annotated[dagger.Secret, Doc("GitHub PAT with contents, pull-requests, and issues write access to the test repo")],
+        issue_id: Annotated[int, Doc("Test issue number")] = 1,
+        repository: Annotated[str, Doc("Test repository URL")] = "https://github.com/telchak/angular-dagger-template",
+    ) -> str:
+        """Run Angie develop-github-issue test.
+
+        Tests the full issue-to-PR workflow against telchak/angular-dagger-template.
+        The router reads issue #1 (Add unit tests for AppComponent) and should
+        route to write_tests, then create a PR with the generated test files.
+        """
+        result = await test_angie_develop_github_issue(
+            github_token=github_token,
+            issue_id=issue_id,
+            repository=repository,
+        )
+        return result
 
     @function
     async def all_no_credentials(self) -> str:
