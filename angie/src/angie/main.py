@@ -3,7 +3,7 @@
 from typing import Annotated
 
 import dagger
-from dagger import Doc, dag, field, function, object_type
+from dagger import DefaultPath, Doc, dag, field, function, object_type
 
 
 @object_type
@@ -21,6 +21,7 @@ class Angie:
     source: Annotated[
         dagger.Directory,
         Doc("Angular project source directory"),
+        DefaultPath("/"),
     ] = field()
     node_version: Annotated[
         str,
@@ -55,8 +56,6 @@ class Angie:
     async def _read_context_file(self, source: dagger.Directory | None = None) -> str:
         """Read per-repo context from ANGIE.md, AGENT.md, or CLAUDE.md."""
         target = source or self.source
-        if not target:
-            return ""
         entries = await target.entries()
         for name in ("ANGIE.md", "AGENT.md", "CLAUDE.md"):
             if name in entries:
