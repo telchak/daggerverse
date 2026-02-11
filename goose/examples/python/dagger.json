@@ -1,12 +1,12 @@
 {
-  "name": "gcp-orchestrator-agent-examples",
-  "engineVersion": "v0.19.8",
+  "name": "goose-examples",
+  "engineVersion": "v0.19.11",
   "sdk": {
     "source": "python"
   },
   "dependencies": [
     {
-      "name": "gcp-orchestrator-agent",
+      "name": "goose",
       "source": "../.."
     },
     {

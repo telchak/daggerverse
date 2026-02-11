@@ -17,15 +17,50 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       modules: ${{ steps.find.outputs.modules }}
+      agents: ${{ steps.find.outputs.agents }}
+      agent_tests: ${{ steps.find.outputs.agent_tests }}
     steps:
       - uses: actions/checkout@v6
-      - name: Find modules
+      - name: Find modules and agents
         id: find
         run: |
-          MODULES=$(find . -maxdepth 2 -name "dagger.json" -not -path "./tests/*" | \
-            xargs -I {} dirname {} | sed 's|^\./||' | sort -u | \
-            jq -R -s -c 'split("\n") | map(select(length > 0))')
-          echo "modules=$MODULES" >> $GITHUB_OUTPUT
+          # Find all modules with dagger.json (excluding tests/)
+          ALL=$(find . -maxdepth 2 -name "dagger.json" -not -path "./tests/*" | \
+            xargs -I {} dirname {} | sed 's|^\./||' | sort -u)
+
+          # Classify: agent if it has a src/*/prompts/ directory
+          AGENTS=()
+          MODULES=()
+          for mod in $ALL; do
+            if ls "$mod"/src/*/prompts/ >/dev/null 2>&1; then
+              AGENTS+=("$mod")
+            else
+              MODULES+=("$mod")
+            fi
+          done
+
+          # Output non-agent modules as JSON array
+          MODULES_JSON=$(printf '%s\n' "${MODULES[@]}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "modules=$MODULES_JSON" >> $GITHUB_OUTPUT
+
+          # Output agent names as JSON array
+          AGENTS_JSON=$(printf '%s\n' "${AGENTS[@]}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "agents=$AGENTS_JSON" >> $GITHUB_OUTPUT
+
+          # Build flat agent test list: agent-assist, agent-review, etc.
+          AGENT_TESTS=()
+          for agent in "${AGENTS[@]}"; do
+            for test in assist review write-tests build upgrade; do
+              AGENT_TESTS+=("${agent}-${test}")
+            done
+          done
+          AGENT_TESTS_JSON=$(printf '%s\n' "${AGENT_TESTS[@]}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "agent_tests=$AGENT_TESTS_JSON" >> $GITHUB_OUTPUT
+
+          echo "### Discovered modules" >> $GITHUB_STEP_SUMMARY
+          echo "**Modules:** $MODULES_JSON" >> $GITHUB_STEP_SUMMARY
+          echo "**Agents:** $AGENTS_JSON" >> $GITHUB_STEP_SUMMARY
+          echo "**Agent tests:** $AGENT_TESTS_JSON" >> $GITHUB_STEP_SUMMARY
 
   validate:
     needs: discover
@@ -40,9 +75,12 @@ jobs:
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
       - name: Validate modules
         run: |
+          # Combine modules and agents for validation
+          ALL_MODULES=$(echo '${{ needs.discover.outputs.modules }}' '${{ needs.discover.outputs.agents }}' | jq -s 'add')
+
           echo "## Modules" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
+          for module in $(echo "$ALL_MODULES" | jq -r '.[]'); do
             [ -f "$module/dagger.json" ] || { echo "ERROR: $module/dagger.json missing"; exit 1; }
             grep -q '"description"' "$module/dagger.json" || { echo "ERROR: $module missing description"; exit 1; }
             [ -f "$module/README.md" ] || { echo "ERROR: $module/README.md missing"; exit 1; }
@@ -62,7 +100,7 @@ jobs:
             } >> $GITHUB_STEP_SUMMARY
           done
 
-  test:
+  test-modules:
     needs: [discover, validate]
     runs-on: ubuntu-latest
     permissions:
@@ -143,6 +181,57 @@ jobs:
           echo "${{ steps.test.outputs.output }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
+  test-agents:
+    needs: [discover, validate]
+    if: ${{ fromJson(needs.discover.outputs.agent_tests)[0] != null }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJson(needs.discover.outputs.agent_tests) }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Dagger
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "0.19.11"
+          verb: version
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+      - name: Test ${{ matrix.test }}
+        id: test
+        env:
+          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+        run: |
+          # Convert agent-test-name to dagger function name (e.g. angie-assist)
+          FUNC="${{ matrix.test }}"
+
+          OUTPUT=$(dagger call -m tests "$FUNC" 2>&1) || { echo "$OUTPUT"; exit 1; }
+          echo "$OUTPUT"
+
+          RESULTS=$(echo "$OUTPUT" | grep -E '^\s*\[(OK|!!|--)\]|^PASS:|^FAIL:' || true)
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESULTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Test: ${{ matrix.test }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.test.outcome }}" == "success" ]; then
+            echo ":white_check_mark: **PASSED**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo ":x: **FAILED**" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.test.outputs.output }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
   test-angie-github-issue:
     needs: [validate]
     runs-on: ubuntu-latest
@@ -201,7 +290,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   release:
-    needs: [discover, test, test-angie-github-issue]
+    needs: [discover, test-modules, test-agents, test-angie-github-issue]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -223,7 +312,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
+          # Combine modules and agents for tagging
+          ALL_MODULES=$(echo '${{ needs.discover.outputs.modules }}' '${{ needs.discover.outputs.agents }}' | jq -s 'add')
+          for module in $(echo "$ALL_MODULES" | jq -r '.[]'); do
             LATEST_TAG=$(git tag -l "${module}/v*" --sort=-v:refname | head -n1)
             if [ -n "$LATEST_TAG" ] && git diff --quiet "$LATEST_TAG" HEAD -- "$module/"; then
               echo "No changes in $module since $LATEST_TAG"
@@ -242,9 +333,10 @@ jobs:
           VERSION=$(dagger call -m ./calver generate --source=. --format="vYYYY.MM.MICRO")
 
           # Build release notes
+          ALL_MODULES=$(echo '${{ needs.discover.outputs.modules }}' '${{ needs.discover.outputs.agents }}' | jq -s 'add')
           NOTES="## Module Versions\n\n"
           NOTES="$NOTES| Module | Version | Engine |\n|--------|---------|--------|"
-          for module in $(echo '${{ needs.discover.outputs.modules }}' | jq -r '.[]'); do
+          for module in $(echo "$ALL_MODULES" | jq -r '.[]'); do
             VER=$(dagger call -m ./semver current --source=. --tag-prefix="${module}/" --initial-version="v0.0.0")
             ENGINE=$(jq -r '.engineVersion // "unknown"' "$module/dagger.json")
             NOTES="$NOTES\n| $module | $VER | $ENGINE |"

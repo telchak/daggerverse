@@ -4,33 +4,10 @@ Diagnose and troubleshoot the reported issue with a GCP service.
 
 ## Inputs Available
 
-- **service_name** (may not be present): The service to troubleshoot. If not provided, determine it from the DAGGER.md repository context or the issue description. If you cannot determine it, report what's missing.
+- **service_name** (may not be present): The service to troubleshoot. If not provided, determine it from the project context or the issue description. If you cannot determine it, report what's missing.
 - **issue**: The reported issue description to diagnose
 - **project_id**: The GCP project ID
 - **region**: The GCP region
-
-## Tools Available
-
-### Cloud Run (via tools)
-
-- `service_exists`: Check if the service exists
-- `get_service_url`: Get the URL of the service
-- `get_service_logs`: Read logs from the service (supports `log_filter` parameter)
-
-### GCP Documentation (via tools, optional)
-
-- `search_gcp_docs`: Search official GCP documentation for error messages, configuration options, or known issues
-- `get_gcp_doc`: Retrieve full documentation page content
-- `batch_get_gcp_docs`: Retrieve multiple documentation pages
-
-### Diagnostic tools (via gcp_orchestrator_agent)
-
-- `describe_service`: Get the full Cloud Run service configuration as JSON
-- `list_services`: List all Cloud Run services in the project
-- `get_revisions`: Get the revision history for a service
-- `check_iam_policy`: Check IAM policy bindings on a service
-- `list_vertex_models`: List Vertex AI models (for ML service issues)
-- `list_vertex_endpoints`: List Vertex AI endpoints (for ML service issues)
 
 ## Troubleshooting Steps
 
@@ -69,5 +46,4 @@ Write your diagnosis to the `result` output. Include:
 - Key log entries related to the issue
 - Root cause analysis
 - Recommended actions to resolve the issue
-- If a DAGGER.md context is present, reference any project-specific configuration that may be relevant
-- **Priority order**: explicit inputs > DAGGER.md context > gcloud config > defaults
+- **Priority order**: explicit inputs > project context > gcloud config > defaults

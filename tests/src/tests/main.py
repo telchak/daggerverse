@@ -17,7 +17,7 @@ from .gcp_artifact_registry import test_gcp_artifact_registry
 from .gcp_auth import test_gcp_auth
 from .gcp_cloud_run import test_gcp_cloud_run
 from .angular_agent import (
-    _clone_realworld,
+    _clone_realworld as _clone_angular_realworld,
     test_angie_assist,
     test_angie_build,
     test_angie_develop_github_issue,
@@ -25,7 +25,22 @@ from .angular_agent import (
     test_angie_upgrade_dry_run,
     test_angie_write_tests,
 )
-from .gcp_orchestrator_agent import test_gcp_orchestrator_agent, test_gcp_orchestrator_agent_firebase
+from .python_agent import (
+    _clone_realworld as _clone_python_realworld,
+    test_monty_assist,
+    test_monty_build,
+    test_monty_review,
+    test_monty_upgrade_dry_run,
+    test_monty_write_tests,
+)
+from .gcp_agent import (
+    test_goose_assist,
+    test_goose_deploy,
+    test_goose_deploy_firebase,
+    test_goose_review,
+    test_goose_troubleshoot,
+    test_goose_upgrade,
+)
 from .gcp_firebase import test_gcp_firebase
 from .gcp_vertex_ai import test_gcp_vertex_ai
 from .health_check import test_health_check
@@ -68,6 +83,8 @@ class Tests:
         """Run semver module tests."""
         return await test_semver(source=source)
 
+    # ========== ANGIE (ANGULAR AGENT) TESTS ==========
+
     @function
     async def angie(
         self,
@@ -76,14 +93,14 @@ class Tests:
             Doc("Angular project source (defaults to RealWorld example app)"),
         ] = None,
     ) -> str:
-        """Run Angie (Angular agent) module tests.
+        """Run all Angie (Angular agent) tests sequentially.
 
         Clones the RealWorld Angular example app (Angular 21, standalone
         components, vitest, playwright) and runs all agent entrypoints
         against it. Pass --source to test against a different Angular project.
         """
         if source is None:
-            source = _clone_realworld()
+            source = _clone_angular_realworld()
 
         results = []
 
@@ -105,6 +122,71 @@ class Tests:
         return "\n".join(results)
 
     @function
+    async def angie_assist(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Angular project source (defaults to RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Angie assist test."""
+        if source is None:
+            source = _clone_angular_realworld()
+        return await test_angie_assist(source=source)
+
+    @function
+    async def angie_review(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Angular project source (defaults to RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Angie review test."""
+        if source is None:
+            source = _clone_angular_realworld()
+        return await test_angie_review(source=source)
+
+    @function
+    async def angie_write_tests(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Angular project source (defaults to RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Angie write-tests test."""
+        if source is None:
+            source = _clone_angular_realworld()
+        return await test_angie_write_tests(source=source)
+
+    @function
+    async def angie_build(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Angular project source (defaults to RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Angie build test."""
+        if source is None:
+            source = _clone_angular_realworld()
+        return await test_angie_build(source=source)
+
+    @function
+    async def angie_upgrade(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Angular project source (defaults to RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Angie upgrade (dry run) test."""
+        if source is None:
+            source = _clone_angular_realworld()
+        return await test_angie_upgrade_dry_run(source=source)
+
+    @function
     async def angie_develop_github_issue(
         self,
         github_token: Annotated[dagger.Secret, Doc("GitHub PAT with contents, pull-requests, and issues write access to the test repo")],
@@ -123,6 +205,108 @@ class Tests:
             repository=repository,
         )
         return result
+
+    # ========== MONTY (PYTHON AGENT) TESTS ==========
+
+    @function
+    async def monty(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Python project source (defaults to FastAPI RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run all Monty (Python agent) tests sequentially.
+
+        Clones the FastAPI RealWorld example app and runs all agent entrypoints
+        against it. Pass --source to test against a different Python project.
+        """
+        if source is None:
+            source = _clone_python_realworld()
+
+        results = []
+
+        results.append("=== Assist ===")
+        results.append(await test_monty_assist(source=source))
+
+        results.append("\n=== Review ===")
+        results.append(await test_monty_review(source=source))
+
+        results.append("\n=== Write Tests ===")
+        results.append(await test_monty_write_tests(source=source))
+
+        results.append("\n=== Build ===")
+        results.append(await test_monty_build(source=source))
+
+        results.append("\n=== Upgrade (dry run) ===")
+        results.append(await test_monty_upgrade_dry_run(source=source))
+
+        return "\n".join(results)
+
+    @function
+    async def monty_assist(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Python project source (defaults to FastAPI RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Monty assist test."""
+        if source is None:
+            source = _clone_python_realworld()
+        return await test_monty_assist(source=source)
+
+    @function
+    async def monty_review(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Python project source (defaults to FastAPI RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Monty review test."""
+        if source is None:
+            source = _clone_python_realworld()
+        return await test_monty_review(source=source)
+
+    @function
+    async def monty_write_tests(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Python project source (defaults to FastAPI RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Monty write-tests test."""
+        if source is None:
+            source = _clone_python_realworld()
+        return await test_monty_write_tests(source=source)
+
+    @function
+    async def monty_build(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Python project source (defaults to FastAPI RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Monty build test."""
+        if source is None:
+            source = _clone_python_realworld()
+        return await test_monty_build(source=source)
+
+    @function
+    async def monty_upgrade(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Python project source (defaults to FastAPI RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Monty upgrade (dry run) test."""
+        if source is None:
+            source = _clone_python_realworld()
+        return await test_monty_upgrade_dry_run(source=source)
 
     @function
     async def all_no_credentials(self) -> str:
@@ -203,8 +387,10 @@ class Tests:
             credentials=credentials,
         )
 
+    # ========== GOOSE (GCP AGENT) TESTS ==========
+
     @function
-    async def gcp_orchestrator_agent(
+    async def goose_deploy(
         self,
         workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
         service_account: Annotated[str, Doc("Service account email")],
@@ -212,19 +398,13 @@ class Tests:
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
-        credentials: Annotated[dagger.Secret | None, Doc("Service account JSON key (unused, accepted for CI compatibility)")] = None,
         developer_knowledge_api_key: Annotated[dagger.Secret | None, Doc("Google Developer Knowledge API key (optional)")] = None,
     ) -> str:
-        """Run gcp-orchestrator-agent module tests.
-
-        Tests Cloud Run deploy, Firebase Hosting deploy (OIDC/WIF),
-        and troubleshooting diagnostics.
-        """
+        """Run Goose deploy tests (Cloud Run + Firebase Hosting)."""
         results = []
 
-        # Cloud Run deploy test
         results.append("=== Cloud Run Deploy ===")
-        results.append(await test_gcp_orchestrator_agent(
+        results.append(await test_goose_deploy(
             workload_identity_provider=workload_identity_provider,
             service_account=service_account,
             project_id=project_id,
@@ -234,9 +414,8 @@ class Tests:
             developer_knowledge_api_key=developer_knowledge_api_key,
         ))
 
-        # Firebase Hosting deploy test (OIDC/WIF)
         results.append("\n=== Firebase Hosting Deploy (OIDC/WIF) ===")
-        results.append(await test_gcp_orchestrator_agent_firebase(
+        results.append(await test_goose_deploy_firebase(
             workload_identity_provider=workload_identity_provider,
             service_account=service_account,
             project_id=project_id,
@@ -246,6 +425,86 @@ class Tests:
         ))
 
         return "\n".join(results)
+
+    @function
+    async def goose_troubleshoot(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> str:
+        """Run Goose troubleshoot test."""
+        return await test_goose_troubleshoot(
+            workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
+            project_id=project_id,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
+        )
+
+    @function
+    async def goose_assist(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> str:
+        """Run Goose assist test."""
+        return await test_goose_assist(
+            workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
+            project_id=project_id,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
+        )
+
+    @function
+    async def goose_review(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> str:
+        """Run Goose review test."""
+        return await test_goose_review(
+            workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
+            project_id=project_id,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
+        )
+
+    @function
+    async def goose_upgrade(
+        self,
+        workload_identity_provider: Annotated[str, Doc("WIF provider resource name")],
+        service_account: Annotated[str, Doc("Service account email")],
+        project_id: Annotated[str, Doc("GCP project ID")],
+        oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
+        oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
+        region: Annotated[str, Doc("GCP region")] = "us-central1",
+    ) -> str:
+        """Run Goose upgrade (dry run) test."""
+        return await test_goose_upgrade(
+            workload_identity_provider=workload_identity_provider,
+            service_account=service_account,
+            project_id=project_id,
+            oidc_token=oidc_token,
+            oidc_url=oidc_url,
+            region=region,
+        )
 
     @function
     async def gcp_vertex_ai(

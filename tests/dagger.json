@@ -10,6 +10,10 @@
       "source": "../angie"
     },
     {
+      "name": "monty",
+      "source": "../monty"
+    },
+    {
       "name": "calver",
       "source": "../calver"
     },
@@ -26,8 +30,8 @@
       "source": "../gcp-cloud-run"
     },
     {
-      "name": "gcp-orchestrator-agent",
-      "source": "../gcp-orchestrator-agent"
+      "name": "goose",
+      "source": "../goose"
     },
     {
       "name": "gcp-firebase",

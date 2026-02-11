@@ -1,0 +1,2 @@
+# Marker file: Goose tests require GCP credentials (OIDC/WIF).
+# The CI discover step uses this to pass GCP auth args to test-agents.
