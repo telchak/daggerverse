@@ -48,9 +48,16 @@ jobs:
           echo "agents=$AGENTS_JSON" >> $GITHUB_OUTPUT
 
           # Build flat agent test list: agent-assist, agent-review, etc.
+          # If .agent-tests exists, read custom test suffixes; otherwise use defaults.
+          DEFAULT_TESTS="assist review write-tests build upgrade"
           AGENT_TESTS=()
           for agent in "${AGENTS[@]}"; do
-            for test in assist review write-tests build upgrade; do
+            if [ -f "$agent/.agent-tests" ]; then
+              TESTS=$(grep -v '^#' "$agent/.agent-tests" | grep -v '^$' | tr '\n' ' ')
+            else
+              TESTS=$DEFAULT_TESTS
+            fi
+            for test in $TESTS; do
               AGENT_TESTS+=("${agent}-${test}")
             done
           done
@@ -148,11 +155,6 @@ jobs:
             fi
           fi
 
-          # Add Developer Knowledge API key for orchestrator agent
-          if [[ "$MODULE" == gcp-orchestrator-agent ]] && [[ -n "$GCP_DEVELOPER_KNOWLEDGE_API_KEY" ]]; then
-            ARGS="$ARGS --developer-knowledge-api-key=env:GCP_DEVELOPER_KNOWLEDGE_API_KEY"
-          fi
-
           # Module-specific args
           case "$MODULE" in
             gcp-artifact-registry) ARGS="$ARGS --repository=${{ secrets.GCP_ARTIFACT_REGISTRY_REPOSITORY }}" ;;
@@ -187,6 +189,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -207,11 +210,29 @@ jobs:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+          GCP_DEVELOPER_KNOWLEDGE_API_KEY: ${{ secrets.GCP_DEVELOPER_KNOWLEDGE_API_KEY }}
         run: |
           # Convert agent-test-name to dagger function name (e.g. angie-assist)
           FUNC="${{ matrix.test }}"
+          ARGS=""
 
-          OUTPUT=$(dagger call -m tests "$FUNC" 2>&1) || { echo "$OUTPUT"; exit 1; }
+          # Check if this agent needs GCP credentials (.agent-gcp marker)
+          for agent in $(echo '${{ needs.discover.outputs.agents }}' | jq -r '.[]'); do
+            if [[ "$FUNC" == "${agent}-"* ]] && [ -f "$agent/.agent-gcp" ]; then
+              ARGS="--workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
+              ARGS="$ARGS --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}"
+              ARGS="$ARGS --project-id=${{ secrets.GCP_PROJECT_ID }}"
+              ARGS="$ARGS --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+              ARGS="$ARGS --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL"
+              ARGS="$ARGS --region=europe-west9"
+              if [[ -n "$GCP_DEVELOPER_KNOWLEDGE_API_KEY" ]]; then
+                ARGS="$ARGS --developer-knowledge-api-key=env:GCP_DEVELOPER_KNOWLEDGE_API_KEY"
+              fi
+              break
+            fi
+          done
+
+          OUTPUT=$(dagger call -m tests "$FUNC" $ARGS 2>&1) || { echo "$OUTPUT"; exit 1; }
           echo "$OUTPUT"
 
           RESULTS=$(echo "$OUTPUT" | grep -E '^\s*\[(OK|!!|--)\]|^PASS:|^FAIL:' || true)
