@@ -37,7 +37,9 @@ class Monty:
         return (
             dag.container()
             .from_(f"python:{self.python_version}-slim")
-            .with_exec(["pip", "install", "--no-cache-dir", "python-lft-mcp[tools]"])
+            .with_exec(["apt-get", "update", "-qq"])
+            .with_exec(["apt-get", "install", "-y", "-qq", "git"])
+            .with_exec(["pip", "install", "--no-cache-dir", "python-lft-mcp[tools] @ git+https://github.com/Agent-Hellboy/python-lft-mcp.git"])
             .with_default_args(["python", "-m", "python_lft"])
             .as_service()
         )

@@ -40,7 +40,7 @@ Linting, formatting, testing, package auditing, and code reviews for Python proj
 
 | MCP Server | Package | Description |
 |------------|---------|-------------|
-| `python-lft` | [`python-lft-mcp[tools]`](https://github.com/Agent-Hellboy/python-lft-mcp) | Lint (ruff), format (black/ruff), test (pytest), and type-check (mypy) |
+| `python-lft` | [`python-lft-mcp[tools]`](https://github.com/Agent-Hellboy/python-lft-mcp) | Lint (ruff), format (black/ruff), test (pytest), and type-check (mypy). Installed from GitHub (not yet published to PyPI). |
 | `pypi` | [`pypi-query-mcp-server`](https://github.com/loonghao/pypi-query-mcp-server) | Package intelligence — version tracking, dependency analysis, download stats |
 
 ### [Goose](goose/) — GCP Operations Agent
