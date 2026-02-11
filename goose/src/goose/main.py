@@ -202,6 +202,21 @@ class Goose:
         self.region = await self._resolve_region(self.gcloud)
         return self._dagger_md_config
 
+    # --- MCP servers ---
+
+    def _gcloud_mcp_service(self, gcloud: dagger.Container) -> dagger.Service:
+        """Create the gcloud-mcp server as a Dagger Service.
+
+        Built on top of the resolved gcloud container so it inherits
+        authentication (OIDC, SA key, host gcloud, or pre-built).
+        """
+        return (
+            gcloud
+            .with_exec(["apk", "add", "--no-cache", "nodejs", "npm"])
+            .with_default_args(["npx", "-y", "@google-cloud/gcloud-mcp"])
+            .as_service()
+        )
+
     # --- Prompt helpers ---
 
     def _load_prompt(self, filename: str) -> dagger.File:
@@ -233,6 +248,7 @@ class Goose:
         llm = (
             dag.llm()
             .with_env(env.with_current_module())
+            .with_mcp_server("gcloud", self._gcloud_mcp_service(self.gcloud))
             .with_system_prompt(system_prompt + context_md)
         )
 

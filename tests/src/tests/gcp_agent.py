@@ -201,6 +201,7 @@ async def test_goose_troubleshoot(
     oidc_token: dagger.Secret,
     oidc_url: dagger.Secret,
     region: str = "us-central1",
+    developer_knowledge_api_key: dagger.Secret | None = None,
 ) -> str:
     """Test goose troubleshoot with unified OIDC authentication."""
     results = []
@@ -229,6 +230,7 @@ async def test_goose_troubleshoot(
             service_account_email=service_account,
             project_id=project_id,
             region=region,
+            developer_knowledge_api_key=developer_knowledge_api_key,
         ).troubleshoot(
             service_name=service_name,
             issue="Check if the service is running correctly and report its status",
@@ -271,6 +273,7 @@ async def test_goose_assist(
     oidc_token: dagger.Secret,
     oidc_url: dagger.Secret,
     region: str = "us-central1",
+    developer_knowledge_api_key: dagger.Secret | None = None,
 ) -> str:
     """Test goose assist — ask the agent to list Cloud Run services."""
     agent_oidc_token, _ = _gcp_auth_setup(
@@ -284,6 +287,7 @@ async def test_goose_assist(
         service_account_email=service_account,
         project_id=project_id,
         region=region,
+        developer_knowledge_api_key=developer_knowledge_api_key,
     ).assist(
         assignment="List all Cloud Run services in the project and report their status",
     )
@@ -300,6 +304,7 @@ async def test_goose_review(
     oidc_token: dagger.Secret,
     oidc_url: dagger.Secret,
     region: str = "us-central1",
+    developer_knowledge_api_key: dagger.Secret | None = None,
 ) -> str:
     """Test goose review — review a sample project's deployment configs."""
     agent_oidc_token, _ = _gcp_auth_setup(
@@ -315,6 +320,7 @@ async def test_goose_review(
         service_account_email=service_account,
         project_id=project_id,
         region=region,
+        developer_knowledge_api_key=developer_knowledge_api_key,
     ).review(
         source=source,
         focus="firebase configuration",
@@ -332,6 +338,7 @@ async def test_goose_upgrade(
     oidc_token: dagger.Secret,
     oidc_url: dagger.Secret,
     region: str = "us-central1",
+    developer_knowledge_api_key: dagger.Secret | None = None,
 ) -> str:
     """Test goose upgrade (dry run) — analyze an upgrade without applying."""
     service_name = f"goose-upg-{int(time.time())}"
@@ -358,6 +365,7 @@ async def test_goose_upgrade(
             service_account_email=service_account,
             project_id=project_id,
             region=region,
+            developer_knowledge_api_key=developer_knowledge_api_key,
         ).upgrade(
             service_name=service_name,
             target_version="gcr.io/google-samples/hello-app:2.0",

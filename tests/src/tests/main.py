@@ -435,6 +435,7 @@ class Tests:
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
+        developer_knowledge_api_key: Annotated[dagger.Secret | None, Doc("Google Developer Knowledge API key (optional)")] = None,
     ) -> str:
         """Run Goose troubleshoot test."""
         return await test_goose_troubleshoot(
@@ -444,6 +445,7 @@ class Tests:
             oidc_token=oidc_token,
             oidc_url=oidc_url,
             region=region,
+            developer_knowledge_api_key=developer_knowledge_api_key,
         )
 
     @function
@@ -455,6 +457,7 @@ class Tests:
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
+        developer_knowledge_api_key: Annotated[dagger.Secret | None, Doc("Google Developer Knowledge API key (optional)")] = None,
     ) -> str:
         """Run Goose assist test."""
         return await test_goose_assist(
@@ -464,6 +467,7 @@ class Tests:
             oidc_token=oidc_token,
             oidc_url=oidc_url,
             region=region,
+            developer_knowledge_api_key=developer_knowledge_api_key,
         )
 
     @function
@@ -475,6 +479,7 @@ class Tests:
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
+        developer_knowledge_api_key: Annotated[dagger.Secret | None, Doc("Google Developer Knowledge API key (optional)")] = None,
     ) -> str:
         """Run Goose review test."""
         return await test_goose_review(
@@ -484,6 +489,7 @@ class Tests:
             oidc_token=oidc_token,
             oidc_url=oidc_url,
             region=region,
+            developer_knowledge_api_key=developer_knowledge_api_key,
         )
 
     @function
@@ -495,6 +501,7 @@ class Tests:
         oidc_token: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_TOKEN")],
         oidc_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
+        developer_knowledge_api_key: Annotated[dagger.Secret | None, Doc("Google Developer Knowledge API key (optional)")] = None,
     ) -> str:
         """Run Goose upgrade (dry run) test."""
         return await test_goose_upgrade(
@@ -504,6 +511,7 @@ class Tests:
             oidc_token=oidc_token,
             oidc_url=oidc_url,
             region=region,
+            developer_knowledge_api_key=developer_knowledge_api_key,
         )
 
     @function

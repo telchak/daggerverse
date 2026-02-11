@@ -16,12 +16,14 @@ Diagnose and troubleshoot the reported issue with a GCP service.
 1. **Check service state**: Use `service_exists` to verify the service is deployed
 2. **Get service URL**: If the service exists, use `get_service_url` to retrieve its endpoint
 3. **Inspect configuration**: Use `describe_service` to get the full config — check for misconfigurations
-4. **Check error logs**: Use `get_service_logs` with `log_filter="severity>=ERROR"` to find error entries
+4. **Check error logs**: Use `get_service_logs` with `log_filter="severity>=ERROR"` to find error entries. For richer log queries (advanced filters, wider time ranges, cross-service correlation), use the `gcloud` MCP server's Cloud Logging tools.
 5. **Check recent logs**: Use `get_service_logs` with default filter to get general activity
-6. **Check revisions**: Use `get_revisions` if the issue started after a recent deployment
-7. **Check IAM**: Use `check_iam_policy` if the issue involves authentication or permission errors
-8. **Search docs**: If the error is unfamiliar, use `search_gcp_docs` to find relevant documentation (if available)
-9. **Analyze**: Correlate all findings with the reported issue
+6. **Check metrics**: Use the `gcloud` MCP server to query Cloud Monitoring metrics (request latency, error rates, CPU/memory utilization) for anomalies
+7. **Check traces**: If the issue involves latency or timeout problems, use the `gcloud` MCP server's Cloud Trace tools to analyze distributed traces
+8. **Check revisions**: Use `get_revisions` if the issue started after a recent deployment
+9. **Check IAM**: Use `check_iam_policy` if the issue involves authentication or permission errors
+10. **Search docs**: If the error is unfamiliar, use `search_gcp_docs` to find relevant documentation (if available)
+11. **Analyze**: Correlate all findings with the reported issue
 
 ### Common Cloud Run Issues
 
