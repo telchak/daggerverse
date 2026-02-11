@@ -64,10 +64,16 @@ jobs:
           AGENT_TESTS_JSON=$(printf '%s\n' "${AGENT_TESTS[@]}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
           echo "agent_tests=$AGENT_TESTS_JSON" >> $GITHUB_OUTPUT
 
-          echo "### Discovered modules" >> $GITHUB_STEP_SUMMARY
-          echo "**Modules:** $MODULES_JSON" >> $GITHUB_STEP_SUMMARY
-          echo "**Agents:** $AGENTS_JSON" >> $GITHUB_STEP_SUMMARY
-          echo "**Agent tests:** $AGENT_TESTS_JSON" >> $GITHUB_STEP_SUMMARY
+          # Format discovered modules for step summary
+          {
+            echo "### Discovered modules"
+            echo ""
+            echo "| Type | Items |"
+            echo "|------|-------|"
+            echo "| Modules | $(echo "$MODULES_JSON" | jq -r 'map("`" + . + "`") | join(", ")') |"
+            echo "| Agents | $(echo "$AGENTS_JSON" | jq -r 'map("`" + . + "`") | join(", ")') |"
+            echo "| Agent tests | $(echo "$AGENT_TESTS_JSON" | jq -r 'map("`" + . + "`") | join(", ")') |"
+          } >> $GITHUB_STEP_SUMMARY
 
   validate:
     needs: discover
@@ -85,6 +91,8 @@ jobs:
           # Combine modules and agents for validation
           ALL_MODULES=$(echo '${{ needs.discover.outputs.modules }}' '${{ needs.discover.outputs.agents }}' | jq -s 'add')
 
+          LINE_LIMIT=600
+
           echo "## Modules" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           for module in $(echo "$ALL_MODULES" | jq -r '.[]'); do
@@ -93,10 +101,27 @@ jobs:
             [ -f "$module/README.md" ] || { echo "ERROR: $module/README.md missing"; exit 1; }
             [ -d "$module/examples" ] || { echo "ERROR: $module/examples missing"; exit 1; }
             cd $module && FUNCS=$(dagger functions 2>/dev/null | tail -n +2 | awk '{print $1}') && cd ..
+
+            # Check line counts — warn for source files exceeding the limit
+            LINE_WARNINGS=""
+            while IFS= read -r src_file; do
+              LINES=$(wc -l < "$src_file")
+              if [ "$LINES" -gt "$LINE_LIMIT" ]; then
+                LINE_WARNINGS="$LINE_WARNINGS<br>:warning: \`$src_file\` has $LINES lines (limit: $LINE_LIMIT)"
+              fi
+            done < <(find "$module/src" -name "*.py" -o -name "*.ts" -o -name "*.go" 2>/dev/null || true)
+
             DESC=$(jq -r '.description // "No description"' "$module/dagger.json")
             {
               echo "<details>"
-              echo "<summary><strong>$module</strong> - $DESC</summary>"
+              if [ -n "$LINE_WARNINGS" ]; then
+                echo "<summary>:warning: <strong>$module</strong> - $DESC</summary>"
+                echo ""
+                echo "$LINE_WARNINGS"
+                echo ""
+              else
+                echo "<summary><strong>$module</strong> - $DESC</summary>"
+              fi
               echo ""
               echo "| Function |"
               echo "|----------|"

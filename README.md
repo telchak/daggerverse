@@ -226,7 +226,7 @@ Tests run automatically on push/PR via GitHub Actions:
 | dagger.json has description | Error | Required for discoverability |
 | README.md exists | Error | Required documentation |
 | examples/ directory exists | Error | Required for usage examples |
-| Line count < 300 | Warning | Keep modules small |
+| Line count < 600 | Warning | Keep source files concise |
 | Function docstrings | Warning | All public functions documented |
 | Emojis in code | Warning | Avoid emojis for clean output |
 | Module loads | Error | Validates module syntax |
