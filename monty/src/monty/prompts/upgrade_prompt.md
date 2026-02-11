@@ -14,48 +14,21 @@ Upgrade the package specified in **target_package** to the version specified in 
 ### Phase 1: Detect Current State
 
 1. Read `pyproject.toml`, `setup.py`, `setup.cfg`, or `requirements*.txt` to identify the current version of the target package
-2. Use `glob` to get an overview of the project structure
-3. Check for other related dependencies that might need co-upgrading
-4. Identify the Python version constraints
-5. Use pypi MCP tools to look up the target package's latest versions and compatibility
+2. Use pypi MCP to look up the target package's latest version and compatibility
 
-### Phase 2: Research Breaking Changes
+### Phase 2: Analyze Impact
 
-1. Use pypi MCP tools to get package info, dependencies, and version history
-2. Identify key breaking changes including:
-   - Removed or renamed APIs
-   - Changed default behaviors
-   - New required dependencies
-   - Python version requirements
-   - Deprecated features that were removed
-   - Configuration format changes
+1. Use `grep` to find imports and usages of the target package in the project
+2. Use pypi MCP to check for known breaking changes between current and target version
+3. Categorize impact by severity (critical / warning / info)
 
-### Phase 3: Analyze Codebase Impact
+**If dry_run is "true"**: Stop here. Write your analysis to `result`. Do NOT modify files, do NOT lint, do NOT read every file. Aim for 5-6 tool calls total.
 
-1. For each breaking change, use `grep` to find affected code in the project
-2. Categorize findings by severity:
-   - **Critical**: Code that will fail at import or runtime
-   - **Warning**: Deprecated APIs that still work but should be updated
-   - **Info**: Opportunities to adopt new patterns and features
-3. Check configuration files for format changes needed
-4. Check for affected test code
+### Phase 3: Apply Changes (skip if dry_run)
 
-### Phase 4: Apply Changes (skip if dry_run)
-
-1. Update version constraints in `pyproject.toml`, `requirements.txt`, or equivalent
-2. Apply code modifications for each breaking change:
-   - Update imports
-   - Replace removed/renamed APIs
-   - Update configuration patterns
-   - Migrate to new APIs where required
-3. Update related dependencies if needed (e.g. upgrading Django may require upgrading djangorestframework)
-
-### Phase 5: Verification
-
-1. Read back modified files to confirm correctness
-2. Check for remaining references to deprecated/removed APIs
-3. Verify import paths are correct
-4. Use python-lft MCP tools to lint the modified code
+1. Update version constraints in the dependency file
+2. Apply code modifications for breaking changes (update imports, replace removed APIs)
+3. Read back modified files to confirm correctness
 
 ## Important Guidelines
 

@@ -46,11 +46,15 @@ Review the Python project source code for quality, best practices, and potential
 
 ## Approach
 
-1. If a **diff** is provided, focus the review on those changes
+Be efficient — focus on the most important files, not every file in the project.
+
+1. If a **diff** is provided, focus the review **only** on those changes
 2. If a **focus** is provided, prioritize that area
 3. Otherwise, do a general review of the project structure and key files
-4. Use `glob` to find relevant files, `read_file` to examine them
-5. Use python-lft MCP tools to lint and type-check when uncertain
+4. Use `glob` to understand the project layout first, then `read_file` on the **key files only** (entry points, models, routes, config). Do not read every file — sample representative files.
+5. Use python-lft MCP tools sparingly — only to verify a specific concern you spotted during review. Do NOT run lint or type-check on every file.
+
+**Target: complete the review in under 10 tool calls.** Start with `glob`, read 3-5 key files, then write your review.
 
 ## Output
 

@@ -10,10 +10,11 @@ Generate tests for Python modules, classes, functions, or API endpoints.
 
 ## Approach
 
-1. **Detect test setup**: Use `glob` to find existing test files (`test_*.py`, `*_test.py`, `tests/`) and config files (`pyproject.toml`, `pytest.ini`, `setup.cfg`, `tox.ini`, `conftest.py`)
-2. **Follow existing patterns**: Read existing test files to match the project's testing conventions
-3. **Identify targets**: If no target is specified, find modules/functions that lack tests
-4. **Generate tests**: Write test files using `write_file`
+1. **Detect test setup**: Use `glob` to find existing test files and config files (`pyproject.toml`, `conftest.py`)
+2. **Read the target**: Read the target file and one existing test file (if any) to match conventions
+3. **Generate tests**: Write test files using `write_file`
+
+Do not read every file in the project. Focus on the target file and existing test patterns. Aim for under 10 tool calls.
 
 ## Test Patterns
 

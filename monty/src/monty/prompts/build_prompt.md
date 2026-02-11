@@ -9,16 +9,13 @@ Build, lint, or type-check the Python project and diagnose any errors.
 
 ## Approach
 
-1. **Explore**: Use `glob` to find `pyproject.toml`, `setup.py`, `setup.cfg`, `requirements*.txt`, `Makefile`, `tox.ini` and understand the project setup
-2. **Read config**: Use `read_file` to examine build configuration
-3. **Analyze**: Check for common build issues:
-   - Missing or conflicting dependencies in `pyproject.toml` or `requirements.txt`
-   - Python version compatibility issues
-   - Import errors or circular imports
-   - Missing `__init__.py` files in packages
-   - Incorrect entry points or console scripts configuration
-4. **Use MCP**: Use python-lft MCP tools to lint and type-check the project
+1. **Explore**: Use `glob` to find `pyproject.toml`, `setup.py`, `setup.cfg`, `requirements*.txt` and understand the project setup
+2. **Read config**: Use `read_file` to examine the main build configuration file
+3. **Analyze**: Check for common build issues (missing dependencies, version conflicts, missing `__init__.py`, incorrect entry points)
+4. **Use MCP sparingly**: Only use python-lft MCP to lint if you suspect a specific issue. Do NOT lint every file.
 5. **Fix**: If errors are found, use `edit_file` to fix them
+
+Aim for under 10 tool calls total.
 
 ## Common Build Issues
 
