@@ -231,6 +231,7 @@ jobs:
 
       - name: Test ${{ matrix.test }}
         id: test
+        timeout-minutes: 20
         env:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
