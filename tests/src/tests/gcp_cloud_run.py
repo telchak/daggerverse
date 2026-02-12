@@ -23,7 +23,6 @@ from .auth_utils import (
     format_component_header,
     format_operation,
     format_test_summary,
-    warn_legacy_access_token,
 )
 
 
@@ -186,7 +185,6 @@ async def test_gcp_cloud_run_access_token(
     Returns:
         Tuple of (formatted results string, operations dict for summary)
     """
-    warn_legacy_access_token()
     results = [format_auth_header(AuthMethod.ACCESS_TOKEN)]
     ops = {}
 

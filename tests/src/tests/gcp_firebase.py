@@ -22,7 +22,6 @@ from .auth_utils import (
     format_component_header,
     format_operation,
     format_test_summary,
-    warn_legacy_access_token,
     get_access_token_from_service_account,
 )
 from ._gcp_firebase_helpers import (
@@ -204,7 +203,6 @@ async def test_gcp_firebase_access_token(
     Returns:
         Tuple of (formatted results string, operations dict for summary)
     """
-    warn_legacy_access_token()
     results = [format_auth_header(AuthMethod.ACCESS_TOKEN)]
     ops = {}
 

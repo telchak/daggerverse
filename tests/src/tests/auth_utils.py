@@ -7,8 +7,6 @@ with different credential types:
 - Access Token (legacy): Pre-fetched bearer token
 """
 
-import sys
-import warnings
 from enum import Enum
 
 import dagger
@@ -21,35 +19,6 @@ class AuthMethod(Enum):
     OIDC = "oidc"
     SERVICE_ACCOUNT = "service_account"
     ACCESS_TOKEN = "access_token"
-
-
-def warn_legacy_access_token() -> None:
-    """Emit deprecation warning for access token authentication.
-
-    Uses both warnings.warn() for programmatic handling and stderr for visibility,
-    since DeprecationWarning is hidden by default in Python.
-    """
-    message = (
-        "\n"
-        "=" * 70 + "\n"
-        "WARNING: Access Token authentication is LEGACY and NOT RECOMMENDED.\n"
-        "\n"
-        "This authentication method:\n"
-        "- Uses short-lived tokens that expire quickly\n"
-        "- Requires external token refresh mechanisms\n"
-        "- May be deprecated by GCP in the future\n"
-        "\n"
-        "Recommended alternatives:\n"
-        "- OIDC + Workload Identity Federation (for CI/CD pipelines)\n"
-        "- Service Account JSON key (for local development)\n"
-        "=" * 70
-    )
-
-    # Emit warning for programmatic handling
-    warnings.warn(message, DeprecationWarning, stacklevel=2)
-
-    # Also print to stderr for visibility (DeprecationWarning is hidden by default)
-    print(message, file=sys.stderr)
 
 
 async def get_access_token_from_service_account(

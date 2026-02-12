@@ -15,7 +15,6 @@ from .auth_utils import (
     format_component_header,
     format_operation,
     format_test_summary,
-    warn_legacy_access_token,
 )
 
 
@@ -143,7 +142,6 @@ async def test_gcp_auth_access_token(
     """
     from .auth_utils import get_access_token_from_service_account
 
-    warn_legacy_access_token()
     results = [format_auth_header(AuthMethod.ACCESS_TOKEN)]
     ops = {}
     gcp_auth = dag.gcp_auth()
