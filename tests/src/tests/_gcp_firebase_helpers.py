@@ -46,13 +46,17 @@ async def test_hosting_crud(
     results.append(format_operation("BUILD", "PASS", f"{len(entries)} files"))
     ops["H_BUILD"] = "PASS"
 
+    # Overlay the built dist onto source so deploy_preview can skip rebuilding
+    pre_built_source = source.with_directory("dist", dist)
+
     try:
-        # Deploy preview with the specified auth method
+        # Deploy preview with the specified auth method (skip_build since we already built)
         if auth_method == AuthMethod.OIDC:
             preview_url = await firebase.deploy_preview(
                 project_id=project_id,
                 channel_id=channel_id,
-                source=source,
+                source=pre_built_source,
+                skip_build=True,
                 oidc_token=oidc_token,
                 workload_identity_provider=workload_identity_provider,
                 service_account_email=service_account_email,
@@ -61,14 +65,16 @@ async def test_hosting_crud(
             preview_url = await firebase.deploy_preview(
                 project_id=project_id,
                 channel_id=channel_id,
-                source=source,
+                source=pre_built_source,
+                skip_build=True,
                 credentials=credentials,
             )
         elif auth_method == AuthMethod.ACCESS_TOKEN:
             preview_url = await firebase.deploy_preview(
                 project_id=project_id,
                 channel_id=channel_id,
-                source=source,
+                source=pre_built_source,
+                skip_build=True,
                 access_token=access_token,
             )
         else:

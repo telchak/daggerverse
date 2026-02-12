@@ -123,6 +123,7 @@ class GcpFirebase:
         # Build options
         build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = "npm run build",
         node_version: Annotated[str, Doc("Node.js version")] = "20",
+        skip_build: Annotated[bool, Doc("Skip npm ci and build step (use when source is pre-built)")] = False,
         deploy_functions: Annotated[bool, Doc("Deploy Cloud Functions")] = True,
         force: Annotated[bool, Doc("Force deployment")] = True,
     ) -> str:
@@ -146,9 +147,9 @@ class GcpFirebase:
             .with_directory("/app", source)
             .with_workdir("/app")
         )
-        if build_command.strip():
+        if not skip_build and build_command.strip():
             container = container.with_exec(["npm", "ci"]).with_exec(["sh", "-c", build_command])
-        if deploy_functions:
+        if not skip_build and deploy_functions:
             container = container.with_exec(["sh", "-c", "cd functions && npm ci"])
 
         cmd = ["firebase", "deploy", "--only", deploy_target, "--project", project_id, "--non-interactive"]
@@ -173,6 +174,7 @@ class GcpFirebase:
         # Build options
         build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = "npm run build",
         node_version: Annotated[str, Doc("Node.js version")] = "20",
+        skip_build: Annotated[bool, Doc("Skip npm ci and build step (use when source is pre-built)")] = False,
         expires: Annotated[str, Doc("Channel expiration")] = "7d",
     ) -> str:
         """Deploy to a Firebase Hosting preview channel. Returns the preview URL.
@@ -194,7 +196,7 @@ class GcpFirebase:
             .with_directory("/app", source)
             .with_workdir("/app")
         )
-        if build_command.strip():
+        if not skip_build and build_command.strip():
             container = container.with_exec(["npm", "ci"]).with_exec(["sh", "-c", build_command])
         output = await (
             container

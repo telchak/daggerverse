@@ -19,7 +19,6 @@ from .auth_utils import (
     format_component_header,
     format_operation,
     format_test_summary,
-    warn_legacy_access_token,
 )
 
 
@@ -140,7 +139,6 @@ async def test_gcp_artifact_registry_access_token(
     If credentials (SA key) are provided, uses SA-based gcloud container.
     Otherwise, uses OIDC-based gcloud container.
     """
-    warn_legacy_access_token()
     results = [format_auth_header(AuthMethod.ACCESS_TOKEN)]
     ops = {}
 

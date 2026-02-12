@@ -1,0 +1,17 @@
+{
+  "name": "goose-examples",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "python"
+  },
+  "dependencies": [
+    {
+      "name": "goose",
+      "source": "../.."
+    },
+    {
+      "name": "gcp-auth",
+      "source": "../../../gcp-auth"
+    }
+  ]
+}

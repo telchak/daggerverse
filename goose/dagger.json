@@ -1,26 +1,11 @@
 {
-  "name": "tests",
+  "name": "goose",
+  "description": "AI-powered GCP deployment, troubleshooting, and operations agent",
   "engineVersion": "v0.19.11",
   "sdk": {
     "source": "python"
   },
   "dependencies": [
-    {
-      "name": "angie",
-      "source": "../angie"
-    },
-    {
-      "name": "monty",
-      "source": "../monty"
-    },
-    {
-      "name": "calver",
-      "source": "../calver"
-    },
-    {
-      "name": "gcp-artifact-registry",
-      "source": "../gcp-artifact-registry"
-    },
     {
       "name": "gcp-auth",
       "source": "../gcp-auth"
@@ -30,8 +15,8 @@
       "source": "../gcp-cloud-run"
     },
     {
-      "name": "goose",
-      "source": "../goose"
+      "name": "gcp-artifact-registry",
+      "source": "../gcp-artifact-registry"
     },
     {
       "name": "gcp-firebase",
@@ -46,12 +31,9 @@
       "source": "../health-check"
     },
     {
-      "name": "oidc-token",
-      "source": "../oidc-token"
-    },
-    {
-      "name": "semver",
-      "source": "../semver"
+      "name": "github-issue",
+      "source": "github.com/kpenfound/dag/github-issue@b316e472d3de5bb0e54fe3991be68dc85e33ef38",
+      "pin": "b316e472d3de5bb0e54fe3991be68dc85e33ef38"
     }
   ]
 }
