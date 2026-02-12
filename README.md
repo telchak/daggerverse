@@ -286,6 +286,9 @@ This project is under active development. Here's what's coming next:
 - [ ] Add `gcp-cloud-storage` module (bucket management, object operations)
 - [ ] Add `gcp-kubernetes-engine` module (GKE cluster and workload management)
 - [ ] Add `gcp-cloud-sql` module (instance provisioning, database management)
+- [ ] Add `gitlab-issue` module (GitLab issue integration for AI agents)
+- [ ] Add `jira-issue` module (Jira issue integration for AI agents)
+- [ ] Add `develop-gitlab-issue` and `develop-jira-issue` entrypoints to Angie, Monty, and Goose
 - [ ] Add Scaleway modules
 
 Have a feature request? [Open an issue](https://github.com/telchak/daggerverse/issues)!
