@@ -72,10 +72,18 @@ class GcpArtifactRegistry:
         region: Annotated[str, Doc("GCP region")] = "us-central1",
         tag: Annotated[str, Doc("Image tag")] = "latest",
         gcloud: Annotated[dagger.Container | None, Doc("Authenticated gcloud container")] = None,
+        docker_config: Annotated[dagger.File | None, Doc("Docker config.json file with registry credentials (e.g. from ~/.docker/config.json)")] = None,
     ) -> str:
         """Publish container to GCP Artifact Registry and return image URI."""
         hostname = f"{region}-docker.pkg.dev"
         image_uri = f"{hostname}/{project_id}/{repository}/{image_name}:{tag}"
+
+        if docker_config:
+            return await (
+                container
+                .with_mounted_file("/root/.docker/config.json", docker_config)
+                .publish(image_uri)
+            )
 
         if gcloud:
             token = await gcloud.with_exec(["gcloud", "auth", "print-access-token"]).stdout()
