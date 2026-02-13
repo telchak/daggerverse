@@ -3,6 +3,8 @@
 [![CI](https://github.com/telchak/daggerverse/actions/workflows/ci.yml/badge.svg)](https://github.com/telchak/daggerverse/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Dagger](https://img.shields.io/badge/Dagger-v0.19.11-1a1a2e.svg)](https://dagger.io)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=telchak_daggerverse&metric=alert_status&token=437e63cc0d39bb025a63659e28032917bb4ae5e6)](https://sonarcloud.io/summary/new_code?id=telchak_daggerverse)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=telchak_daggerverse&metric=security_rating&token=437e63cc0d39bb025a63659e28032917bb4ae5e6)](https://sonarcloud.io/summary/new_code?id=telchak_daggerverse)
 
 A collection of small, independent, reusable [Dagger](https://github.com/dagger/dagger) modules and AI agents for CI/CD pipelines. Built with the [Dagger SDK](https://docs.dagger.io) and published on the [Daggerverse](https://daggerverse.dev).
 
