@@ -1,10 +1,20 @@
 """Monty — AI-powered Python development agent with MCP integration."""
 
 import json
+import re
 from typing import Annotated
 
 import dagger
 from dagger import DefaultPath, Doc, dag, field, function, object_type
+
+# Entrypoints blocked on all LLMs to prevent recursion
+_BLOCKED_ENTRYPOINTS = [
+    "assist", "review", "write_tests", "build",
+    "upgrade", "develop_github_issue",
+]
+
+# Destructive tools blocked on the read-only sub-agent
+_BLOCKED_DESTRUCTIVE = ["edit_file", "write_file"]
 
 
 @object_type
@@ -62,6 +72,8 @@ class Monty:
             f"src/monty/prompts/{filename}"
         )
 
+    _MAX_CONTEXT_CHARS = 4000  # ~1000 tokens — keeps total prompt under budget
+
     async def _read_context_file(self, source: dagger.Directory | None = None) -> str:
         """Read per-repo context from MONTY.md, AGENT.md, or CLAUDE.md."""
         target = source or self.source
@@ -69,6 +81,8 @@ class Monty:
         for name in ("MONTY.md", "AGENT.md", "CLAUDE.md"):
             if name in entries:
                 contents = await target.file(name).contents()
+                if len(contents) > self._MAX_CONTEXT_CHARS:
+                    contents = contents[:self._MAX_CONTEXT_CHARS] + "\n\n[Context file truncated to fit token budget.]"
                 return f"\n\n## Project Context (from {name})\n\n{contents}"
         return ""
 
@@ -90,16 +104,10 @@ class Monty:
             .with_system_prompt(system_prompt + context_md)
         )
 
-        return (
-            llm
-            .with_blocked_function("Monty", "assist")
-            .with_blocked_function("Monty", "review")
-            .with_blocked_function("Monty", "write_tests")
-            .with_blocked_function("Monty", "build")
-            .with_blocked_function("Monty", "upgrade")
-            .with_blocked_function("Monty", "develop_github_issue")
-            .with_prompt_file(self._load_prompt(prompt_file))
-        )
+        for fn in _BLOCKED_ENTRYPOINTS:
+            llm = llm.with_blocked_function("Monty", fn)
+
+        return llm.with_prompt_file(self._load_prompt(prompt_file))
 
     # --- Agent entrypoints ---
 
@@ -274,9 +282,32 @@ class Monty:
             .with_prompt(f"## GitHub Issue: {title}\n\n{body}")
         )
 
-        function_name = await router.env().output("function_name").as_string()
+        function_name = (await router.env().output("function_name").as_string()).strip().lower()
         params_json = await router.env().output("params_json").as_string()
-        params = json.loads(params_json)
+
+        # Parse JSON with fallback for malformed LLM output (code fences, trailing text)
+        try:
+            params = json.loads(params_json)
+        except (json.JSONDecodeError, TypeError):
+            match = re.search(r"\{[^}]*\}", params_json or "")
+            if match:
+                try:
+                    params = json.loads(match.group())
+                except json.JSONDecodeError:
+                    params = {}
+                    function_name = "assist"
+            else:
+                params = {}
+                function_name = "assist"
+
+        # Filter params to expected keys per function to prevent TypeErrors
+        _allowed_keys = {
+            "upgrade": {"target_package", "target_version"},
+            "build": {"command"},
+            "write_tests": {"target", "test_framework"},
+        }
+        allowed = _allowed_keys.get(function_name, set())
+        params = {k: v for k, v in params.items() if k in allowed}
 
         # Call the chosen function with extracted parameters
         if function_name == "upgrade":
@@ -451,14 +482,12 @@ class Monty:
             .with_mcp_server("python-lft", self._python_lft_mcp_service())
             .with_mcp_server("pypi", self._pypi_mcp_service())
             .with_system_prompt(task_system + context_md)
-            .with_blocked_function("Monty", "assist")
-            .with_blocked_function("Monty", "review")
-            .with_blocked_function("Monty", "write_tests")
-            .with_blocked_function("Monty", "build")
-            .with_blocked_function("Monty", "upgrade")
-            .with_blocked_function("Monty", "develop_github_issue")
-            .with_blocked_function("Monty", "task")
-            .with_prompt(f"## Task: {description}\n\n{prompt}")
         )
+
+        # Block entrypoints (prevent recursion) and destructive tools (read-only sub-agent)
+        for fn in _BLOCKED_ENTRYPOINTS + ["task"] + _BLOCKED_DESTRUCTIVE:
+            llm = llm.with_blocked_function("Monty", fn)
+
+        llm = llm.with_prompt(f"## Task: {description}\n\n{prompt}")
 
         return await llm.env().output("result").as_string()

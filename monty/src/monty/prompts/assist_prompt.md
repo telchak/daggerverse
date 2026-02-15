@@ -15,8 +15,6 @@ Accomplish the coding task described in the **assignment** input.
 4. **Implement**: Use `edit_file` and `write_file` to make changes
 5. **Verify**: Read back modified files to confirm correctness
 
-Use MCP tools only when needed for a specific purpose (e.g. lint a file you just edited, look up a package version). Do not use them for general exploration.
-
 ## Output
 
 Write a summary of what you did to the `result` output. Include:

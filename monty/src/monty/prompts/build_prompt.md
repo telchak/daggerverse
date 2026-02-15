@@ -9,10 +9,8 @@ Build, lint, or type-check the Python project and diagnose any errors.
 
 ## Hard Limits
 
-- **Maximum 8 tool calls total.** After 8 calls, stop and write your result immediately.
-- **Never retry a failed tool call.** If a tool errors or returns unexpected results, note the issue and move on.
-- **Never loop.** Do not call the same tool twice with similar arguments.
-- **No full-project scans.** Do not lint, test, or type-check the entire project. Only check specific files you suspect have issues.
+- **Budget: 8 tool calls.** After 8 calls, stop and write your result immediately.
+- **No full-project scans.** Only check specific files you suspect have issues.
 
 ## Approach
 
