@@ -33,6 +33,7 @@ dagger install github.com/certainty-labs/daggerverse/goose@<version>
 | `troubleshoot` | Diagnose issues, read logs, inspect services | `str` |
 | `upgrade` | Upgrade a service version, config, or traffic split | `str` |
 | `develop-github-issue` | Read issue, route to best function, create PR | `str` |
+| `suggest-github-fix` | Analyze a CI failure and post inline code suggestions on a GitHub PR | `str` |
 | `task` | Launch a sub-agent for research or focused work | `str` |
 
 ## Quick Start
@@ -145,6 +146,82 @@ Create a context file in your repository root to customize agent behavior. Goose
 ### Priority order
 
 **explicit CLI flags > context file > gcloud config > defaults**
+
+## Suggest Fix on CI Failure
+
+The `suggest-github-fix` function analyzes CI pipeline failures and posts GitHub "suggested changes" directly on the PR. Developers can apply fixes with one click. This function does not require GCP authentication.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `--github-token` | GitHub token (as a Dagger secret) with `repo` permissions | Yes |
+| `--pr-number` | Pull request number | Yes |
+| `--repo` | GitHub repository URL (e.g. `https://github.com/owner/repo`) | Yes |
+| `--commit-sha` | HEAD commit SHA of the PR branch | Yes |
+| `--error-output` | CI error output (stderr/stdout) | Yes |
+| `--source` | Source directory of the PR branch | No |
+
+### CLI Usage
+
+```shell
+dagger call suggest-github-fix \
+  --github-token=env:GITHUB_TOKEN \
+  --pr-number=123 \
+  --repo="https://github.com/owner/my-gcp-app" \
+  --commit-sha="abc123" \
+  --error-output="$(cat ci-output.log)" \
+  --source=.
+```
+
+### GitHub Actions Workflow
+
+Add a step to your existing CI workflow that runs on failure:
+
+```yaml
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and deploy
+        id: deploy
+        run: |
+          docker build . 2>&1 | tee ci-output.log
+        continue-on-error: true
+
+      - name: Suggest fixes on failure
+        if: steps.deploy.outcome == 'failure'
+        uses: dagger/dagger-for-github@v7
+        with:
+          verb: call
+          version: "latest"
+          module: github.com/certainty-labs/daggerverse/goose
+          args: >-
+            suggest-github-fix
+            --github-token=env:GITHUB_TOKEN
+            --pr-number=${{ github.event.pull_request.number }}
+            --repo="${{ github.server_url }}/${{ github.repository }}"
+            --commit-sha=${{ github.event.pull_request.head.sha }}
+            --error-output="$(cat ci-output.log)"
+            --source=.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Fail if deploy failed
+        if: steps.deploy.outcome == 'failure'
+        run: exit 1
+```
 
 ## GCP Documentation Search (Optional)
 

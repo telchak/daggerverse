@@ -10,11 +10,11 @@ from dagger import DefaultPath, Doc, dag, field, function, object_type
 # Entrypoints blocked on all LLMs to prevent recursion
 _BLOCKED_ENTRYPOINTS = [
     "assist", "review", "write_tests", "build",
-    "upgrade", "develop_github_issue",
+    "upgrade", "develop_github_issue", "suggest_github_fix",
 ]
 
 # Destructive tools blocked on the read-only sub-agent
-_BLOCKED_DESTRUCTIVE = ["edit_file", "write_file"]
+_BLOCKED_DESTRUCTIVE = ["edit_file", "write_file", "suggest_github_pr_code_comment"]
 
 
 @object_type
@@ -39,6 +39,12 @@ class Monty:
         str,
         Doc("Python version for the MCP server containers"),
     ] = field(default="3.13")
+
+    # Private fields set during suggest_github_fix execution
+    _github_token: dagger.Secret | None = field(default=None, init=False)
+    _pr_repo: str = field(default="", init=False)
+    _pr_number: int = field(default=0, init=False)
+    _pr_commit_sha: str = field(default="", init=False)
 
     # --- Python MCP integration ---
 
@@ -108,6 +114,27 @@ class Monty:
             llm = llm.with_blocked_function("Monty", fn)
 
         return llm.with_prompt_file(self._load_prompt(prompt_file))
+
+    async def _build_suggest_fix_llm(
+        self,
+        env: dagger.Env,
+        source: dagger.Directory | None = None,
+    ) -> dagger.LLM:
+        """Build an LLM for suggest-github-fix (no MCP servers, workspace + suggestion tool)."""
+        context_md = await self._read_context_file(source)
+        system_prompt = await self._load_prompt("system_prompt.md").contents()
+
+        llm = (
+            dag.llm()
+            .with_env(env.with_current_module())
+            .with_system_prompt(system_prompt + context_md)
+        )
+
+        for fn in _BLOCKED_ENTRYPOINTS + ["task"] + _BLOCKED_DESTRUCTIVE:
+            if fn != "suggest_github_pr_code_comment":
+                llm = llm.with_blocked_function("Monty", fn)
+
+        return llm.with_prompt_file(self._load_prompt("suggest_fix_prompt.md"))
 
     # --- Agent entrypoints ---
 
@@ -240,6 +267,51 @@ class Monty:
     # --- GitHub integration ---
 
     @function
+    async def suggest_github_fix(
+        self,
+        github_token: Annotated[dagger.Secret, Doc("GitHub token with repo permissions")],
+        pr_number: Annotated[int, Doc("Pull request number")],
+        repo: Annotated[str, Doc("GitHub repository URL (e.g. 'https://github.com/owner/repo')")],
+        commit_sha: Annotated[str, Doc("HEAD commit SHA of the PR branch")],
+        error_output: Annotated[str, Doc("CI error output (stderr/stdout)")],
+        source: Annotated[dagger.Directory | None, Doc("Source directory of the PR branch")] = None,
+    ) -> str:
+        """Analyze a CI failure and post inline code suggestions on a GitHub PR.
+
+        Reads the error output, explores source files, and posts GitHub
+        "suggested changes" that developers can apply with one click.
+        """
+        workspace = source or self.source
+
+        # Store PR state for the suggestion tool
+        self._github_token = github_token
+        self._pr_repo = repo
+        self._pr_number = pr_number
+        self._pr_commit_sha = commit_sha
+
+        # Truncate error output (keep tail — most relevant)
+        max_error_chars = 8000
+        if len(error_output) > max_error_chars:
+            error_output = "...(truncated)\n" + error_output[-max_error_chars:]
+
+        env = (
+            dag.env()
+            .with_string_input("error_output", error_output, "The CI error output to analyze")
+            .with_string_input("pr_number", str(pr_number), "The pull request number")
+            .with_string_input("repo", repo, "The GitHub repository URL")
+            .with_string_input("commit_sha", commit_sha, "The HEAD commit SHA of the PR")
+            .with_string_output("result", "Summary of suggestions posted")
+        )
+
+        if source:
+            self.source = source
+        if workspace:
+            env = env.with_workspace(workspace)
+
+        work = await self._build_suggest_fix_llm(env, workspace)
+        return await work.env().output("result").as_string()
+
+    @function
     async def develop_github_issue(
         self,
         github_token: Annotated[dagger.Secret, Doc("GitHub token with repo and pull-request permissions")],
@@ -247,6 +319,7 @@ class Monty:
         repository: Annotated[str, Doc("GitHub repository URL (e.g. 'https://github.com/owner/repo')")],
         source: Annotated[dagger.Directory | None, Doc("Override source directory (uses constructor source if omitted)")] = None,
         base: Annotated[str, Doc("Base branch for the pull request")] = "main",
+        suggest_github_fix_on_failure: Annotated[bool, Doc("Post a diagnostic comment on the issue if the agent fails")] = False,
     ) -> str:
         """Read a GitHub issue, route it to the best agent, and create a Pull Request.
 
@@ -309,15 +382,29 @@ class Monty:
         allowed = _allowed_keys.get(function_name, set())
         params = {k: v for k, v in params.items() if k in allowed}
 
-        # Call the chosen function with extracted parameters
-        if function_name == "upgrade":
-            result = await self.upgrade(source=workspace, **params)
-        elif function_name == "build":
-            result = await self.build(source=workspace, **params)
-        elif function_name == "write_tests":
-            result = await self.write_tests(source=workspace, **params)
-        else:
-            result = await self.assist(assignment=body, source=workspace)
+        try:
+            # Call the chosen function with extracted parameters
+            if function_name == "upgrade":
+                result = await self.upgrade(source=workspace, **params)
+            elif function_name == "build":
+                result = await self.build(source=workspace, **params)
+            elif function_name == "write_tests":
+                result = await self.write_tests(source=workspace, **params)
+            else:
+                result = await self.assist(assignment=body, source=workspace)
+        except Exception as exc:
+            if suggest_github_fix_on_failure:
+                await gh.write_comment(
+                    repo=repository,
+                    issue_id=issue_id,
+                    body=(
+                        f"**Agent encountered an error:**\n\n"
+                        f"**Function**: `{function_name}`\n"
+                        f"**Error**:\n```\n{str(exc)[:3000]}\n```\n\n"
+                        f"Run `suggest-github-fix` on the PR for inline code suggestions."
+                    ),
+                )
+            raise
 
         # Create a PR from the modified workspace
         pr = gh.create_pull_request(
@@ -337,6 +424,41 @@ class Monty:
         )
 
         return pr_url
+
+    # --- GitHub suggestion tool (exposed to LLM via with_current_module) ---
+
+    @function
+    async def suggest_github_pr_code_comment(
+        self,
+        path: Annotated[str, Doc("File path relative to repo root")],
+        line: Annotated[int, Doc("Line number to suggest a change on")],
+        suggestion: Annotated[str, Doc("Replacement code (no ```suggestion fences, just the raw code)")],
+        comment: Annotated[str, Doc("Explanation of the fix")] = "",
+    ) -> str:
+        """Post an inline code suggestion on a GitHub pull request.
+
+        The suggestion will appear as a GitHub "suggested change" that
+        developers can apply with one click.
+        """
+        if not self._github_token or not self._pr_repo:
+            raise ValueError("suggest_github_pr_code_comment can only be used during suggest_github_fix")
+
+        body = ""
+        if comment:
+            body += f"{comment}\n\n"
+        body += f"```suggestion\n{suggestion}\n```"
+
+        gh = dag.github_issue(token=self._github_token)
+        await gh.write_pull_request_code_comment(
+            repo=self._pr_repo,
+            issue_id=self._pr_number,
+            commit=self._pr_commit_sha,
+            body=body,
+            path=path,
+            side="RIGHT",
+            line=line,
+        )
+        return f"Posted suggestion on {path}:{line}"
 
     # --- Workspace tools (exposed to LLM via with_current_module) ---
 
