@@ -60,17 +60,6 @@ If you have access to workspace tools (`read_file`, `edit_file`, `write_file`, `
 - Search for configuration patterns across the project
 - Understand the project structure before making recommendations
 
-## GCP Documentation Search
-
-If `search_gcp_docs`, `get_gcp_doc`, and `batch_get_gcp_docs` tools are available, you can search Google's official developer documentation in real time. Use these tools when:
-
-- You encounter an unfamiliar GCP configuration option or error message
-- You need to verify the latest API syntax, flags, or default values
-- The assignment references a GCP feature you need to understand better
-- Troubleshooting requires checking current documentation for known issues
-
-Do not search docs for basic operations you already know how to perform. Only use docs search when you genuinely need up-to-date reference information.
-
 ## gcloud MCP Server
 
 You have access to the `gcloud` MCP server which provides interactive access to:

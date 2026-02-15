@@ -24,7 +24,6 @@ Upgrade a GCP service's version, configuration, or traffic split.
 ## Be efficient
 
 - Use the built-in tools (`describe_service`, `get_revisions`, `deploy_service`) for the upgrade workflow.
-- Do NOT use the gcloud MCP server for operations already covered by built-in tools.
 - For a dry run, you should need at most 2-3 tool calls (describe + revisions), then write your analysis.
 
 ## Supported Upgrade Scenarios

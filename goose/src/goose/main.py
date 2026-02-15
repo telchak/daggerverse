@@ -1,10 +1,26 @@
 """Goose — AI-powered GCP deployment, troubleshooting, and operations agent."""
 
 import json
+import re
 from typing import Annotated
 
 import dagger
 from dagger import Doc, dag, field, function, object_type
+
+# Entrypoints blocked on all LLMs to prevent recursion
+_BLOCKED_ENTRYPOINTS = [
+    "assist", "review", "deploy", "troubleshoot",
+    "upgrade", "develop_github_issue",
+]
+
+# Destructive tools blocked on the read-only sub-agent
+_BLOCKED_DESTRUCTIVE = [
+    "deploy_service", "delete_service",
+    "deploy_firebase_hosting", "deploy_firebase_preview", "delete_firebase_channel",
+    "deploy_vertex_model",
+    "edit_file", "write_file",
+    "publish_container",
+]
 
 
 @object_type
@@ -223,6 +239,8 @@ class Goose:
         """Load a prompt file from the module source."""
         return dag.current_module().source().file(f"src/goose/prompts/{filename}")
 
+    _MAX_CONTEXT_CHARS = 4000  # ~1000 tokens — keeps total prompt under budget
+
     async def _read_context_file(self, source: dagger.Directory | None = None) -> str:
         """Read per-repo context from GOOSE.md, DAGGER.md, AGENT.md, or CLAUDE.md."""
         target = source or self.source
@@ -232,8 +250,23 @@ class Goose:
         for name in ("GOOSE.md", "DAGGER.md", "AGENT.md", "CLAUDE.md"):
             if name in entries:
                 contents = await target.file(name).contents()
+                if len(contents) > self._MAX_CONTEXT_CHARS:
+                    contents = contents[:self._MAX_CONTEXT_CHARS] + "\n\n[Context file truncated to fit token budget.]"
                 return f"\n\n## Project Context (from {name})\n\n{contents}"
         return ""
+
+    _DOCS_SEARCH_SECTION = """
+
+## GCP Documentation Search
+
+You have access to `search_gcp_docs`, `get_gcp_doc`, and `batch_get_gcp_docs` to search Google's official developer documentation in real time. Use these when:
+
+- You encounter an unfamiliar GCP configuration option or error message
+- You need to verify the latest API syntax, flags, or default values
+- Troubleshooting requires checking current documentation for known issues
+
+Do not search docs for basic operations you already know how to perform.
+"""
 
     async def _build_llm(
         self,
@@ -245,6 +278,9 @@ class Goose:
         context_md = await self._read_context_file(source)
         system_prompt = await self._load_prompt("system_prompt.md").contents()
 
+        if self.developer_knowledge_api_key:
+            system_prompt += self._DOCS_SEARCH_SECTION
+
         llm = (
             dag.llm()
             .with_env(env.with_current_module())
@@ -252,16 +288,10 @@ class Goose:
             .with_system_prompt(system_prompt + context_md)
         )
 
-        return (
-            llm
-            .with_blocked_function("Goose", "assist")
-            .with_blocked_function("Goose", "review")
-            .with_blocked_function("Goose", "deploy")
-            .with_blocked_function("Goose", "troubleshoot")
-            .with_blocked_function("Goose", "upgrade")
-            .with_blocked_function("Goose", "develop_github_issue")
-            .with_prompt_file(self._load_prompt(prompt_file))
-        )
+        for fn in _BLOCKED_ENTRYPOINTS:
+            llm = llm.with_blocked_function("Goose", fn)
+
+        return llm.with_prompt_file(self._load_prompt(prompt_file))
 
     # --- Agent entrypoints ---
 
@@ -483,7 +513,30 @@ class Goose:
 
         function_name = await router.env().output("function_name").as_string()
         params_json = await router.env().output("params_json").as_string()
-        params = json.loads(params_json)
+
+        # Parse JSON with fallback for malformed LLM output (code fences, trailing text)
+        try:
+            params = json.loads(params_json)
+        except (json.JSONDecodeError, TypeError):
+            match = re.search(r"\{[^}]*\}", params_json or "")
+            if match:
+                try:
+                    params = json.loads(match.group())
+                except json.JSONDecodeError:
+                    params = {}
+                    function_name = "assist"
+            else:
+                params = {}
+                function_name = "assist"
+
+        # Filter params to expected keys per function to prevent TypeErrors
+        _allowed_keys = {
+            "deploy": {"assignment", "service_name", "repository"},
+            "troubleshoot": {"issue", "service_name"},
+            "upgrade": {"service_name", "target_version"},
+        }
+        allowed = _allowed_keys.get(function_name, set())
+        params = {k: v for k, v in params.items() if k in allowed}
 
         if function_name == "deploy":
             result = await self.deploy(source=workspace, **params)
@@ -548,15 +601,13 @@ class Goose:
             dag.llm()
             .with_env(env.with_current_module())
             .with_system_prompt(task_system + context_md)
-            .with_blocked_function("Goose", "assist")
-            .with_blocked_function("Goose", "review")
-            .with_blocked_function("Goose", "deploy")
-            .with_blocked_function("Goose", "troubleshoot")
-            .with_blocked_function("Goose", "upgrade")
-            .with_blocked_function("Goose", "develop_github_issue")
-            .with_blocked_function("Goose", "task")
-            .with_prompt(f"## Task: {description}\n\n{prompt}")
         )
+
+        # Block entrypoints (prevent recursion) and destructive tools (read-only sub-agent)
+        for fn in _BLOCKED_ENTRYPOINTS + ["task"] + _BLOCKED_DESTRUCTIVE:
+            llm = llm.with_blocked_function("Goose", fn)
+
+        llm = llm.with_prompt(f"## Task: {description}\n\n{prompt}")
 
         return await llm.env().output("result").as_string()
 
