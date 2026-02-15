@@ -69,11 +69,26 @@ images = await dag.gcp_artifact_registry().list_images(
 )
 ```
 
+### Local Development
+
+If you've already configured Docker with `gcloud auth configure-docker`, you can pass your local Docker config directly instead of providing a `gcloud` container:
+
+```bash
+dagger call publish \
+  --container=FROM_BUILD \
+  --project-id=my-project \
+  --repository=my-repo \
+  --image-name=my-image \
+  --tag=v1.0.0 \
+  --docker-config=$HOME/.docker/config.json
+```
+
 ## Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `gcloud` | Container | Yes* | Authenticated gcloud container |
+| `docker_config` | File | No | Docker config.json with registry credentials |
 | `container` | Container | Yes | Container to publish |
 | `project_id` | string | Yes | GCP project ID |
 | `repository` | string | Yes | Repository name |
@@ -81,7 +96,7 @@ images = await dag.gcp_artifact_registry().list_images(
 | `region` | string | No | GCP region (default: us-central1) |
 | `tag` | string | No | Image tag (default: latest) |
 
-*`gcloud` is optional for `publish` if you just want to push without auth, required for other functions.
+*`gcloud` is optional for `publish` if you provide `docker_config` or just want to push without auth. Required for other functions.
 
 ## License
 

@@ -29,6 +29,7 @@ dagger install github.com/certainty-labs/daggerverse/angie@<version>
 | `build` | Build, compile, or lint the project — diagnoses errors and suggests fixes |
 | `upgrade` | Upgrade Angular version — detects current version, applies breaking changes |
 | `develop-github-issue` | Read a GitHub issue, route to the best agent, create a PR, and comment on the issue |
+| `suggest-github-fix` | Analyze a CI failure and post inline code suggestions on a GitHub PR |
 
 ## Quick Start
 
@@ -171,6 +172,83 @@ jobs:
 1. **Enable PR creation in Actions**: Go to repository Settings → Actions → General → Workflow permissions → select "Read and write permissions" and check "Allow GitHub Actions to create and approve pull requests"
 2. **Add LLM API key**: Go to Settings → Secrets and variables → Actions → add your LLM provider key (e.g. `ANTHROPIC_API_KEY`)
 3. **Label an issue**: Add the `angie` label to any issue — the workflow will trigger, implement the changes, and open a PR
+
+## Suggest Fix on CI Failure
+
+The `suggest-github-fix` function analyzes CI pipeline failures and posts GitHub "suggested changes" directly on the PR. Developers can apply fixes with one click.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `--github-token` | GitHub token (as a Dagger secret) with `repo` permissions | Yes |
+| `--pr-number` | Pull request number | Yes |
+| `--repo` | GitHub repository URL (e.g. `https://github.com/owner/repo`) | Yes |
+| `--commit-sha` | HEAD commit SHA of the PR branch | Yes |
+| `--error-output` | CI error output (stderr/stdout) | Yes |
+| `--source` | Source directory of the PR branch | No |
+
+### CLI Usage
+
+```shell
+dagger call suggest-github-fix \
+  --github-token=env:GITHUB_TOKEN \
+  --pr-number=123 \
+  --repo="https://github.com/owner/my-angular-app" \
+  --commit-sha="abc123" \
+  --error-output="$(cat ci-output.log)" \
+  --source=.
+```
+
+### GitHub Actions Workflow
+
+Add a step to your existing CI workflow that runs on failure:
+
+```yaml
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and test
+        id: build
+        run: |
+          ng build 2>&1 | tee build-output.log
+          ng test --no-watch --browsers=ChromeHeadless 2>&1 | tee -a build-output.log
+        continue-on-error: true
+
+      - name: Suggest fixes on failure
+        if: steps.build.outcome == 'failure'
+        uses: dagger/dagger-for-github@v7
+        with:
+          verb: call
+          version: "latest"
+          module: github.com/certainty-labs/daggerverse/angie
+          args: >-
+            suggest-github-fix
+            --github-token=env:GITHUB_TOKEN
+            --pr-number=${{ github.event.pull_request.number }}
+            --repo="${{ github.server_url }}/${{ github.repository }}"
+            --commit-sha=${{ github.event.pull_request.head.sha }}
+            --error-output="$(cat build-output.log)"
+            --source=.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Fail if build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
+```
 
 ## Constructor Options
 

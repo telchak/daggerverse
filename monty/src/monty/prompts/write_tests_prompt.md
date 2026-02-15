@@ -14,7 +14,7 @@ Generate tests for Python modules, classes, functions, or API endpoints.
 2. **Read the target**: Read the target file and one existing test file (if any) to match conventions
 3. **Generate tests**: Write test files using `write_file`
 
-Do not read every file in the project. Focus on the target file and existing test patterns. Aim for under 10 tool calls.
+**Budget: 10 tool calls.** Focus on the target file and existing test patterns.
 
 ## Test Patterns
 

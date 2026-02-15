@@ -13,17 +13,15 @@ Diagnose and troubleshoot the reported issue with a GCP service.
 
 ### Cloud Run Services
 
-1. **Check service state**: Use `service_exists` to verify the service is deployed
-2. **Get service URL**: If the service exists, use `get_service_url` to retrieve its endpoint
-3. **Inspect configuration**: Use `describe_service` to get the full config — check for misconfigurations
-4. **Check error logs**: Use `get_service_logs` with `log_filter="severity>=ERROR"` to find error entries. For richer log queries (advanced filters, wider time ranges, cross-service correlation), use the `gcloud` MCP server's Cloud Logging tools.
-5. **Check recent logs**: Use `get_service_logs` with default filter to get general activity
-6. **Check metrics**: Use the `gcloud` MCP server to query Cloud Monitoring metrics (request latency, error rates, CPU/memory utilization) for anomalies
-7. **Check traces**: If the issue involves latency or timeout problems, use the `gcloud` MCP server's Cloud Trace tools to analyze distributed traces
-8. **Check revisions**: Use `get_revisions` if the issue started after a recent deployment
-9. **Check IAM**: Use `check_iam_policy` if the issue involves authentication or permission errors
-10. **Search docs**: If the error is unfamiliar, use `search_gcp_docs` to find relevant documentation (if available)
-11. **Analyze**: Correlate all findings with the reported issue
+1. **Verify and inspect**: Use `service_exists` to confirm the service is deployed, then `describe_service` to get the full configuration
+2. **Read logs**: Use `get_service_logs` with `log_filter="severity>=ERROR"` to find error entries
+3. **Investigate based on findings** — use additional tools as the evidence suggests:
+   - Permission errors → `check_iam_policy`
+   - Recent deployment regression → `get_revisions`
+   - Latency/timeout issues → Cloud Trace via gcloud MCP
+   - Unfamiliar errors → `search_gcp_docs` (if available)
+   - Need richer log queries or metrics → gcloud MCP
+4. **Diagnose**: Correlate all findings with the reported issue
 
 ### Common Cloud Run Issues
 
@@ -48,4 +46,3 @@ Write your diagnosis to the `result` output. Include:
 - Key log entries related to the issue
 - Root cause analysis
 - Recommended actions to resolve the issue
-- **Priority order**: explicit inputs > project context > gcloud config > defaults

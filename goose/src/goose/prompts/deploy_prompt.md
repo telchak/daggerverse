@@ -41,8 +41,6 @@ Write the deployment result to the `result` output. Include:
 
 ## Important Notes
 
-- Always use the provided `service_name` if available — do not invent service names
 - If the assignment mentions "allow unauthenticated" or "public access", set `allow_unauthenticated=True`
 - Default to scale-to-zero (`min_instances=0`) unless specified otherwise
 - If deployment fails, include the error details in the result
-- **Priority order for all settings**: explicit inputs > project context > gcloud config > defaults

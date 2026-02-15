@@ -216,9 +216,16 @@ dagger -m tests call all-gcp \
 
 ### CI
 
-Tests run automatically on push/PR via GitHub Actions:
-- `test-basic`: calver, health-check, oidc-token, semver
-- `test-gcp`: All GCP modules with shared OIDC authentication
+Tests run automatically on push to `main`, pull requests, and manual dispatch via GitHub Actions. The pipeline has 5 stages:
+
+| Job | Description |
+|-----|-------------|
+| `discover` | Auto-detects all modules and agents (classifies by `src/*/prompts/`), reads `.agent-tests` for per-agent test lists |
+| `validate` | Checks every module for required files (`dagger.json` with description, `README.md`, `examples/`), loads functions, warns on source files exceeding 600 lines |
+| `test-modules` | Matrix job — tests each non-agent module in parallel. GCP modules (`gcp-*`) receive OIDC credentials automatically |
+| `test-agents` | Matrix job — tests each agent entrypoint in parallel (e.g. `angie-assist`, `goose-deploy`). Agents with `.agent-gcp` marker receive OIDC credentials |
+| `test-angie-github-issue` | Dedicated job for `develop-github-issue` end-to-end test (creates a PR, then cleans it up) |
+| `release` | Runs on `main` only — tags changed modules with semver (via Conventional Commits) and creates a CalVer release |
 
 ### Validation Pipeline
 
