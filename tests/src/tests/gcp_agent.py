@@ -94,7 +94,7 @@ async def test_goose_deploy(
             region=region,
         )
         if not exists:
-            raise Exception(f"Service {service_name} not found after agent deploy")
+            raise RuntimeError(f"Service {service_name} not found after agent deploy")
         results.append("[OK] Service exists after deploy")
 
         url = await svc.get_url(
@@ -103,7 +103,7 @@ async def test_goose_deploy(
             region=region,
         )
         if not url.startswith("https://"):
-            raise Exception(f"Invalid service URL: {url}")
+            raise RuntimeError(f"Invalid service URL: {url}")
         results.append(f"[OK] Service URL: {url}")
 
         await svc.delete(
@@ -383,7 +383,7 @@ async def test_goose_upgrade(
             return f"[OK] Upgrade dry-run returned response: {result[:100]}..."
         return f"[WARN] Upgrade dry-run returned short response: {result}"
 
-    except Exception as e:
+    except Exception:
         try:
             cleanup_gcloud = gcloud.with_env_variable("_CACHE_BUST", str(uuid.uuid4()))
             await svc.delete(

@@ -12,7 +12,7 @@
  */
 
 import { Firestore, FieldValue } from "@google-cloud/firestore";
-import { GoogleAuth, OAuth2Client } from "google-auth-library";
+import { OAuth2Client } from "google-auth-library";
 
 const databaseId = process.env.FIRESTORE_DATABASE_ID || "(default)";
 const accessToken = process.env.GOOGLE_ACCESS_TOKEN;

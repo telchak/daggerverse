@@ -5,6 +5,8 @@ from typing import Annotated
 import dagger
 from dagger import Doc, dag, function, object_type
 
+_NGINX_IMAGE = "nginx:alpine"
+
 
 @object_type
 class HealthCheckExamples:
@@ -13,10 +15,10 @@ class HealthCheckExamples:
     @function
     async def check_http_service(self) -> str:
         """Example: Health check an HTTP service (nginx)."""
-        nginx = dag.container().from_("nginx:alpine")
+        nginx = dag.container().from_(_NGINX_IMAGE)
 
         # Check if nginx is healthy on port 80
-        healthy = await dag.health_check().http(nginx, port=80, path="/")
+        await dag.health_check().http(nginx, port=80, path="/")
 
         return "✓ Nginx is healthy and responding on port 80"
 
@@ -26,7 +28,7 @@ class HealthCheckExamples:
         redis = dag.container().from_("redis:alpine")
 
         # Check if Redis port 6379 is open
-        healthy = await dag.health_check().tcp(redis, port=6379)
+        await dag.health_check().tcp(redis, port=6379)
 
         return "✓ Redis port 6379 is open and accepting connections"
 
@@ -46,7 +48,7 @@ class HealthCheckExamples:
         )
 
         # Check custom health endpoint
-        healthy = await dag.health_check().http(
+        await dag.health_check().http(
             api, port=5000, path="/api/health", timeout=30
         )
 
@@ -60,7 +62,7 @@ class HealthCheckExamples:
         )
 
         # Check PostgreSQL using pg_isready command
-        healthy = await dag.health_check().exec(
+        await dag.health_check().exec(
             postgres, command=["pg_isready", "-U", "postgres"]
         )
 
@@ -70,14 +72,14 @@ class HealthCheckExamples:
     async def use_ready_helper(self) -> str:
         """Example: Use the ready() convenience method."""
         # HTTP check (with endpoint)
-        nginx = dag.container().from_("nginx:alpine")
-        healthy_http = await dag.health_check().ready(
+        nginx = dag.container().from_(_NGINX_IMAGE)
+        await dag.health_check().ready(
             nginx, port=80, endpoint="/", timeout=30
         )
 
         # TCP check (without endpoint)
         redis = dag.container().from_("redis:alpine")
-        healthy_tcp = await dag.health_check().ready(redis, port=6379, timeout=30)
+        await dag.health_check().ready(redis, port=6379, timeout=30)
 
         return "✓ Both services passed readiness checks"
 
@@ -87,7 +89,7 @@ class HealthCheckExamples:
         # Start a service, check it's healthy, then use it
         api = (
             dag.container()
-            .from_("nginx:alpine")
+            .from_(_NGINX_IMAGE)
             .with_new_file("/usr/share/nginx/html/index.html", contents="Hello!")
         )
 

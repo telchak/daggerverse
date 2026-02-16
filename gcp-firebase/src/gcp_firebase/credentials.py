@@ -15,6 +15,8 @@ import json
 
 import dagger
 
+_GCP_CREDENTIALS_PATH = "/run/secrets/gcp-credentials.json"
+
 
 def generate_wif_credentials_json(
     workload_identity_provider: str,
@@ -74,16 +76,16 @@ def with_oidc_token(
     return (
         container
         .with_mounted_secret("/tmp/oidc-token", oidc_token)
-        .with_new_file("/tmp/gcp-credentials.json", contents=credentials_json)
-        .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp-credentials.json")
-        .with_env_variable("CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE", "/tmp/gcp-credentials.json")
+        .with_new_file(_GCP_CREDENTIALS_PATH, contents=credentials_json)
+        .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", _GCP_CREDENTIALS_PATH)
+        .with_env_variable("CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE", _GCP_CREDENTIALS_PATH)
     )
 
 
 def with_service_account_credentials(
     container: dagger.Container,
     credentials: dagger.Secret,
-    credentials_path: str = "/tmp/gcp-credentials.json",
+    credentials_path: str = _GCP_CREDENTIALS_PATH,
 ) -> dagger.Container:
     """Configure container with GCP service account credentials JSON.
 

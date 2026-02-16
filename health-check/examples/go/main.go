@@ -6,11 +6,13 @@ import (
 	"dagger/health-check-examples/internal/dagger"
 )
 
+const nginxImage = "nginx:alpine"
+
 type HealthCheckExamples struct{}
 
 // Example: Health check an HTTP service (nginx)
 func (m *HealthCheckExamples) CheckHttpService(ctx context.Context) (string, error) {
-	nginx := dag.Container().From("nginx:alpine")
+	nginx := dag.Container().From(nginxImage)
 
 	// Check if nginx is healthy on port 80
 	_, err := dag.HealthCheck().Http(ctx, nginx, dagger.HealthCheckHttpOpts{
@@ -85,7 +87,7 @@ func (m *HealthCheckExamples) CheckWithExec(ctx context.Context) (string, error)
 // Example: Use the ready() convenience method
 func (m *HealthCheckExamples) UseReadyHelper(ctx context.Context) (string, error) {
 	// HTTP check (with endpoint)
-	nginx := dag.Container().From("nginx:alpine")
+	nginx := dag.Container().From(nginxImage)
 	_, err := dag.HealthCheck().Ready(ctx, nginx, 80, dagger.HealthCheckReadyOpts{
 		Endpoint: "/",
 		Timeout:  30,
@@ -110,7 +112,7 @@ func (m *HealthCheckExamples) UseReadyHelper(ctx context.Context) (string, error
 func (m *HealthCheckExamples) ChainWithOtherOperations(ctx context.Context) (string, error) {
 	// Start a service, check it's healthy, then use it
 	api := dag.Container().
-		From("nginx:alpine").
+		From(nginxImage).
 		WithNewFile("/usr/share/nginx/html/index.html", "Hello!")
 
 	// Health check returns the original container, so you can chain operations

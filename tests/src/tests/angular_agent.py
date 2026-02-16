@@ -38,7 +38,7 @@ async def test_angie_assist(source: dagger.Directory) -> str:
     # result is a Directory — verify it has files
     entries = await result.entries()
     if not entries:
-        raise Exception("assist returned empty directory")
+        raise RuntimeError("assist returned empty directory")
 
     has_new_file = "ARCHITECTURE.md" in entries
     has_source = "src" in entries
@@ -55,7 +55,7 @@ async def test_angie_review(source: dagger.Directory) -> str:
     )
 
     if not result:
-        raise Exception("review returned empty result")
+        raise RuntimeError("review returned empty result")
 
     # A real review should contain structured feedback
     result_lower = result.lower()
@@ -79,7 +79,7 @@ async def test_angie_write_tests(source: dagger.Directory) -> str:
     # result is a Directory — verify it still has project files
     entries = await result.entries()
     if not entries:
-        raise Exception("write_tests returned empty directory")
+        raise RuntimeError("write_tests returned empty directory")
 
     # Check for test files in the workspace
     test_files = await result.glob("**/*.spec.ts")
@@ -97,7 +97,7 @@ async def test_angie_build(source: dagger.Directory) -> str:
     # result is a Directory — verify it has project files
     entries = await result.entries()
     if not entries:
-        raise Exception("build returned empty directory")
+        raise RuntimeError("build returned empty directory")
 
     has_source = "src" in entries
     has_config = "angular.json" in entries
@@ -117,7 +117,7 @@ async def test_angie_upgrade_dry_run(source: dagger.Directory) -> str:
     # result is a Directory — should still have project files
     entries = await result.entries()
     if not entries:
-        raise Exception("upgrade dry_run returned empty directory")
+        raise RuntimeError("upgrade dry_run returned empty directory")
 
     has_source = "src" in entries
     has_package = "package.json" in entries
@@ -151,9 +151,9 @@ async def test_angie_develop_github_issue(
     )
 
     if not pr_url:
-        raise Exception("develop_github_issue returned empty result")
+        raise RuntimeError("develop_github_issue returned empty result")
 
     if not pr_url.startswith("https://"):
-        raise Exception(f"develop_github_issue returned invalid PR URL: {pr_url}")
+        raise RuntimeError(f"develop_github_issue returned invalid PR URL: {pr_url}")
 
     return f"PASS: develop_github_issue (pr_url={pr_url})"

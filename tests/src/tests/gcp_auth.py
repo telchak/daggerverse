@@ -17,6 +17,11 @@ from .auth_utils import (
     format_test_summary,
 )
 
+_GCLOUD_FORMAT_ACCOUNT = "--format=value(account)"
+_GCLOUD_FILTER_ACTIVE = "--filter=status:ACTIVE"
+_CURL_IMAGE = "curlimages/curl:latest"
+_TOKEN_VALIDATED_MSG = "token validated"
+
 
 async def test_gcp_auth_oidc(
     workload_identity_provider: str,
@@ -52,7 +57,7 @@ async def test_gcp_auth_oidc(
     )
 
     email = await gcloud.with_exec(
-        ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
+        ["gcloud", "auth", "list", _GCLOUD_FILTER_ACTIVE, _GCLOUD_FORMAT_ACCOUNT]
     ).stdout()
     results.append(format_operation("AUTH", "PASS", email.strip()))
     ops["AUTH"] = "PASS"
@@ -73,7 +78,7 @@ async def test_gcp_auth_oidc(
     )
 
     email_gh = await gcloud_gh.with_exec(
-        ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
+        ["gcloud", "auth", "list", _GCLOUD_FILTER_ACTIVE, _GCLOUD_FORMAT_ACCOUNT]
     ).stdout()
     results.append(format_operation("AUTH_GH", "PASS", email_gh.strip()))
     ops["AUTH_GH"] = "PASS"
@@ -100,7 +105,7 @@ async def test_gcp_auth_service_account(
     )
 
     email = await gcloud.with_exec(
-        ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
+        ["gcloud", "auth", "list", _GCLOUD_FILTER_ACTIVE, _GCLOUD_FORMAT_ACCOUNT]
     ).stdout()
     results.append(format_operation("AUTH", "PASS", email.strip()))
     ops["AUTH"] = "PASS"
@@ -157,7 +162,7 @@ async def test_gcp_auth_access_token(
         # Verify access token works by calling GCP API
         token_check_sa = await (
             dag.container()
-            .from_("curlimages/curl:latest")
+            .from_(_CURL_IMAGE)
             .with_secret_variable("ACCESS_TOKEN", access_token_sa)
             .with_exec([
                 "sh", "-c",
@@ -168,10 +173,10 @@ async def test_gcp_auth_access_token(
             .stdout()
         )
         if project_id in token_check_sa:
-            results.append(format_operation("TOKEN_SA", "PASS", "token validated"))
+            results.append(format_operation("TOKEN_SA", "PASS", _TOKEN_VALIDATED_MSG))
             ops["TOKEN_SA"] = "PASS"
         else:
-            raise Exception(f"Access token (SA) validation failed: {token_check_sa}")
+            raise RuntimeError(f"Access token (SA) validation failed: {token_check_sa}")
 
     # Test access token from OIDC (if OIDC credentials provided)
     if oidc_token and oidc_url and workload_identity_provider:
@@ -194,7 +199,7 @@ async def test_gcp_auth_access_token(
         # Verify access token works by calling GCP API
         token_check = await (
             dag.container()
-            .from_("curlimages/curl:latest")
+            .from_(_CURL_IMAGE)
             .with_secret_variable("ACCESS_TOKEN", access_token)
             .with_exec([
                 "sh", "-c",
@@ -205,10 +210,10 @@ async def test_gcp_auth_access_token(
             .stdout()
         )
         if project_id in token_check:
-            results.append(format_operation("TOKEN_OIDC", "PASS", "token validated"))
+            results.append(format_operation("TOKEN_OIDC", "PASS", _TOKEN_VALIDATED_MSG))
             ops["TOKEN_OIDC"] = "PASS"
         else:
-            raise Exception(f"Access token validation failed: {token_check}")
+            raise RuntimeError(f"Access token validation failed: {token_check}")
 
         # Test access_token_from_github_actions
         results.append(format_component_header("Access Token (GitHub Actions)"))
@@ -223,7 +228,7 @@ async def test_gcp_auth_access_token(
 
         token_check_gh = await (
             dag.container()
-            .from_("curlimages/curl:latest")
+            .from_(_CURL_IMAGE)
             .with_secret_variable("ACCESS_TOKEN", access_token_gh)
             .with_exec([
                 "sh", "-c",
@@ -234,10 +239,10 @@ async def test_gcp_auth_access_token(
             .stdout()
         )
         if project_id in token_check_gh:
-            results.append(format_operation("TOKEN_GH", "PASS", "token validated"))
+            results.append(format_operation("TOKEN_GH", "PASS", _TOKEN_VALIDATED_MSG))
             ops["TOKEN_GH"] = "PASS"
         else:
-            raise Exception(f"Access token validation failed: {token_check_gh}")
+            raise RuntimeError(f"Access token validation failed: {token_check_gh}")
 
     if not credentials and not (oidc_token and oidc_url and workload_identity_provider):
         results.append(format_operation("ALL", "SKIP", "No credentials provided"))

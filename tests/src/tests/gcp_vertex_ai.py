@@ -24,7 +24,7 @@ from .auth_utils import (
 
 async def _test_vertex_ai_operations(
     gcloud: dagger.Container,
-    auth_method: AuthMethod,
+    _auth_method: AuthMethod,
     region: str = "us-central1",
 ) -> tuple[list[str], dict[str, str]]:
     """Test Vertex AI operations with specified gcloud container.
@@ -71,7 +71,7 @@ async def test_gcp_vertex_ai_oidc(
 
     op_results, ops = await _test_vertex_ai_operations(
         gcloud=gcloud,
-        auth_method=AuthMethod.OIDC,
+        _auth_method=AuthMethod.OIDC,
         region=region,
     )
     results.extend(op_results)
@@ -95,7 +95,7 @@ async def test_gcp_vertex_ai_service_account(
 
     op_results, ops = await _test_vertex_ai_operations(
         gcloud=gcloud,
-        auth_method=AuthMethod.SERVICE_ACCOUNT,
+        _auth_method=AuthMethod.SERVICE_ACCOUNT,
         region=region,
     )
     results.extend(op_results)
@@ -147,7 +147,7 @@ async def test_gcp_vertex_ai_access_token(
 
     op_results, ops = await _test_vertex_ai_operations(
         gcloud=gcloud,
-        auth_method=AuthMethod.ACCESS_TOKEN,
+        _auth_method=AuthMethod.ACCESS_TOKEN,
         region=region,
     )
     results.extend(op_results)

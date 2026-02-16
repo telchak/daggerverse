@@ -32,12 +32,6 @@ class SemverExamples:
         """Example: Release a specific module in a monorepo."""
         tag_prefix = f"{module_name}/"
 
-        # Check what version would be created
-        next_version = await dag.semver().next(
-            source=source,
-            tag_prefix=tag_prefix,
-        )
-
         # Create the release
         result = await dag.semver().release(
             source=source,

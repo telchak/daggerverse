@@ -14,6 +14,9 @@ from .gcloud_config import (
 )
 from .oidc import generate_file_based_credentials
 
+_GCLOUD_SDK_IMAGE = "google/cloud-sdk:alpine"
+_GCP_CREDENTIALS_PATH = "/run/secrets/gcp-credentials.json"
+
 
 @object_type
 class GcpAuth:
@@ -36,7 +39,7 @@ class GcpAuth:
         self,
         container: Annotated[dagger.Container, Doc("Container to configure")],
         credentials: Annotated[dagger.Secret, Doc("GCP service account credentials (JSON)")],
-        credentials_path: Annotated[str, Doc("Path for credentials file")] = "/tmp/gcp-credentials.json",
+        credentials_path: Annotated[str, Doc("Path for credentials file")] = _GCP_CREDENTIALS_PATH,
         export_env_vars: Annotated[bool, Doc("Export GCP environment variables")] = True,
     ) -> dagger.Container:
         """Add GCP service account credentials to container.
@@ -79,9 +82,9 @@ class GcpAuth:
         return (
             container
             .with_mounted_secret("/tmp/oidc-token", oidc_token)
-            .with_new_file("/tmp/gcp-credentials.json", contents=credentials_json)
-            .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/gcp-credentials.json")
-            .with_env_variable("CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE", "/tmp/gcp-credentials.json")
+            .with_new_file(_GCP_CREDENTIALS_PATH, contents=credentials_json)
+            .with_env_variable("GOOGLE_APPLICATION_CREDENTIALS", _GCP_CREDENTIALS_PATH)
+            .with_env_variable("CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE", _GCP_CREDENTIALS_PATH)
         )
 
     # ========== GCLOUD CONTAINERS ==========
@@ -92,7 +95,7 @@ class GcpAuth:
         credentials: Annotated[dagger.Secret, Doc("GCP service account credentials (JSON key)")],
         project_id: Annotated[str, Doc("GCP project ID")],
         region: Annotated[str, Doc("Default GCP region")] = "us-central1",
-        image: Annotated[str, Doc("Google Cloud SDK image")] = "google/cloud-sdk:alpine",
+        image: Annotated[str, Doc("Google Cloud SDK image")] = _GCLOUD_SDK_IMAGE,
         components: Annotated[list[str] | None, Doc("Additional gcloud components")] = None,
     ) -> dagger.Container:
         """Create authenticated gcloud SDK container using service account key.
@@ -113,7 +116,7 @@ class GcpAuth:
         project_id: Annotated[str, Doc("GCP project ID")],
         service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
         region: Annotated[str, Doc("Default GCP region")] = "us-central1",
-        image: Annotated[str, Doc("Google Cloud SDK image")] = "google/cloud-sdk:alpine",
+        image: Annotated[str, Doc("Google Cloud SDK image")] = _GCLOUD_SDK_IMAGE,
     ) -> dagger.Container:
         """Create authenticated gcloud container using an OIDC token.
 
@@ -144,7 +147,7 @@ class GcpAuth:
         oidc_request_url: Annotated[dagger.Secret, Doc("ACTIONS_ID_TOKEN_REQUEST_URL")],
         service_account_email: Annotated[str | None, Doc("Service account to impersonate")] = None,
         region: Annotated[str, Doc("Default GCP region")] = "us-central1",
-        image: Annotated[str, Doc("Google Cloud SDK image")] = "google/cloud-sdk:alpine",
+        image: Annotated[str, Doc("Google Cloud SDK image")] = _GCLOUD_SDK_IMAGE,
     ) -> dagger.Container:
         """Create authenticated gcloud container using GitHub Actions OIDC.
 
@@ -171,7 +174,7 @@ class GcpAuth:
         self,
         project_id: Annotated[str, Doc("GCP project ID")],
         region: Annotated[str, Doc("Default GCP region")] = "us-central1",
-        image: Annotated[str, Doc("Google Cloud SDK image")] = "google/cloud-sdk:alpine",
+        image: Annotated[str, Doc("Google Cloud SDK image")] = _GCLOUD_SDK_IMAGE,
         components: Annotated[list[str] | None, Doc("Additional gcloud components")] = None,
         gcloud_config_path: Annotated[str, Doc("Path to gcloud config on host")] = "",
     ) -> dagger.Container:

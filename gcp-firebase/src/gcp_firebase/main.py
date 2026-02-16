@@ -10,6 +10,8 @@ from .credentials import with_oidc_token, with_service_account_credentials
 from .firestore import Firestore
 from .scripts import FirebaseScripts
 
+_DEFAULT_BUILD_CMD = "npm run build"
+
 
 def _with_firebase_credentials(
     container: dagger.Container,
@@ -93,7 +95,7 @@ class GcpFirebase:
     def build(
         self,
         source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory")],
-        build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = "npm run build",
+        build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = _DEFAULT_BUILD_CMD,
         node_version: Annotated[str, Doc("Node.js version")] = "20",
     ) -> dagger.Directory:
         """Build the web application and return the dist directory."""
@@ -121,7 +123,7 @@ class GcpFirebase:
         # Legacy access token auth (deprecated)
         access_token: Annotated[dagger.Secret | None, Doc("GCP access token (deprecated, use OIDC or credentials)")] = None,
         # Build options
-        build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = "npm run build",
+        build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = _DEFAULT_BUILD_CMD,
         node_version: Annotated[str, Doc("Node.js version")] = "20",
         skip_build: Annotated[bool, Doc("Skip npm ci and build step (use when source is pre-built)")] = False,
         deploy_functions: Annotated[bool, Doc("Deploy Cloud Functions")] = True,
@@ -172,7 +174,7 @@ class GcpFirebase:
         # Legacy access token auth (deprecated)
         access_token: Annotated[dagger.Secret | None, Doc("GCP access token (deprecated, use OIDC or credentials)")] = None,
         # Build options
-        build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = "npm run build",
+        build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = _DEFAULT_BUILD_CMD,
         node_version: Annotated[str, Doc("Node.js version")] = "20",
         skip_build: Annotated[bool, Doc("Skip npm ci and build step (use when source is pre-built)")] = False,
         expires: Annotated[str, Doc("Channel expiration")] = "7d",

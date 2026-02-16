@@ -3,15 +3,30 @@ revision = 3
 requires-python = ">=3.13"
 
 [[package]]
-name = "angie"
+name = "agent-base"
 version = "0.1.0"
-source = { editable = "." }
+source = { editable = "../_agent_base" }
 dependencies = [
     { name = "dagger-io" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "dagger-io", editable = "sdk" }]
+requires-dist = [{ name = "dagger-io" }]
+
+[[package]]
+name = "angie"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "agent-base" },
+    { name = "dagger-io" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agent-base", editable = "../_agent_base" },
+    { name = "dagger-io", editable = "sdk" },
+]
 
 [[package]]
 name = "anyio"

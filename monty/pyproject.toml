@@ -2,7 +2,7 @@
 name = "monty"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["dagger-io"]
+dependencies = ["dagger-io", "agent-base"]
 
 [build-system]
 requires = ["uv_build>=0.8.4,<0.9.0"]
@@ -10,3 +10,4 @@ build-backend = "uv_build"
 
 [tool.uv.sources]
 dagger-io = { path = "sdk", editable = true }
+agent-base = { path = "../_agent_base", editable = true }

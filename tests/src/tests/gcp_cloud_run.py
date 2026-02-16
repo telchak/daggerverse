@@ -59,14 +59,14 @@ async def _test_cloud_run_crud(
         # READ - check exists
         exists = await svc.exists(gcloud=gcloud, service_name=service_name, region=region)
         if not exists:
-            raise Exception(f"Service {service_name} not found after deploy")
+            raise RuntimeError(f"Service {service_name} not found after deploy")
         results.append(format_operation("READ (exists)", "PASS"))
         ops["READ"] = "PASS"
 
         # READ - get URL
         url = await svc.get_url(gcloud=gcloud, service_name=service_name, region=region)
         if not url.startswith("https://"):
-            raise Exception(f"Invalid URL: {url}")
+            raise RuntimeError(f"Invalid URL: {url}")
         results.append(format_operation("READ (get_url)", "PASS", url))
 
         # UPDATE - redeploy with env var

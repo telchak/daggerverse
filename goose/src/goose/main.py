@@ -13,6 +13,24 @@ _BLOCKED_ENTRYPOINTS = [
     "upgrade", "develop_github_issue", "suggest_github_fix",
 ]
 
+
+def _parse_router_response(params_json: str | None) -> tuple[dict, str | None]:
+    """Parse JSON from router LLM output with fallback for malformed responses.
+
+    Returns (params_dict, fallback_function_name). fallback_function_name is
+    "assist" if parsing failed entirely, None if parsing succeeded.
+    """
+    try:
+        return json.loads(params_json), None
+    except (json.JSONDecodeError, TypeError):
+        match = re.search(r"\{[^}]*\}", params_json or "")
+        if match:
+            try:
+                return json.loads(match.group()), None
+            except json.JSONDecodeError:
+                return {}, "assist"
+        return {}, "assist"
+
 # Destructive tools blocked on the read-only sub-agent
 _BLOCKED_DESTRUCTIVE = [
     "deploy_service", "delete_service",
@@ -22,6 +40,11 @@ _BLOCKED_DESTRUCTIVE = [
     "publish_container",
     "suggest_github_pr_code_comment",
 ]
+
+_DAGGER_CONFIG_FILE = "DAGGER.md"
+_DOC_GCP_PROJECT_ID = "The GCP project ID"
+_DOC_GCP_REGION = "The GCP region"
+_ERROR_NO_SOURCE_DIR = "No source directory available. Pass --source to use workspace tools."
 
 
 @object_type
@@ -90,9 +113,9 @@ class Goose:
         if not source:
             return {}
         entries = await source.entries()
-        if "DAGGER.md" not in entries:
+        if _DAGGER_CONFIG_FILE not in entries:
             return {}
-        contents = await source.file("DAGGER.md").contents()
+        contents = await source.file(_DAGGER_CONFIG_FILE).contents()
 
         config: dict[str, str] = {}
         key_map = {
@@ -254,7 +277,7 @@ class Goose:
         if not target:
             return ""
         entries = await target.entries()
-        for name in ("GOOSE.md", "DAGGER.md", "AGENT.md", "CLAUDE.md"):
+        for name in ("GOOSE.md", _DAGGER_CONFIG_FILE, "AGENT.md", "CLAUDE.md"):
             if name in entries:
                 contents = await target.file(name).contents()
                 if len(contents) > self._MAX_CONTEXT_CHARS:
@@ -335,13 +358,13 @@ Do not search docs for basic operations you already know how to perform.
         GCP services, and reviews configurations. Uses workspace tools to
         read deployment configs (Dockerfiles, firebase.json, cloudbuild.yaml).
         """
-        dagger_md_config = await self._resolve_all(source)
+        await self._resolve_all(source)
 
         env = (
             dag.env()
             .with_string_input("assignment", assignment, "The operations task to accomplish")
-            .with_string_input("project_id", self.project_id, "The GCP project ID")
-            .with_string_input("region", self.region, "The GCP region")
+            .with_string_input("project_id", self.project_id, _DOC_GCP_PROJECT_ID)
+            .with_string_input("region", self.region, _DOC_GCP_REGION)
             .with_string_output("result", "The assistant's response")
         )
 
@@ -364,14 +387,14 @@ Do not search docs for basic operations you already know how to perform.
         service YAML, IAM policies, and other GCP configs. Provides
         structured feedback with issues and recommendations.
         """
-        dagger_md_config = await self._resolve_all(source)
+        await self._resolve_all(source)
         self.source = source
 
         env = (
             dag.env()
             .with_workspace(source)
-            .with_string_input("project_id", self.project_id, "The GCP project ID")
-            .with_string_input("region", self.region, "The GCP region")
+            .with_string_input("project_id", self.project_id, _DOC_GCP_PROJECT_ID)
+            .with_string_input("region", self.region, _DOC_GCP_REGION)
             .with_string_output("result", "The review result")
         )
 
@@ -407,7 +430,7 @@ Do not search docs for basic operations you already know how to perform.
         env = (
             dag.env()
             .with_string_input("assignment", assignment, "The deployment task to accomplish")
-            .with_string_input("project_id", self.project_id, "The GCP project ID")
+            .with_string_input("project_id", self.project_id, _DOC_GCP_PROJECT_ID)
             .with_string_input("region", self.region, "The GCP region to deploy to")
         )
 
@@ -447,8 +470,8 @@ Do not search docs for basic operations you already know how to perform.
         env = (
             dag.env()
             .with_string_input("issue", issue, "The issue description to diagnose")
-            .with_string_input("project_id", self.project_id, "The GCP project ID")
-            .with_string_input("region", self.region, "The GCP region")
+            .with_string_input("project_id", self.project_id, _DOC_GCP_PROJECT_ID)
+            .with_string_input("region", self.region, _DOC_GCP_REGION)
         )
 
         if service_name:
@@ -473,7 +496,7 @@ Do not search docs for basic operations you already know how to perform.
         Supports Cloud Run image updates, traffic splitting, config changes,
         and Firebase redeployments.
         """
-        dagger_md_config = await self._resolve_all(source)
+        await self._resolve_all(source)
 
         if source:
             self.source = source
@@ -481,8 +504,8 @@ Do not search docs for basic operations you already know how to perform.
         env = (
             dag.env()
             .with_string_input("service_name", service_name, "Service to upgrade")
-            .with_string_input("project_id", self.project_id, "The GCP project ID")
-            .with_string_input("region", self.region, "The GCP region")
+            .with_string_input("project_id", self.project_id, _DOC_GCP_PROJECT_ID)
+            .with_string_input("region", self.region, _DOC_GCP_REGION)
             .with_string_output("result", "Upgrade result")
         )
 
@@ -587,20 +610,9 @@ Do not search docs for basic operations you already know how to perform.
         function_name = await router.env().output("function_name").as_string()
         params_json = await router.env().output("params_json").as_string()
 
-        # Parse JSON with fallback for malformed LLM output (code fences, trailing text)
-        try:
-            params = json.loads(params_json)
-        except (json.JSONDecodeError, TypeError):
-            match = re.search(r"\{[^}]*\}", params_json or "")
-            if match:
-                try:
-                    params = json.loads(match.group())
-                except json.JSONDecodeError:
-                    params = {}
-                    function_name = "assist"
-            else:
-                params = {}
-                function_name = "assist"
+        params, fallback = _parse_router_response(params_json)
+        if fallback:
+            function_name = fallback
 
         # Filter params to expected keys per function to prevent TypeErrors
         _allowed_keys = {
@@ -611,28 +623,10 @@ Do not search docs for basic operations you already know how to perform.
         allowed = _allowed_keys.get(function_name, set())
         params = {k: v for k, v in params.items() if k in allowed}
 
-        try:
-            if function_name == "deploy":
-                result = await self.deploy(source=workspace, **params)
-            elif function_name == "troubleshoot":
-                result = await self.troubleshoot(source=workspace, **params)
-            elif function_name == "upgrade":
-                result = await self.upgrade(source=workspace, **params)
-            else:
-                result = await self.assist(assignment=body, source=workspace)
-        except Exception as exc:
-            if suggest_github_fix_on_failure:
-                await gh.write_comment(
-                    repo=repository,
-                    issue_id=issue_id,
-                    body=(
-                        f"**Agent encountered an error:**\n\n"
-                        f"**Function**: `{function_name}`\n"
-                        f"**Error**:\n```\n{str(exc)[:3000]}\n```\n\n"
-                        f"Run `suggest-github-fix` on the PR for inline code suggestions."
-                    ),
-                )
-            raise
+        result = await self._execute_routed_function(
+            function_name, params, body, workspace,
+            gh, repository, issue_id, suggest_github_fix_on_failure,
+        )
 
         # For functions that return str, create a minimal directory for the PR
         pr_body = f"{body}\n\nCloses {url}\n\nAgent result:\n{result}"
@@ -657,6 +651,41 @@ Do not search docs for basic operations you already know how to perform.
         )
 
         return pr_url
+
+    async def _execute_routed_function(
+        self,
+        function_name: str,
+        params: dict,
+        body: str,
+        workspace: dagger.Directory | None,
+        gh,
+        repository: str,
+        issue_id: int,
+        suggest_on_failure: bool,
+    ) -> str:
+        """Dispatch to the routed function, posting a comment on failure if requested."""
+        try:
+            if function_name == "deploy":
+                return await self.deploy(source=workspace, **params)
+            elif function_name == "troubleshoot":
+                return await self.troubleshoot(source=workspace, **params)
+            elif function_name == "upgrade":
+                return await self.upgrade(source=workspace, **params)
+            else:
+                return await self.assist(assignment=body, source=workspace)
+        except Exception as exc:
+            if suggest_on_failure:
+                await gh.write_comment(
+                    repo=repository,
+                    issue_id=issue_id,
+                    body=(
+                        f"**Agent encountered an error:**\n\n"
+                        f"**Function**: `{function_name}`\n"
+                        f"**Error**:\n```\n{str(exc)[:3000]}\n```\n\n"
+                        f"Run `suggest-github-fix` on the PR for inline code suggestions."
+                    ),
+                )
+            raise
 
     # --- Sub-agent ---
 
@@ -744,7 +773,7 @@ Do not search docs for basic operations you already know how to perform.
     ) -> str:
         """Read a file from the workspace with line numbers."""
         if not self.source:
-            raise ValueError("No source directory available. Pass --source to use workspace tools.")
+            raise ValueError(_ERROR_NO_SOURCE_DIR)
         contents = await self.source.file(file_path).contents()
         lines = contents.splitlines()
 
@@ -770,7 +799,7 @@ Do not search docs for basic operations you already know how to perform.
         Returns a changeset showing the diff.
         """
         if not self.source:
-            raise ValueError("No source directory available. Pass --source to use workspace tools.")
+            raise ValueError(_ERROR_NO_SOURCE_DIR)
         before = self.source
         contents = await before.file(file_path).contents()
 
@@ -798,7 +827,7 @@ Do not search docs for basic operations you already know how to perform.
         Returns a changeset showing the diff.
         """
         if not self.source:
-            raise ValueError("No source directory available. Pass --source to use workspace tools.")
+            raise ValueError(_ERROR_NO_SOURCE_DIR)
         before = self.source
         after = before.with_new_file(file_path, contents)
         self.source = after
@@ -811,7 +840,7 @@ Do not search docs for basic operations you already know how to perform.
     ) -> str:
         """Find files in the workspace matching a glob pattern."""
         if not self.source:
-            raise ValueError("No source directory available. Pass --source to use workspace tools.")
+            raise ValueError(_ERROR_NO_SOURCE_DIR)
         entries = await self.source.glob(pattern)
         if not entries:
             return "No files matched the pattern."
@@ -828,7 +857,7 @@ Do not search docs for basic operations you already know how to perform.
     ) -> str:
         """Search file contents in the workspace using grep."""
         if not self.source:
-            raise ValueError("No source directory available. Pass --source to use workspace tools.")
+            raise ValueError(_ERROR_NO_SOURCE_DIR)
         cmd = ["grep", "-rn"]
         if insensitive:
             cmd.append("-i")

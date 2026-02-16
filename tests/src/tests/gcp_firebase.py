@@ -30,6 +30,7 @@ from ._gcp_firebase_helpers import (
     test_scripts,
 )
 
+_FIREBASE_TEMPLATE_REPO = "https://github.com/telchak/firebase-dagger-template.git"
 
 # Fixtures path relative to module root
 FIXTURES_PATH = "src/tests/fixtures/firestore-scripts"
@@ -69,7 +70,7 @@ async def test_gcp_firebase_oidc(
     )
 
     # Source directories
-    source = dag.git("https://github.com/telchak/firebase-dagger-template.git").branch("main").tree()
+    source = dag.git(_FIREBASE_TEMPLATE_REPO).branch("main").tree()
     scripts_source = dag.current_module().source().directory(FIXTURES_PATH)
 
     # Test Hosting
@@ -140,7 +141,7 @@ async def test_gcp_firebase_service_account(
     )
 
     # Source directories
-    source = dag.git("https://github.com/telchak/firebase-dagger-template.git").branch("main").tree()
+    source = dag.git(_FIREBASE_TEMPLATE_REPO).branch("main").tree()
     scripts_source = dag.current_module().source().directory(FIXTURES_PATH)
 
     # Test Hosting
@@ -235,7 +236,7 @@ async def test_gcp_firebase_access_token(
         return "\n".join(results), ops
 
     # Source directory
-    source = dag.git("https://github.com/telchak/firebase-dagger-template.git").branch("main").tree()
+    source = dag.git(_FIREBASE_TEMPLATE_REPO).branch("main").tree()
 
     # Test Hosting only (access token not supported for scripts)
     hosting_results, hosting_ops = await test_hosting_crud(

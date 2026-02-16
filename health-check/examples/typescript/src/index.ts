@@ -1,7 +1,7 @@
 /**
  * Examples for using the health-check Dagger module in TypeScript.
  */
-import { dag, Container, object, func } from "@dagger.io/dagger"
+import { dag, object, func } from "@dagger.io/dagger"
 
 @object()
 export class HealthCheckExamples {

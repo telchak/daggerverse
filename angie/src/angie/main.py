@@ -1,20 +1,11 @@
 """Angie — AI-powered Angular development agent with MCP integration."""
 
-import json
-import re
 from typing import Annotated
 
 import dagger
 from dagger import DefaultPath, Doc, dag, field, function, object_type
 
-# Entrypoints blocked on all LLMs to prevent recursion
-_BLOCKED_ENTRYPOINTS = [
-    "assist", "review", "write_tests", "build",
-    "upgrade", "develop_github_issue", "suggest_github_fix",
-]
-
-# Destructive tools blocked on the read-only sub-agent
-_BLOCKED_DESTRUCTIVE = ["edit_file", "write_file", "suggest_github_pr_code_comment"]
+from agent_base import constants, github_tools, llm_helpers, routing, workspace
 
 
 @object_type
@@ -45,87 +36,48 @@ class Angie:
     _pr_number: int = field(default=0, init=False)
     _pr_commit_sha: str = field(default="", init=False)
 
-    # --- Angular MCP integration ---
+    # --- Agent-specific configuration ---
 
-    def _angular_mcp_service(self) -> dagger.Service:
-        """Create the Angular CLI MCP server as a Dagger Service."""
-        return (
-            dag.container()
-            .from_(f"node:{self.node_version}")
-            .with_default_args([
-                "npx", "-y", "@angular/cli", "mcp",
-                "--experimental-tool", "build",
-                "--experimental-tool", "test",
-                "--experimental-tool", "e2e",
-                "--experimental-tool", "modernize",
-            ])
-            .as_service()
-        )
+    _CONTEXT_FILES = ("ANGIE.md", "AGENT.md", "CLAUDE.md")
+    _CLASS_NAME = "Angie"
+    _ALLOWED_ROUTER_KEYS = {
+        "upgrade": {"target_version", "dry_run"},
+        "build": {"command"},
+        "write_tests": {"target", "test_framework"},
+    }
 
-    # --- Prompt helpers ---
+    def _mcp_servers(self) -> dict[str, dagger.Service]:
+        return {
+            "angular": (
+                dag.container()
+                .from_(f"node:{self.node_version}")
+                .with_default_args([
+                    "npx", "-y", "@angular/cli", "mcp",
+                    "--experimental-tool", "build",
+                    "--experimental-tool", "test",
+                    "--experimental-tool", "e2e",
+                    "--experimental-tool", "modernize",
+                ])
+                .as_service()
+            ),
+        }
 
     def _load_prompt(self, filename: str) -> dagger.File:
-        """Load a prompt file from the module source."""
-        return dag.current_module().source().file(
-            f"src/angie/prompts/{filename}"
+        return dag.current_module().source().file(f"src/angie/prompts/{filename}")
+
+    async def _build_llm(self, env, prompt_file, source=None):
+        return await llm_helpers.build_llm(
+            env, "system_prompt.md", prompt_file, self._load_prompt,
+            self._CONTEXT_FILES, self._mcp_servers(), self._CLASS_NAME,
+            constants.BLOCKED_ENTRYPOINTS, source or self.source,
         )
 
-    _MAX_CONTEXT_CHARS = 4000  # ~1000 tokens — keeps total prompt under budget
-
-    async def _read_context_file(self, source: dagger.Directory | None = None) -> str:
-        """Read per-repo context from ANGIE.md, AGENT.md, or CLAUDE.md."""
-        target = source or self.source
-        entries = await target.entries()
-        for name in ("ANGIE.md", "AGENT.md", "CLAUDE.md"):
-            if name in entries:
-                contents = await target.file(name).contents()
-                if len(contents) > self._MAX_CONTEXT_CHARS:
-                    contents = contents[:self._MAX_CONTEXT_CHARS] + "\n\n[Context file truncated to fit token budget.]"
-                return f"\n\n## Project Context (from {name})\n\n{contents}"
-        return ""
-
-    async def _build_llm(
-        self,
-        env: dagger.Env,
-        prompt_file: str,
-        source: dagger.Directory | None = None,
-    ) -> dagger.LLM:
-        """Build an LLM with the environment, workspace tools, MCP, and prompts."""
-        context_md = await self._read_context_file(source)
-        system_prompt = await self._load_prompt("system_prompt.md").contents()
-
-        llm = (
-            dag.llm()
-            .with_env(env.with_current_module())
-            .with_mcp_server("angular", self._angular_mcp_service())
-            .with_system_prompt(system_prompt + context_md)
+    async def _build_suggest_fix_llm(self, env, source=None):
+        return await llm_helpers.build_suggest_fix_llm(
+            env, self._load_prompt, self._CONTEXT_FILES, self._CLASS_NAME,
+            constants.BLOCKED_ENTRYPOINTS, constants.BLOCKED_DESTRUCTIVE,
+            source or self.source,
         )
-
-        for fn in _BLOCKED_ENTRYPOINTS:
-            llm = llm.with_blocked_function("Angie", fn)
-
-        return llm.with_prompt_file(self._load_prompt(prompt_file))
-
-    async def _build_suggest_fix_llm(
-        self,
-        env: dagger.Env,
-        source: dagger.Directory | None = None,
-    ) -> dagger.LLM:
-        """Build an LLM for suggest-github-fix (no MCP servers, workspace + suggestion tool)."""
-        context_md = await self._read_context_file(source)
-        system_prompt = await self._load_prompt("system_prompt.md").contents()
-
-        llm = (
-            dag.llm()
-            .with_env(env.with_current_module())
-            .with_system_prompt(system_prompt + context_md)
-        )
-
-        for fn in _BLOCKED_ENTRYPOINTS + ["task"] + _BLOCKED_DESTRUCTIVE:
-            if fn != "suggest_github_pr_code_comment":
-                llm = llm.with_blocked_function("Angie", fn)
-
-        return llm.with_prompt_file(self._load_prompt("suggest_fix_prompt.md"))
 
     # --- Agent entrypoints ---
 
@@ -141,16 +93,13 @@ class Angie:
         and uses Angular CLI MCP tools for docs and best practices.
         Returns the modified workspace directory.
         """
-        workspace = source or self.source
-
+        ws = source or self.source
         env = (
             dag.env()
-            .with_workspace(workspace)
+            .with_workspace(ws)
             .with_string_input("assignment", assignment, "The coding task to accomplish")
         )
-
-        work = await self._build_llm(env, "assist_prompt.md", workspace)
-        return work.env().workspace()
+        return (await self._build_llm(env, "assist_prompt.md", ws)).env().workspace()
 
     @function
     async def review(
@@ -164,20 +113,17 @@ class Angie:
         Provides structured feedback with issues, suggestions, and a summary.
         Returns the review as text (no files modified).
         """
-        workspace = source or self.source
-
+        ws = source or self.source
         env = (
             dag.env()
-            .with_workspace(workspace)
+            .with_workspace(ws)
             .with_string_output("result", "The code review result")
         )
-
         if diff:
             env = env.with_string_input("diff", diff, "Git diff or PR diff to review")
         if focus:
             env = env.with_string_input("focus", focus, "Specific area to focus the review on")
-
-        work = await self._build_llm(env, "review_prompt.md", workspace)
+        work = await self._build_llm(env, "review_prompt.md", ws)
         return await work.env().output("result").as_string()
 
     @function
@@ -192,17 +138,13 @@ class Angie:
         Follows Angular testing patterns and uses the project's existing test setup.
         Returns the workspace directory with generated test files.
         """
-        workspace = source or self.source
-
-        env = dag.env().with_workspace(workspace)
-
+        ws = source or self.source
+        env = dag.env().with_workspace(ws)
         if target:
             env = env.with_string_input("target", target, "Specific file or component to write tests for")
         if test_framework:
             env = env.with_string_input("test_framework", test_framework, "Test framework preference")
-
-        work = await self._build_llm(env, "write_tests_prompt.md", workspace)
-        return work.env().workspace()
+        return (await self._build_llm(env, "write_tests_prompt.md", ws)).env().workspace()
 
     @function
     async def build(
@@ -215,15 +157,11 @@ class Angie:
         Diagnoses build errors and suggests fixes using Angular CLI MCP tools.
         Returns the workspace directory with any fixes applied.
         """
-        workspace = source or self.source
-
-        env = dag.env().with_workspace(workspace)
-
+        ws = source or self.source
+        env = dag.env().with_workspace(ws)
         if command:
             env = env.with_string_input("command", command, "Build command to run")
-
-        work = await self._build_llm(env, "build_prompt.md", workspace)
-        return work.env().workspace()
+        return (await self._build_llm(env, "build_prompt.md", ws)).env().workspace()
 
     @function
     async def upgrade(
@@ -239,19 +177,15 @@ class Angie:
         code, and applies the necessary modifications.
         Returns the workspace directory with upgrade changes applied.
         """
-        workspace = source or self.source
-
+        ws = source or self.source
         env = (
             dag.env()
-            .with_workspace(workspace)
+            .with_workspace(ws)
             .with_string_input("target_version", target_version, "Target Angular version to upgrade to")
         )
-
         if dry_run:
             env = env.with_string_input("dry_run", "true", "Only analyze and report, do not modify files")
-
-        work = await self._build_llm(env, "upgrade_prompt.md", workspace)
-        return work.env().workspace()
+        return (await self._build_llm(env, "upgrade_prompt.md", ws)).env().workspace()
 
     # --- GitHub integration ---
 
@@ -270,35 +204,31 @@ class Angie:
         Reads the error output, explores source files, and posts GitHub
         "suggested changes" that developers can apply with one click.
         """
-        workspace = source or self.source
-
-        # Store PR state for the suggestion tool
-        self._github_token = github_token
-        self._pr_repo = repo
-        self._pr_number = pr_number
-        self._pr_commit_sha = commit_sha
-
-        # Truncate error output (keep tail — most relevant)
-        max_error_chars = 8000
-        if len(error_output) > max_error_chars:
-            error_output = "...(truncated)\n" + error_output[-max_error_chars:]
-
-        env = (
-            dag.env()
-            .with_string_input("error_output", error_output, "The CI error output to analyze")
-            .with_string_input("pr_number", str(pr_number), "The pull request number")
-            .with_string_input("repo", repo, "The GitHub repository URL")
-            .with_string_input("commit_sha", commit_sha, "The HEAD commit SHA of the PR")
-            .with_string_output("result", "Summary of suggestions posted")
-        )
-
+        ws = source or self.source
         if source:
             self.source = source
-        if workspace:
-            env = env.with_workspace(workspace)
+        return await github_tools.suggest_github_fix_impl(
+            self._build_suggest_fix_llm, github_token, pr_number, repo,
+            commit_sha, error_output, self, ws,
+        )
 
-        work = await self._build_suggest_fix_llm(env, workspace)
-        return await work.env().output("result").as_string()
+    @function
+    async def suggest_github_pr_code_comment(
+        self,
+        path: Annotated[str, Doc("File path relative to repo root")],
+        line: Annotated[int, Doc("Line number to suggest a change on")],
+        suggestion: Annotated[str, Doc("Replacement code (no ```suggestion fences, just the raw code)")],
+        comment: Annotated[str, Doc("Explanation of the fix")] = "",
+    ) -> str:
+        """Post an inline code suggestion on a GitHub pull request.
+
+        The suggestion will appear as a GitHub "suggested change" that
+        developers can apply with one click.
+        """
+        return await github_tools.suggest_github_pr_code_comment_impl(
+            self._github_token, self._pr_repo, self._pr_number,
+            self._pr_commit_sha, path, line, suggestion, comment,
+        )
 
     @function
     async def develop_github_issue(
@@ -317,139 +247,19 @@ class Angie:
         Comments on the issue with a summary and a link to the PR.
         Returns the PR URL.
         """
-        workspace = source or self.source
-        gh = dag.github_issue(token=github_token)
-
-        # Read the issue
-        issue = gh.read(repository, issue_id)
-        title = await issue.title()
-        body = await issue.body()
-        url = await issue.url()
-
-        # Classify the issue to pick the best agent function
-        router_prompt = await self._load_prompt("router_prompt.md").contents()
-
-        router_env = (
-            dag.env()
-            .with_string_input("issue_title", title, "The GitHub issue title")
-            .with_string_input("issue_body", body, "The GitHub issue body")
-            .with_string_output("function_name", "The function to call: assist, upgrade, build, or write_tests")
-            .with_string_output("params_json", "JSON object with function parameters")
+        return await github_tools.develop_github_issue_impl(
+            self._load_prompt, self._build_llm, self._execute_routed_function,
+            self._ALLOWED_ROUTER_KEYS, github_token, issue_id, repository,
+            source or self.source, base, suggest_github_fix_on_failure,
         )
 
-        router = (
-            dag.llm()
-            .with_env(router_env)
-            .with_system_prompt(router_prompt)
-            .with_prompt(f"## GitHub Issue: {title}\n\n{body}")
+    async def _execute_routed_function(self, function_name, params, body, workspace, gh, repository, issue_id, suggest_on_failure):
+        return await routing.execute_routed_function(
+            self, function_name, params, body, workspace,
+            gh, repository, issue_id, suggest_on_failure,
         )
 
-        function_name = (await router.env().output("function_name").as_string()).strip().lower()
-        params_json = await router.env().output("params_json").as_string()
-
-        # Parse JSON with fallback for malformed LLM output (code fences, trailing text)
-        try:
-            params = json.loads(params_json)
-        except (json.JSONDecodeError, TypeError):
-            match = re.search(r"\{[^}]*\}", params_json or "")
-            if match:
-                try:
-                    params = json.loads(match.group())
-                except json.JSONDecodeError:
-                    params = {}
-                    function_name = "assist"
-            else:
-                params = {}
-                function_name = "assist"
-
-        # Filter params to expected keys per function to prevent TypeErrors
-        _allowed_keys = {
-            "upgrade": {"target_version", "dry_run"},
-            "build": {"command"},
-            "write_tests": {"target", "test_framework"},
-        }
-        allowed = _allowed_keys.get(function_name, set())
-        params = {k: v for k, v in params.items() if k in allowed}
-
-        try:
-            # Call the chosen function with extracted parameters
-            if function_name == "upgrade":
-                result = await self.upgrade(source=workspace, **params)
-            elif function_name == "build":
-                result = await self.build(source=workspace, **params)
-            elif function_name == "write_tests":
-                result = await self.write_tests(source=workspace, **params)
-            else:
-                result = await self.assist(assignment=body, source=workspace)
-        except Exception as exc:
-            if suggest_github_fix_on_failure:
-                await gh.write_comment(
-                    repo=repository,
-                    issue_id=issue_id,
-                    body=(
-                        f"**Agent encountered an error:**\n\n"
-                        f"**Function**: `{function_name}`\n"
-                        f"**Error**:\n```\n{str(exc)[:3000]}\n```\n\n"
-                        f"Run `suggest-github-fix` on the PR for inline code suggestions."
-                    ),
-                )
-            raise
-
-        # Create a PR from the modified workspace
-        pr = gh.create_pull_request(
-            repo=repository,
-            title=title,
-            body=f"{body}\n\nCloses {url}",
-            source=result,
-            base=base,
-        )
-        pr_url = await pr.url()
-
-        # Comment on the issue with the PR link
-        await gh.write_comment(
-            repo=repository,
-            issue_id=issue_id,
-            body=f"I've implemented this issue and opened a pull request: {pr_url}",
-        )
-
-        return pr_url
-
-    # --- GitHub suggestion tool (exposed to LLM via with_current_module) ---
-
-    @function
-    async def suggest_github_pr_code_comment(
-        self,
-        path: Annotated[str, Doc("File path relative to repo root")],
-        line: Annotated[int, Doc("Line number to suggest a change on")],
-        suggestion: Annotated[str, Doc("Replacement code (no ```suggestion fences, just the raw code)")],
-        comment: Annotated[str, Doc("Explanation of the fix")] = "",
-    ) -> str:
-        """Post an inline code suggestion on a GitHub pull request.
-
-        The suggestion will appear as a GitHub "suggested change" that
-        developers can apply with one click.
-        """
-        if not self._github_token or not self._pr_repo:
-            raise ValueError("suggest_github_pr_code_comment can only be used during suggest_github_fix")
-
-        body = ""
-        if comment:
-            body += f"{comment}\n\n"
-        body += f"```suggestion\n{suggestion}\n```"
-
-        gh = dag.github_issue(token=self._github_token)
-        await gh.write_pull_request_code_comment(
-            repo=self._pr_repo,
-            issue_id=self._pr_number,
-            commit=self._pr_commit_sha,
-            body=body,
-            path=path,
-            side="RIGHT",
-            line=line,
-        )
-        return f"Posted suggestion on {path}:{line}"
-
-    # --- Workspace tools (exposed to LLM via with_current_module) ---
+    # --- Workspace tools ---
 
     @function
     async def read_file(
@@ -459,17 +269,7 @@ class Angie:
         limit: Annotated[int, Doc("Maximum number of lines to read")] = 0,
     ) -> str:
         """Read a file from the workspace with line numbers."""
-        contents = await self.source.file(file_path).contents()
-        lines = contents.splitlines()
-
-        if offset > 0:
-            lines = lines[offset - 1:]
-        if limit > 0:
-            lines = lines[:limit]
-
-        start = offset if offset > 0 else 1
-        numbered = [f"{start + i:4d}  {line}" for i, line in enumerate(lines)]
-        return "\n".join(numbered)
+        return await workspace.read_file_impl(self.source, file_path, offset, limit)
 
     @function
     async def edit_file(
@@ -483,21 +283,10 @@ class Angie:
 
         Returns a changeset showing the diff.
         """
-        before = self.source
-        contents = await before.file(file_path).contents()
-
-        if old_string not in contents:
-            msg = f"old_string not found in {file_path}"
-            raise ValueError(msg)
-
-        if replace_all:
-            new_contents = contents.replace(old_string, new_string)
-        else:
-            new_contents = contents.replace(old_string, new_string, 1)
-
-        after = before.with_new_file(file_path, new_contents)
-        self.source = after
-        return after.changes(before)
+        self.source, changeset = await workspace.edit_file_impl(
+            self.source, file_path, old_string, new_string, replace_all,
+        )
+        return changeset
 
     @function
     async def write_file(
@@ -509,10 +298,10 @@ class Angie:
 
         Returns a changeset showing the diff.
         """
-        before = self.source
-        after = before.with_new_file(file_path, contents)
-        self.source = after
-        return after.changes(before)
+        self.source, changeset = await workspace.write_file_impl(
+            self.source, file_path, contents,
+        )
+        return changeset
 
     @function
     async def glob(
@@ -520,10 +309,7 @@ class Angie:
         pattern: Annotated[str, Doc("Glob pattern (e.g. 'src/**/*.ts', '**/*.component.ts')")],
     ) -> str:
         """Find files in the workspace matching a glob pattern."""
-        entries = await self.source.glob(pattern)
-        if not entries:
-            return "No files matched the pattern."
-        return "\n".join(entries)
+        return await workspace.glob_impl(self.source, pattern)
 
     @function
     async def grep(
@@ -535,35 +321,9 @@ class Angie:
         limit: Annotated[int, Doc("Maximum number of matching lines to return")] = 100,
     ) -> str:
         """Search file contents in the workspace using grep."""
-        cmd = ["grep", "-rn"]
-        if insensitive:
-            cmd.append("-i")
+        return await workspace.grep_impl(self.source, pattern, paths, file_glob, insensitive, limit)
 
-        if file_glob:
-            cmd.extend(["--include", file_glob])
-
-        cmd.append(pattern)
-
-        if paths:
-            cmd.extend(paths.split(","))
-        else:
-            cmd.append(".")
-
-        result = await (
-            dag.container()
-            .from_("alpine:latest")
-            .with_mounted_directory("/work", self.source)
-            .with_workdir("/work")
-            .with_exec(cmd, expect=dagger.ExecExpect.ANY)
-            .stdout()
-        )
-
-        lines = result.strip().splitlines()
-        if limit > 0 and len(lines) > limit:
-            lines = lines[:limit]
-            lines.append(f"... (truncated, {limit} of many matches shown)")
-
-        return "\n".join(lines) if lines else "No matches found."
+    # --- Task sub-agent ---
 
     @function
     async def task(
@@ -576,28 +336,10 @@ class Angie:
         The sub-agent has read-only access to the workspace and Angular MCP tools.
         Use this for research, analysis, or exploring documentation.
         """
-        task_system = await self._load_prompt("task_system_prompt.md").contents()
-        context_md = await self._read_context_file()
-
-        env = (
-            dag.env()
-            .with_workspace(self.source)
-            .with_string_input("task_description", description, "The sub-task description")
-            .with_string_input("task_prompt", prompt, "Detailed instructions for the sub-task")
-            .with_string_output("result", "The sub-task result")
+        llm = await llm_helpers.build_task_llm(
+            self.source, self._load_prompt, self._CONTEXT_FILES,
+            self._mcp_servers(), self._CLASS_NAME,
+            constants.BLOCKED_ENTRYPOINTS, constants.BLOCKED_DESTRUCTIVE,
+            description, prompt,
         )
-
-        llm = (
-            dag.llm()
-            .with_env(env.with_current_module())
-            .with_mcp_server("angular", self._angular_mcp_service())
-            .with_system_prompt(task_system + context_md)
-        )
-
-        # Block entrypoints (prevent recursion) and destructive tools (read-only sub-agent)
-        for fn in _BLOCKED_ENTRYPOINTS + ["task"] + _BLOCKED_DESTRUCTIVE:
-            llm = llm.with_blocked_function("Angie", fn)
-
-        llm = llm.with_prompt(f"## Task: {description}\n\n{prompt}")
-
         return await llm.env().output("result").as_string()
