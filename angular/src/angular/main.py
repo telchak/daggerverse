@@ -23,7 +23,7 @@ class Angular:
             .with_exec(["npm", "install", "-g", "@angular/cli"])
             .with_directory("/app", source)
             .with_workdir("/app")
-            .with_exec(["npm", "ci"])
+            .with_exec(["sh", "-c", "npm ci 2>/dev/null || npm install"])
         )
 
     @function
@@ -194,6 +194,6 @@ class Angular:
     ) -> dagger.Directory:
         """Install Angular project dependencies.
 
-        Runs `npm ci` and returns the source directory with node_modules.
+        Runs `npm ci` (or `npm install` if no lockfile) and returns the source directory with node_modules.
         """
         return self._base_container(source, node_version).directory("/app")

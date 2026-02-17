@@ -44,7 +44,7 @@ class PythonBuild:
         if command:
             build_cmd = command
         else:
-            build_cmd = "uv pip install build && python -m build"
+            build_cmd = "uv pip install --system build && python -m build"
 
         result = await (
             container
@@ -77,13 +77,13 @@ class PythonBuild:
         container = self._base_container(source, python_version)
 
         if tool == "ruff":
-            install_cmd = "uv pip install ruff"
+            install_cmd = "uv pip install --system ruff"
             lint_cmd = "ruff check --fix ." if fix else "ruff check ."
         elif tool == "flake8":
-            install_cmd = "uv pip install flake8"
+            install_cmd = "uv pip install --system flake8"
             lint_cmd = "flake8 ."
         elif tool == "pylint":
-            install_cmd = "uv pip install pylint"
+            install_cmd = "uv pip install --system pylint"
             lint_cmd = "pylint --recursive=y ."
         else:
             raise ValueError(f"Unsupported lint tool: {tool}. Use 'ruff', 'flake8', or 'pylint'.")
@@ -149,10 +149,10 @@ class PythonBuild:
         container = await self._install_deps(container, source)
 
         if tool == "mypy":
-            install_cmd = "uv pip install mypy"
+            install_cmd = "uv pip install --system mypy"
             check_cmd = "python -m mypy ."
         elif tool == "pyright":
-            install_cmd = "uv pip install pyright"
+            install_cmd = "uv pip install --system pyright"
             check_cmd = "python -m pyright ."
         else:
             raise ValueError(f"Unsupported typecheck tool: {tool}. Use 'mypy' or 'pyright'.")
@@ -193,15 +193,15 @@ class PythonBuild:
 
         if "pyproject.toml" in entries:
             return container.with_exec(
-                ["sh", "-c", "uv pip install -e '.[dev]' 2>/dev/null || uv pip install -e . 2>/dev/null || true"],
+                ["sh", "-c", "uv pip install --system -e '.[dev]' 2>/dev/null || uv pip install --system -e . 2>/dev/null || true"],
             )
         elif "requirements.txt" in entries:
             return container.with_exec(
-                ["sh", "-c", "uv pip install -r requirements.txt"],
+                ["sh", "-c", "uv pip install --system -r requirements.txt"],
             )
         elif "setup.py" in entries:
             return container.with_exec(
-                ["sh", "-c", "uv pip install -e . 2>/dev/null || true"],
+                ["sh", "-c", "uv pip install --system -e . 2>/dev/null || true"],
             )
 
         return container
