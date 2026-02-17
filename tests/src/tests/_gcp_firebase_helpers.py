@@ -27,15 +27,15 @@ def _auth_kwargs(
 ) -> dict:
     """Build auth keyword arguments for a Firebase operation based on auth method."""
     if auth_method == AuthMethod.OIDC:
-        return dict(
-            oidc_token=oidc_token,
-            workload_identity_provider=workload_identity_provider,
-            service_account_email=service_account_email,
-        )
+        return {
+            "oidc_token": oidc_token,
+            "workload_identity_provider": workload_identity_provider,
+            "service_account_email": service_account_email,
+        }
     elif auth_method == AuthMethod.SERVICE_ACCOUNT:
-        return dict(credentials=credentials)
+        return {"credentials": credentials}
     elif auth_method == AuthMethod.ACCESS_TOKEN:
-        return dict(access_token=access_token)
+        return {"access_token": access_token}
     else:
         raise ValueError(f"Unknown auth method: {auth_method}")
 
