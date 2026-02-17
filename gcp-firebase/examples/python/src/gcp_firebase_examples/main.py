@@ -12,6 +12,8 @@ from typing import Annotated
 import dagger
 from dagger import Doc, dag, function, object_type
 
+_DEFAULT_BUILD_CMD = "npm run build"
+
 
 @object_type
 class GcpFirebaseExamples:
@@ -45,7 +47,7 @@ class GcpFirebaseExamples:
             project_id=project_id,
             source=source,
             credentials=credentials,
-            build_command="npm run build",
+            build_command=_DEFAULT_BUILD_CMD,
             deploy_functions=True,
         )
 
@@ -109,7 +111,7 @@ class GcpFirebaseExamples:
             oidc_token=oidc_token,
             workload_identity_provider=workload_identity_provider,
             service_account_email=service_account_email,
-            build_command="npm run build",
+            build_command=_DEFAULT_BUILD_CMD,
             deploy_functions=True,
         )
 
@@ -161,7 +163,7 @@ class GcpFirebaseExamples:
             oidc_token=oidc_token,
             workload_identity_provider=workload_identity_provider,
             service_account_email=service_account_email,
-            build_command="npm run build",
+            build_command=_DEFAULT_BUILD_CMD,
             deploy_functions=True,
         )
 
@@ -194,7 +196,7 @@ class GcpFirebaseExamples:
             oidc_token=oidc_token,
             workload_identity_provider=workload_identity_provider,
             service_account_email=service_account_email,
-            build_command="npm run build",
+            build_command=_DEFAULT_BUILD_CMD,
             expires="7d",
         )
 
@@ -222,6 +224,6 @@ class GcpFirebaseExamples:
             project_id=project_id,
             source=source,
             access_token=access_token,
-            build_command="npm run build",
+            build_command=_DEFAULT_BUILD_CMD,
             deploy_functions=True,
         )

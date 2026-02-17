@@ -32,7 +32,7 @@ async def test_monty_assist(source: dagger.Directory) -> str:
     # result is a Directory — verify it has files
     entries = await result.entries()
     if not entries:
-        raise Exception("assist returned empty directory")
+        raise RuntimeError("assist returned empty directory")
 
     has_new_file = "ARCHITECTURE.md" in entries
     has_source = "app" in entries
@@ -49,7 +49,7 @@ async def test_monty_review(source: dagger.Directory) -> str:
     )
 
     if not result:
-        raise Exception("review returned empty result")
+        raise RuntimeError("review returned empty result")
 
     # A real review should contain structured feedback
     result_lower = result.lower()
@@ -73,7 +73,7 @@ async def test_monty_write_tests(source: dagger.Directory) -> str:
     # result is a Directory — verify it still has project files
     entries = await result.entries()
     if not entries:
-        raise Exception("write_tests returned empty directory")
+        raise RuntimeError("write_tests returned empty directory")
 
     # Check for test files in the workspace
     test_files = await result.glob("**/test_*.py")
@@ -91,7 +91,7 @@ async def test_monty_build(source: dagger.Directory) -> str:
     # result is a Directory — verify it has project files
     entries = await result.entries()
     if not entries:
-        raise Exception("build returned empty directory")
+        raise RuntimeError("build returned empty directory")
 
     has_source = "app" in entries
     has_config = any(f in entries for f in ("pyproject.toml", "setup.cfg", "setup.py"))
@@ -112,7 +112,7 @@ async def test_monty_upgrade_dry_run(source: dagger.Directory) -> str:
     # result is a Directory — should still have project files
     entries = await result.entries()
     if not entries:
-        raise Exception("upgrade dry_run returned empty directory")
+        raise RuntimeError("upgrade dry_run returned empty directory")
 
     has_source = "app" in entries
     has_requirements = any(

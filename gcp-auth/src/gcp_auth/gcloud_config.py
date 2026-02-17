@@ -41,7 +41,7 @@ def install_gcloud_components(
 
 def authenticate_with_cred_file(
     container: dagger.Container,
-    cred_file_path: str = "/tmp/gcp-credentials.json",
+    cred_file_path: str = "/run/secrets/gcp-credentials.json",
 ) -> dagger.Container:
     """Authenticate gcloud using a credentials file."""
     return container.with_exec([

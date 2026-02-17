@@ -24,7 +24,7 @@ from .auth_utils import (
 
 async def _test_artifact_registry_operations(
     gcloud: dagger.Container,
-    auth_method: AuthMethod,
+    _auth_method: AuthMethod,
     project_id: str,
     repository: str,
     region: str = "us-central1",
@@ -87,7 +87,7 @@ async def test_gcp_artifact_registry_oidc(
 
     op_results, ops = await _test_artifact_registry_operations(
         gcloud=gcloud,
-        auth_method=AuthMethod.OIDC,
+        _auth_method=AuthMethod.OIDC,
         project_id=project_id,
         repository=repository,
         region=region,
@@ -114,7 +114,7 @@ async def test_gcp_artifact_registry_service_account(
 
     op_results, ops = await _test_artifact_registry_operations(
         gcloud=gcloud,
-        auth_method=AuthMethod.SERVICE_ACCOUNT,
+        _auth_method=AuthMethod.SERVICE_ACCOUNT,
         project_id=project_id,
         repository=repository,
         region=region,
@@ -169,7 +169,7 @@ async def test_gcp_artifact_registry_access_token(
 
     op_results, ops = await _test_artifact_registry_operations(
         gcloud=gcloud,
-        auth_method=AuthMethod.ACCESS_TOKEN,
+        _auth_method=AuthMethod.ACCESS_TOKEN,
         project_id=project_id,
         repository=repository,
         region=region,

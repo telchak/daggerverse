@@ -376,7 +376,6 @@ class Semver:
         git = self._git_container(source)
 
         try:
-            pattern = f"{tag_prefix}v*" if tag_prefix else "v*"
             tag_output = await (
                 git.with_exec([
                     "sh", "-c",

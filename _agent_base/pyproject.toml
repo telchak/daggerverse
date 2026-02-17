@@ -1,0 +1,9 @@
+[project]
+name = "agent-base"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = ["dagger-io"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

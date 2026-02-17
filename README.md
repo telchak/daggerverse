@@ -26,7 +26,7 @@ Reusable building blocks for CI/CD pipelines. Each module is independent and foc
 
 ## AI Agents
 
-AI-powered development and operations agents built with Dagger's LLM support. Each agent provides specialized entrypoints (`assist`, `review`, `deploy`, `upgrade`, `develop-github-issue`) and uses MCP servers for extended capabilities.
+AI-powered development and operations agents built with Dagger's LLM support. Each agent provides specialized entrypoints (`assist`, `review`, `build`, `write-tests`, `upgrade`, `develop-github-issue`, `task`) and uses MCP servers for extended capabilities.
 
 ### [Angie](angie/) — Angular Development Agent
 
@@ -54,6 +54,20 @@ Deployment, troubleshooting, and observability across Cloud Run, Firebase Hostin
 | `gcloud` | [`@google-cloud/gcloud-mcp`](https://github.com/googleapis/gcloud-mcp) | Cloud Logging, Cloud Monitoring, Cloud Trace, Cloud Storage, and full gcloud CLI access |
 
 Goose also integrates the [Google Developer Knowledge API](https://developers.googleblog.com/introducing-the-developer-knowledge-api-and-mcp-server/) as native Dagger functions (`search_gcp_docs`, `get_gcp_doc`, `batch_get_gcp_docs`) for real-time GCP documentation search. These are exposed as regular functions rather than an MCP server because Dagger currently only supports stdio-based MCP servers, and the Developer Knowledge API is HTTP-based.
+
+### Shared Agent Base (`_agent_base/`)
+
+Angie and Monty share a common Python package ([`_agent_base/`](_agent_base/)) that provides the duplicated logic:
+
+| Module | Purpose |
+|--------|---------|
+| `constants` | Blocked entrypoints and destructive tool lists |
+| `workspace` | `read_file`, `edit_file`, `write_file`, `glob`, `grep` implementations |
+| `llm_helpers` | LLM builders, context file reader, task sub-agent builder |
+| `github_tools` | `suggest-github-fix`, `develop-github-issue`, PR code comments |
+| `routing` | Router response parsing and function dispatch |
+
+Each agent's `main.py` is a thin wrapper (~350 lines) that defines only what's unique: class name, constructor fields, MCP servers, prompt path, context file priority, and entrypoint signatures. The shared package is included via Dagger's `include` field in `dagger.json` and installed as a local Python dependency.
 
 ### Shared patterns
 
@@ -151,6 +165,7 @@ dagger -m angie call build --source .
 
 ```
 daggerverse/
+├── _agent_base/            # Shared Python package for coding agents
 ├── calver/                 # Calendar versioning
 ├── gcp-auth/               # GCP authentication (base)
 ├── gcp-artifact-registry/  # Artifact Registry operations
@@ -184,12 +199,12 @@ goose ──> GCP operations agent that orchestrates:
   ├──> health-check
   └──> gcloud MCP (Cloud Logging, Monitoring, Trace, GCS)
 
-angie ──> Angular development agent
-  └──> Angular CLI MCP
-
-monty ──> Python development agent
-  ├──> python-lft MCP (linting, formatting, testing)
-  └──> pypi-query MCP (package intelligence)
+_agent_base ──> Shared agent logic (workspace, GitHub, LLM, routing)
+  ├──> angie (Angular development agent)
+  │      └──> Angular CLI MCP
+  └──> monty (Python development agent)
+         ├──> python-lft MCP (linting, formatting, testing)
+         └──> pypi-query MCP (package intelligence)
 
 calver, health-check, oidc-token, semver (standalone)
 ```
@@ -216,7 +231,7 @@ dagger -m tests call all-gcp \
 
 ### CI
 
-Tests run automatically on push to `main`, pull requests, and manual dispatch via GitHub Actions. The pipeline has 5 stages:
+Tests run automatically on push to `main`, pull requests, and manual dispatch via GitHub Actions. The pipeline has 6 stages:
 
 | Job | Description |
 |-----|-------------|
@@ -286,6 +301,58 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for the full gu
 - Commit message conventions (Conventional Commits)
 - Pull request process and review guidelines
 - Module design principles and naming conventions
+
+## Creating a New Agent
+
+To create a new coding agent (e.g., "Rusty" for Rust) based on the shared `_agent_base` package:
+
+1. **Initialize the module:**
+   ```bash
+   cd daggerverse
+   dagger init rusty --sdk python
+   ```
+
+2. **Add the shared base to `rusty/dagger.json`:**
+   ```json
+   {
+     "name": "rusty",
+     "description": "AI-powered Rust development agent with MCP integration",
+     "include": ["../_agent_base"],
+     "dependencies": [
+       {
+         "name": "github-issue",
+         "source": "github.com/kpenfound/dag/github-issue@b316e472d3de5bb0e54fe3991be68dc85e33ef38"
+       }
+     ]
+   }
+   ```
+
+3. **Add `agent-base` to `rusty/pyproject.toml`:**
+   ```toml
+   dependencies = ["dagger-io", "agent-base"]
+
+   [tool.uv.sources]
+   dagger-io = { path = "sdk", editable = true }
+   agent-base = { path = "../_agent_base", editable = true }
+   ```
+
+4. **Write `rusty/src/rusty/main.py`** with agent-specific config:
+   - Class name and docstring
+   - Constructor fields (e.g., `rust_version`)
+   - `_CONTEXT_FILES` (e.g., `("RUSTY.md", "AGENT.md", "CLAUDE.md")`)
+   - `_CLASS_NAME` (e.g., `"Rusty"`)
+   - `_ALLOWED_ROUTER_KEYS` for `develop-github-issue` routing
+   - `_mcp_servers()` returning agent-specific MCP services
+   - `_load_prompt()` pointing to `src/rusty/prompts/`
+   - Thin wrapper `@function` methods delegating to `agent_base`
+
+   See [`angie/src/angie/main.py`](angie/src/angie/main.py) for a complete example.
+
+5. **Add prompts** in `rusty/src/rusty/prompts/` (system, assist, review, build, upgrade, router, task_system, suggest_fix, write_tests).
+
+6. **Run `dagger develop`** to generate the SDK and validate, then re-add the `description` field to `dagger.json` (Dagger strips it).
+
+7. **Add tests** following the `.agent-tests` convention.
 
 ## Roadmap
 

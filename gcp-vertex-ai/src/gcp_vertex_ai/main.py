@@ -14,6 +14,8 @@ _DISPLAY_NAME_PATTERN = re.compile(r'^[a-zA-Z][a-zA-Z0-9_-]{0,127}$')
 _MACHINE_TYPE_PATTERN = re.compile(r'^[a-z][a-z0-9-]+$')
 _ACCELERATOR_TYPE_PATTERN = re.compile(r'^[A-Z][A-Z0-9_]+$')
 
+_GCLOUD_FORMAT_NAME = "--format=value(name)"
+
 
 def _validate_region(region: str) -> str:
     """Validate GCP region format."""
@@ -97,7 +99,7 @@ class GcpVertexAi:
                 "gcloud", "ai", "models", "list",
                 f"--region={region}",
                 f"--filter=displayName:{model_name}",
-                "--format=value(name)",
+                _GCLOUD_FORMAT_NAME,
             ]).stdout()).strip()
         except dagger.ExecError:
             existing = ""
@@ -129,7 +131,7 @@ class GcpVertexAi:
                 "gcloud", "ai", "endpoints", "list",
                 f"--region={region}",
                 f"--filter=displayName:{endpoint_name}",
-                "--format=value(name)",
+                _GCLOUD_FORMAT_NAME,
             ]).stdout()).strip()
         except dagger.ExecError:
             existing = ""
@@ -157,7 +159,7 @@ class GcpVertexAi:
             "gcloud", "ai", "models", "list",
             f"--region={region}",
             f"--filter=displayName:{model_name}",
-            "--format=value(name)",
+            _GCLOUD_FORMAT_NAME,
         ]).stdout()).strip()
 
         # Get endpoint ID using array-based command
@@ -165,7 +167,7 @@ class GcpVertexAi:
             "gcloud", "ai", "endpoints", "list",
             f"--region={region}",
             f"--filter=displayName:{endpoint_name}",
-            "--format=value(name)",
+            _GCLOUD_FORMAT_NAME,
         ]).stdout()).strip()
 
         # Deploy model to endpoint using array-based command

@@ -318,7 +318,7 @@ authenticated = dag.gcp_auth().with_credentials(
 **Parameters:**
 - `container` - Container to configure
 - `credentials` - GCP service account key (JSON)
-- `credentials_path` - Where to store credentials (default: `/tmp/gcp-credentials.json`)
+- `credentials_path` - Where to store credentials (default: `/run/secrets/gcp-credentials.json`)
 - `export_env_vars` - Export GCP environment variables (default: `true`)
 
 **Environment Variables Exported:**

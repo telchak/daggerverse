@@ -5,6 +5,9 @@
   "sdk": {
     "source": "python"
   },
+  "include": [
+    "../_agent_base"
+  ],
   "dependencies": [
     {
       "name": "github-issue",

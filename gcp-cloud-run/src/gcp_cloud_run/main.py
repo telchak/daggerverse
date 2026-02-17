@@ -29,7 +29,7 @@ _CPU_PATTERN = re.compile(r'^(\d+(\.\d+)?|\d+m)$')
 _MEMORY_PATTERN = re.compile(r'^\d+(Mi|Gi|M|G|Ki|K)$')
 
 # Environment variable format pattern (KEY=VALUE)
-_ENV_VAR_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*=.*$')
+_ENV_VAR_PATTERN = re.compile(r'^[a-zA-Z_]\w*=.*$')
 
 # Service account email pattern
 _SERVICE_ACCOUNT_PATTERN = re.compile(
