@@ -216,7 +216,7 @@ jobs:
             --source=.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Fail if deploy failed
         if: steps.deploy.outcome == 'failure'
