@@ -51,7 +51,7 @@ async def edit_file_impl(
     return after, after.changes(source)
 
 
-async def write_file_impl(
+def write_file_impl(
     source: dagger.Directory,
     file_path: str,
     contents: str,

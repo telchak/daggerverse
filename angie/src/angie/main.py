@@ -248,7 +248,7 @@ class Angie:
         Returns the PR URL.
         """
         return await github_tools.develop_github_issue_impl(
-            self._load_prompt, self._build_llm, self._execute_routed_function,
+            self._load_prompt, self._execute_routed_function,
             self._ALLOWED_ROUTER_KEYS, github_token, issue_id, repository,
             source or self.source, base, suggest_github_fix_on_failure,
         )
@@ -298,7 +298,7 @@ class Angie:
 
         Returns a changeset showing the diff.
         """
-        self.source, changeset = await workspace.write_file_impl(
+        self.source, changeset = workspace.write_file_impl(
             self.source, file_path, contents,
         )
         return changeset

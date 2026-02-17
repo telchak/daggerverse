@@ -82,9 +82,10 @@ async function seedData(): Promise<void> {
   }));
 }
 
-seedData()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error("Error seeding data:", error);
-    process.exit(1);
-  });
+try {
+  await seedData();
+  process.exit(0);
+} catch (error) {
+  console.error("Error seeding data:", error);
+  process.exit(1);
+}

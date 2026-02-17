@@ -78,7 +78,6 @@ async def suggest_github_pr_code_comment_impl(
 
 async def develop_github_issue_impl(
     load_prompt_fn: Callable,
-    build_llm_fn: Callable,
     execute_routed_fn: Callable,
     allowed_keys: dict[str, set[str]],
     github_token: dagger.Secret,
