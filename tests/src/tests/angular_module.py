@@ -37,7 +37,8 @@ async def test_angular_install(source: dagger.Directory) -> str:
     result = await dag.angular().install(source=source)
 
     entries = await result.entries()
-    if "node_modules" not in entries:
+    has_node_modules = any(e.rstrip("/") == "node_modules" for e in entries)
+    if not has_node_modules:
         raise RuntimeError(f"angular install did not create node_modules. Entries: {entries}")
 
     return "PASS: angular install (node_modules present)"

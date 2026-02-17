@@ -63,13 +63,12 @@ class Angular:
         if output_path:
             dist_path = output_path
         else:
-            dist_path = await self._detect_dist_path(container, source)
+            dist_path = await self._detect_dist_path(source)
 
         return build_result.directory(dist_path)
 
     async def _detect_dist_path(
         self,
-        container: dagger.Container,
         source: dagger.Directory,
     ) -> str:
         """Auto-detect the dist output path from angular.json."""
