@@ -160,8 +160,8 @@ jobs:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           GCP_DEVELOPER_KNOWLEDGE_API_KEY: ${{ secrets.GCP_DEVELOPER_KNOWLEDGE_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
         run: |
           MODULE="${{ matrix.module }}"
           ARGS=""
@@ -234,8 +234,8 @@ jobs:
         timeout-minutes: 20
         env:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GCP_DEVELOPER_KNOWLEDGE_API_KEY: ${{ secrets.GCP_DEVELOPER_KNOWLEDGE_API_KEY }}
         run: |
           # Convert agent-test-name to dagger function name (e.g. angie-assist)
@@ -298,8 +298,8 @@ jobs:
         id: test
         env:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           ANGIE_TEST_GITHUB_TOKEN: ${{ secrets.ANGIE_TEST_GITHUB_TOKEN }}
         run: |
           OUTPUT=$(dagger call -m tests angie-develop-github-issue \

@@ -1,40 +1,45 @@
 # Build Task
 
-Build, lint, or type-check the Python project and diagnose any errors.
+Build the Python project using the deterministic build tool.
 
 ## Inputs Available
 
-- **source**: Python project source directory
-- **command** (optional): Specific build command to run (e.g. `pip install -e .[dev]`, `python -m build`)
+- **source**: Python project source directory (in your workspace)
+- **command** (optional): Specific build command override
 
 ## Hard Limits
 
-- **Budget: 8 tool calls.** After 8 calls, stop and write your result immediately.
-- **No full-project scans.** Only check specific files you suspect have issues.
+- **Budget: 12 tool calls.** After 12 calls, stop and write your result immediately.
+- **Max 3 build attempts.** Do not retry more than 3 times.
 
 ## Approach
 
-1. **Explore** (1-2 calls): Use `glob` to find `pyproject.toml`, `setup.py`, `setup.cfg`, `requirements*.txt`
-2. **Read config** (1-2 calls): Use `read_file` to examine the main build configuration file
-3. **Analyze** (0-2 calls): Check for common build issues — only read additional files if the config points to a specific problem
-4. **Fix** (0-2 calls): If errors are found, use `edit_file` to fix them
-5. **Write result** (1 call): Write the build result to the `result` output
+1. **Build** (1 call): Call `python_build(source=<workspace>)` to run the actual build
+2. **Check result**: If the build succeeds, you're done — return the workspace
+3. **Diagnose** (if failed): Read the error output, identify the failing file(s)
+4. **Fix** (1-3 calls): Use `read_file` and `edit_file` to fix the issue
+5. **Retry** (1 call): Call `python_build` again to verify the fix
+6. Repeat steps 3-5 up to 3 times total
 
-Do NOT use MCP tools unless you have identified a specific file with a suspected issue. Never run linting or testing on the whole project.
+## Available Tools
 
-## Common Build Issues
+- `python_build(source, command)` — Run build, returns source with dist/
+- `python_lint(source, tool, fix)` — Run linter (ruff/flake8/pylint), returns output
+- `python_test(source, command)` — Run tests (pytest/unittest), returns output
+- `python_typecheck(source, tool)` — Run type checker (mypy/pyright), returns output
+- `python_install(source)` — Install dependencies, returns source with deps
+- `read_file(file_path)` — Read a file from the workspace
+- `edit_file(file_path, old_string, new_string)` — Edit a file in the workspace
+- `glob(pattern)` — Find files matching a pattern
+- `grep(pattern)` — Search file contents
 
-- Missing or incorrect package dependencies
-- Version conflicts between dependencies
-- Python version compatibility (syntax features, stdlib changes)
-- Incorrect package discovery configuration
-- Build backend misconfiguration (setuptools, hatch, flit, maturin)
-- Missing or incorrect `__init__.py` files
-- Circular imports preventing module loading
+## Common Build Fixes
+
+- Missing dependencies: add to pyproject.toml or requirements.txt
+- Import errors: fix module paths or add missing packages
+- Version conflicts: update version constraints
+- Build backend issues: check [build-system] in pyproject.toml
 
 ## Output
 
-Write the build result to the `result` output:
-- Build status (success/failure)
-- Errors encountered and fixes applied
-- Warnings worth addressing
+The build result is the returned workspace directory. Do NOT write diagnostic reports or markdown files.

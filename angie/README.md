@@ -163,14 +163,14 @@ jobs:
             --source=.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           # Optional: DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 ```
 
 ### Setup
 
 1. **Enable PR creation in Actions**: Go to repository Settings → Actions → General → Workflow permissions → select "Read and write permissions" and check "Allow GitHub Actions to create and approve pull requests"
-2. **Add LLM API key**: Go to Settings → Secrets and variables → Actions → add your LLM provider key (e.g. `ANTHROPIC_API_KEY`)
+2. **Add LLM API key**: Go to Settings → Secrets and variables → Actions → add your LLM provider key (e.g. `GEMINI_API_KEY`)
 3. **Label an issue**: Add the `angie` label to any issue — the workflow will trigger, implement the changes, and open a PR
 
 ## Suggest Fix on CI Failure
@@ -243,7 +243,7 @@ jobs:
             --source=.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Fail if build failed
         if: steps.build.outcome == 'failure'

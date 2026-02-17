@@ -6,12 +6,20 @@
   },
   "dependencies": [
     {
+      "name": "angular",
+      "source": "../angular"
+    },
+    {
       "name": "angie",
       "source": "../angie"
     },
     {
       "name": "monty",
       "source": "../monty"
+    },
+    {
+      "name": "python-build",
+      "source": "../python-build"
     },
     {
       "name": "calver",

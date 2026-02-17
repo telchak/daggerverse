@@ -20,8 +20,10 @@ Reusable building blocks for CI/CD pipelines. Each module is independent and foc
 | [**gcp-cloud-run**](gcp-cloud-run/) | Cloud Run service and job deployment |
 | [**gcp-vertex-ai**](gcp-vertex-ai/) | Vertex AI model deployment |
 | [**gcp-firebase**](gcp-firebase/) | Firebase Hosting deployment and preview channels |
+| [**angular**](angular/) | Angular build, lint, test, and serve utilities |
 | [**health-check**](health-check/) | HTTP and TCP container health checking |
 | [**oidc-token**](oidc-token/) | OIDC token exchange utilities |
+| [**python-build**](python-build/) | Python build, lint, test, and typecheck utilities |
 | [**semver**](semver/) | Semantic Versioning with Conventional Commits |
 
 ## AI Agents
@@ -166,6 +168,7 @@ dagger -m angie call build --source .
 ```
 daggerverse/
 ├── _agent_base/            # Shared Python package for coding agents
+├── angular/                # Angular build, lint, test, serve
 ├── calver/                 # Calendar versioning
 ├── gcp-auth/               # GCP authentication (base)
 ├── gcp-artifact-registry/  # Artifact Registry operations
@@ -174,6 +177,7 @@ daggerverse/
 ├── gcp-firebase/           # Firebase Hosting deployment
 ├── health-check/           # HTTP and TCP health checks
 ├── oidc-token/             # OIDC token utilities
+├── python-build/           # Python build, lint, test, typecheck
 ├── semver/                 # Semantic versioning
 ├── angie/                  # Angular development agent
 ├── monty/                  # Python development agent
@@ -201,12 +205,14 @@ goose ──> GCP operations agent that orchestrates:
 
 _agent_base ──> Shared agent logic (workspace, GitHub, LLM, routing)
   ├──> angie (Angular development agent)
+  │      ├──> angular (deterministic build, lint, test, serve)
   │      └──> Angular CLI MCP
   └──> monty (Python development agent)
+         ├──> python-build (deterministic build, lint, test, typecheck)
          ├──> python-lft MCP (linting, formatting, testing)
          └──> pypi-query MCP (package intelligence)
 
-calver, health-check, oidc-token, semver (standalone)
+angular, calver, health-check, oidc-token, python-build, semver (standalone)
 ```
 
 ## Testing
@@ -371,7 +377,7 @@ Have a feature request? [Open an issue](https://github.com/telchak/daggerverse/i
 
 ## Sponsoring
 
-Every CI run exercises real infrastructure — GitHub Actions runners, GCP services (Cloud Run, Firebase, Artifact Registry, Vertex AI), and LLM API calls (Claude) for the AI agent tests. If you find these modules useful, consider [sponsoring the project](https://github.com/sponsors/telchak) to help cover these ongoing costs.
+Every CI run exercises real infrastructure — GitHub Actions runners, GCP services (Cloud Run, Firebase, Artifact Registry, Vertex AI), and LLM API calls (Gemini) for the AI agent tests. If you find these modules useful, consider [sponsoring the project](https://github.com/sponsors/telchak) to help cover these ongoing costs.
 
 ## License
 

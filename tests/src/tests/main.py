@@ -25,6 +25,11 @@ from .angular_agent import (
     test_angie_upgrade_dry_run,
     test_angie_write_tests,
 )
+from .angular_module import (
+    _clone_realworld as _clone_angular_module_realworld,
+    test_angular_build,
+    test_angular_install,
+)
 from .python_agent import (
     _clone_realworld as _clone_python_realworld,
     test_monty_assist,
@@ -32,6 +37,11 @@ from .python_agent import (
     test_monty_review,
     test_monty_upgrade_dry_run,
     test_monty_write_tests,
+)
+from .python_build_module import (
+    _clone_realworld as _clone_python_build_realworld,
+    test_python_build_install,
+    test_python_build_lint,
 )
 from .gcp_agent import (
     test_goose_assist,
@@ -82,6 +92,52 @@ class Tests:
     ) -> str:
         """Run semver module tests."""
         return await test_semver(source=source)
+
+    # ========== STANDALONE MODULE TESTS (NO LLM) ==========
+
+    @function
+    async def angular(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Angular project source (defaults to RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run angular module standalone tests.
+
+        Tests ng build and npm ci directly against the Angular module.
+        """
+        if source is None:
+            source = _clone_angular_module_realworld()
+
+        results = []
+        results.append("=== Angular Build ===")
+        results.append(await test_angular_build(source=source))
+        results.append("\n=== Angular Install ===")
+        results.append(await test_angular_install(source=source))
+        return "\n".join(results)
+
+    @function
+    async def python_build(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Python project source (defaults to FastAPI RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run python-build module standalone tests.
+
+        Tests install and lint directly against the python-build module.
+        """
+        if source is None:
+            source = _clone_python_build_realworld()
+
+        results = []
+        results.append("=== Python Build Install ===")
+        results.append(await test_python_build_install(source=source))
+        results.append("\n=== Python Build Lint ===")
+        results.append(await test_python_build_lint(source=source))
+        return "\n".join(results)
 
     # ========== ANGIE (ANGULAR AGENT) TESTS ==========
 

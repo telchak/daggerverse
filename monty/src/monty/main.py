@@ -266,6 +266,88 @@ class Monty:
             gh, repository, issue_id, suggest_on_failure,
         )
 
+    # --- Python build tools ---
+
+    @function
+    async def python_build(
+        self,
+        source: Annotated[dagger.Directory, Doc("Python project source directory")],
+        command: Annotated[str, Doc("Custom build command (auto-detects if empty)")] = "",
+    ) -> dagger.Directory:
+        """Build a Python project.
+
+        Returns the source directory with dist/.
+        """
+        return await dag.python_build().build(
+            source=source,
+            command=command,
+            python_version=self.python_version,
+        )
+
+    @function
+    async def python_lint(
+        self,
+        source: Annotated[dagger.Directory, Doc("Python project source directory")],
+        tool: Annotated[str, Doc("Lint tool: 'ruff', 'flake8', 'pylint'")] = "ruff",
+        fix: Annotated[bool, Doc("Automatically fix lint errors (ruff only)")] = False,
+    ) -> str:
+        """Lint a Python project.
+
+        Returns the lint output.
+        """
+        return await dag.python_build().lint(
+            source=source,
+            tool=tool,
+            fix=fix,
+            python_version=self.python_version,
+        )
+
+    @function
+    async def python_test(
+        self,
+        source: Annotated[dagger.Directory, Doc("Python project source directory")],
+        command: Annotated[str, Doc("Custom test command (auto-detects if empty)")] = "",
+    ) -> str:
+        """Run tests for a Python project.
+
+        Returns the test output.
+        """
+        return await dag.python_build().test(
+            source=source,
+            command=command,
+            python_version=self.python_version,
+        )
+
+    @function
+    async def python_typecheck(
+        self,
+        source: Annotated[dagger.Directory, Doc("Python project source directory")],
+        tool: Annotated[str, Doc("Type checker: 'mypy', 'pyright'")] = "mypy",
+    ) -> str:
+        """Type-check a Python project.
+
+        Returns the type checker output.
+        """
+        return await dag.python_build().typecheck(
+            source=source,
+            tool=tool,
+            python_version=self.python_version,
+        )
+
+    @function
+    async def python_install(
+        self,
+        source: Annotated[dagger.Directory, Doc("Python project source directory")],
+    ) -> dagger.Directory:
+        """Install Python project dependencies.
+
+        Returns the source directory with dependencies installed.
+        """
+        return await dag.python_build().install(
+            source=source,
+            python_version=self.python_version,
+        )
+
     # --- Workspace tools ---
 
     @function
