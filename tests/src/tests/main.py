@@ -96,14 +96,14 @@ class Tests:
     # ========== STANDALONE MODULE TESTS (NO LLM) ==========
 
     @function
-    async def angular_module(
+    async def angular(
         self,
         source: Annotated[
             dagger.Directory | None,
             Doc("Angular project source (defaults to RealWorld example app)"),
         ] = None,
     ) -> str:
-        """Run angular module standalone tests (deterministic, no LLM).
+        """Run angular module standalone tests.
 
         Tests ng build and npm ci directly against the Angular module.
         """
@@ -118,14 +118,14 @@ class Tests:
         return "\n".join(results)
 
     @function
-    async def python_build_module(
+    async def python_build(
         self,
         source: Annotated[
             dagger.Directory | None,
             Doc("Python project source (defaults to FastAPI RealWorld example app)"),
         ] = None,
     ) -> str:
-        """Run python-build module standalone tests (deterministic, no LLM).
+        """Run python-build module standalone tests.
 
         Tests install and lint directly against the python-build module.
         """
