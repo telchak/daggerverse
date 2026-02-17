@@ -259,6 +259,70 @@ class Angie:
             gh, repository, issue_id, suggest_on_failure,
         )
 
+    # --- Angular build tools ---
+
+    @function
+    async def angular_build(
+        self,
+        source: Annotated[dagger.Directory, Doc("Angular project source directory")],
+        configuration: Annotated[str, Doc("Build configuration (e.g. 'production', 'development')")] = "production",
+        output_path: Annotated[str, Doc("Custom output path (auto-detected from angular.json if empty)")] = "",
+    ) -> dagger.Directory:
+        """Build an Angular project using ng build.
+
+        Returns the dist directory with compiled output.
+        """
+        return await dag.angular().build(
+            source=source,
+            configuration=configuration,
+            output_path=output_path,
+            node_version=self.node_version,
+        )
+
+    @function
+    async def angular_lint(
+        self,
+        source: Annotated[dagger.Directory, Doc("Angular project source directory")],
+        fix: Annotated[bool, Doc("Automatically fix lint errors")] = False,
+    ) -> str:
+        """Lint an Angular project using ng lint.
+
+        Returns the lint output.
+        """
+        return await dag.angular().lint(
+            source=source,
+            fix=fix,
+            node_version=self.node_version,
+        )
+
+    @function
+    async def angular_test(
+        self,
+        source: Annotated[dagger.Directory, Doc("Angular project source directory")],
+    ) -> str:
+        """Run Angular project tests using ng test.
+
+        Returns the test output.
+        """
+        return await dag.angular().test(
+            source=source,
+            node_version=self.node_version,
+        )
+
+    @function
+    async def angular_install(
+        self,
+        source: Annotated[dagger.Directory, Doc("Angular project source directory")],
+    ) -> dagger.Directory:
+        """Install Angular project dependencies.
+
+        Returns the source directory with node_modules installed.
+        """
+        return dag.angular().install(
+            source=source,
+            node_version=self.node_version,
+        )
+
     # --- Workspace tools ---
 
     @function
