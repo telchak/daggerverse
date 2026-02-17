@@ -46,7 +46,7 @@ class Angular:
             container
             .with_exec(
                 ["ng", "build", "--configuration", configuration],
-                expect=dagger.ExecExpect.ANY,
+                expect=dagger.ReturnType.ANY,
             )
             .sync()
         )
@@ -133,7 +133,7 @@ class Angular:
 
         result = await (
             container
-            .with_exec(cmd, expect=dagger.ExecExpect.ANY)
+            .with_exec(cmd, expect=dagger.ReturnType.ANY)
             .sync()
         )
 
@@ -160,7 +160,7 @@ class Angular:
 
         result = await (
             container
-            .with_exec(cmd, expect=dagger.ExecExpect.ANY)
+            .with_exec(cmd, expect=dagger.ReturnType.ANY)
             .sync()
         )
 

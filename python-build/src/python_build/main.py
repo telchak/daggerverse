@@ -48,7 +48,7 @@ class PythonBuild:
 
         result = await (
             container
-            .with_exec(["sh", "-c", build_cmd], expect=dagger.ExecExpect.ANY)
+            .with_exec(["sh", "-c", build_cmd], expect=dagger.ReturnType.ANY)
             .sync()
         )
 
@@ -91,7 +91,7 @@ class PythonBuild:
         result = await (
             container
             .with_exec(["sh", "-c", install_cmd])
-            .with_exec(["sh", "-c", lint_cmd], expect=dagger.ExecExpect.ANY)
+            .with_exec(["sh", "-c", lint_cmd], expect=dagger.ReturnType.ANY)
             .sync()
         )
 
@@ -126,7 +126,7 @@ class PythonBuild:
 
         result = await (
             container
-            .with_exec(["sh", "-c", test_cmd], expect=dagger.ExecExpect.ANY)
+            .with_exec(["sh", "-c", test_cmd], expect=dagger.ReturnType.ANY)
             .sync()
         )
 
@@ -160,7 +160,7 @@ class PythonBuild:
         result = await (
             container
             .with_exec(["sh", "-c", install_cmd])
-            .with_exec(["sh", "-c", check_cmd], expect=dagger.ExecExpect.ANY)
+            .with_exec(["sh", "-c", check_cmd], expect=dagger.ReturnType.ANY)
             .sync()
         )
 
