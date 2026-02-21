@@ -75,11 +75,12 @@ class Angie:
     def _load_prompt(self, filename: str) -> dagger.File:
         return dag.current_module().source().file(f"src/angie/prompts/{filename}")
 
-    async def _build_llm(self, env, prompt_file, source=None, task: str = "assist"):
+    async def _build_llm(self, env, prompt_file, source=None, task: str = "assist", extra_blocked=None):
         return await llm_helpers.build_llm(
             env, "system_prompt.md", prompt_file, self._load_prompt,
             self._CONTEXT_FILES, self._mcp_servers(task), self._CLASS_NAME,
             constants.BLOCKED_ENTRYPOINTS, source or self.source,
+            extra_blocked=extra_blocked,
         )
 
     async def _build_suggest_fix_llm(self, env, source=None):
@@ -154,7 +155,10 @@ class Angie:
             env = env.with_string_input("target", target, "Specific file or component to write tests for")
         if test_framework:
             env = env.with_string_input("test_framework", test_framework, "Test framework preference")
-        return (await self._build_llm(env, "write_tests_prompt.md", ws, task="write_tests")).env().workspace()
+        return (await self._build_llm(
+            env, "write_tests_prompt.md", ws, task="write_tests",
+            extra_blocked=constants.BLOCKED_BUILD_TOOLS,
+        )).env().workspace()
 
     @function
     async def build(

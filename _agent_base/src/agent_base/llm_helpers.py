@@ -35,6 +35,7 @@ async def build_llm(
     class_name: str,
     blocked_entrypoints: list[str],
     source: dagger.Directory,
+    extra_blocked: list[str] | None = None,
 ) -> dagger.LLM:
     """Build an LLM with environment, workspace tools, MCP servers, and prompts."""
     context_md = await read_context_file(source, context_file_names)
@@ -49,7 +50,7 @@ async def build_llm(
     for name, service in mcp_servers.items():
         llm = llm.with_mcp_server(name, service)
 
-    for fn in blocked_entrypoints:
+    for fn in blocked_entrypoints + (extra_blocked or []):
         llm = llm.with_blocked_function(class_name, fn)
 
     return llm.with_prompt_file(load_prompt_fn(prompt_file))
