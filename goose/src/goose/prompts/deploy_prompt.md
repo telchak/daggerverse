@@ -33,11 +33,15 @@ Deploy a service to Google Cloud Platform based on the assignment provided.
 
 ## Output
 
-Write the deployment result to the `result` output. Include:
+**CRITICAL**: You MUST actually perform the deployment by calling the deployment tools (`deploy_service`, `deploy_firebase_hosting`, `deploy_firebase_preview`, or `deploy_vertex_model`). Do not just analyze or describe — execute the deployment.
+
+After deploying, set the `result` output with the deployment details:
 - Whether this was a new deployment or an update
 - The service URL or endpoint
 - Any relevant configuration applied
 - Errors encountered (if any)
+
+If you skip the deployment tool call, the task has failed.
 
 ## Important Notes
 

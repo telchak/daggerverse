@@ -205,7 +205,9 @@ jobs:
             echo ":x: **FAILED**" >> $GITHUB_STEP_SUMMARY
           fi
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.test.outputs.output }}" >> $GITHUB_STEP_SUMMARY
+          cat << 'ENDOFOUTPUT' >> $GITHUB_STEP_SUMMARY
+          ${{ steps.test.outputs.output }}
+          ENDOFOUTPUT
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   test-agents:
@@ -276,7 +278,9 @@ jobs:
             echo ":x: **FAILED**" >> $GITHUB_STEP_SUMMARY
           fi
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.test.outputs.output }}" >> $GITHUB_STEP_SUMMARY
+          cat << 'ENDOFOUTPUT' >> $GITHUB_STEP_SUMMARY
+          ${{ steps.test.outputs.output }}
+          ENDOFOUTPUT
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   test-angie-github-issue:
@@ -333,7 +337,9 @@ jobs:
             echo ":x: **FAILED**" >> $GITHUB_STEP_SUMMARY
           fi
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.test.outputs.output }}" >> $GITHUB_STEP_SUMMARY
+          cat << 'ENDOFOUTPUT' >> $GITHUB_STEP_SUMMARY
+          ${{ steps.test.outputs.output }}
+          ENDOFOUTPUT
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   release:
