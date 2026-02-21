@@ -18,6 +18,23 @@ dagger install github.com/telchak/daggerverse/angular
 | `serve` | Start the Angular development server |
 | `install` | Install Angular project dependencies |
 
+## Caching
+
+All functions mount an npm cache volume by default (`dag.cache_volume("angular-npm")`) to speed up repeated dependency installs. You can pass a custom cache volume to share across modules:
+
+```python
+# Share a single npm cache across angular and gcp-firebase
+npm_cache = dag.cache_volume("my-shared-npm")
+
+dist = await dag.angular().build(source=source, npm_cache=npm_cache)
+output = await dag.angular().lint(source=source, npm_cache=npm_cache)
+```
+
+```bash
+# CLI: caching is automatic, no extra flags needed
+dagger call build --source=.
+```
+
 ## Usage
 
 ### Build

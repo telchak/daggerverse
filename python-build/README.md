@@ -18,6 +18,24 @@ dagger install github.com/telchak/daggerverse/python-build
 | `typecheck` | Type-check a Python project (mypy, pyright) |
 | `install` | Install project dependencies |
 
+## Caching
+
+All functions mount pip and uv cache volumes by default (`dag.cache_volume("python-pip")` and `dag.cache_volume("python-uv")`) to speed up repeated dependency installs. You can pass custom cache volumes to share across modules:
+
+```python
+# Share cache volumes across python-build and other Python modules
+pip_cache = dag.cache_volume("my-shared-pip")
+uv_cache = dag.cache_volume("my-shared-uv")
+
+result = await dag.python_build().build(source=source, pip_cache=pip_cache, uv_cache=uv_cache)
+output = await dag.python_build().lint(source=source, pip_cache=pip_cache, uv_cache=uv_cache)
+```
+
+```bash
+# CLI: caching is automatic, no extra flags needed
+dagger call build --source=.
+```
+
 ## Usage
 
 ### Build

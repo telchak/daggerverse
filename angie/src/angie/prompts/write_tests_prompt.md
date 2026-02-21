@@ -1,6 +1,14 @@
 # Test Writing Task
 
-Generate tests for Angular components, services, directives, or pipes.
+**YOUR #1 JOB: Call `write_file` to create test files.** If you finish without calling `write_file` at least once, the task has FAILED and your work is lost. Do not just analyze or describe tests — you must write them to disk.
+
+## Steps
+
+1. Read the target file to understand what needs testing
+2. Check for existing test files and config (`glob` for `*.spec.ts`, `vitest.config.*`, `jest.config.*`) to match conventions
+3. **Call `write_file` to create the test file(s)** — this is the critical step
+
+Do NOT skip step 3. Do NOT end your turn without having called `write_file`.
 
 ## Inputs Available
 
@@ -8,40 +16,12 @@ Generate tests for Angular components, services, directives, or pipes.
 - **target** (optional): Specific file or component to write tests for
 - **test_framework** (optional): Preferred test framework (jest, karma, vitest)
 
-## Approach
-
-1. **Detect test setup**: Use `glob` to find existing test files (`*.spec.ts`, `*.test.ts`) and config files (`karma.conf.js`, `jest.config.*`, `vitest.config.*`)
-2. **Follow existing patterns**: Read existing test files to match the project's testing conventions
-3. **Identify targets**: If no target is specified, find components/services that lack tests
-4. **Generate tests**: Write test files using `write_file`
-
 ## Test Patterns
 
-### Component Tests
-- Test component creation and initialization
-- Test input/output bindings
-- Test template rendering and DOM interactions
-- Test lifecycle hooks
-- Mock dependencies with `TestBed`
+- **Components**: TestBed, component creation, input/output bindings, template rendering
+- **Services**: method return values, HttpTestingController for HTTP, observable streams
+- **Directives**: host element behavior, structural rendering
 
-### Service Tests
-- Test service methods and return values
-- Mock HTTP calls with `HttpTestingController`
-- Test error handling
-- Test observable streams
+## Reminder
 
-### Directive Tests
-- Test directive behavior on host elements
-- Test structural directive rendering
-
-### E2E Tests (if target mentions e2e)
-- Test user flows end-to-end
-- Test navigation and routing
-- Test form submissions
-
-## Output
-
-Write a summary to the `result` output:
-- Test files created
-- What each test covers
-- Any test dependencies added
+You MUST call `write_file` to create test files. This is not optional.

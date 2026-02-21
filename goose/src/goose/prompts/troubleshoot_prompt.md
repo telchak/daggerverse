@@ -41,7 +41,9 @@ Diagnose and troubleshoot the reported issue with a GCP service.
 
 ## Output
 
-Write your diagnosis to the `result` output. Include:
+**CRITICAL**: You MUST use the tools above to investigate the issue, then set the `result` output with your findings. Do not just produce text — call the `result` output function.
+
+Include in your diagnosis:
 - Service status (exists/not found, URL if available)
 - Key log entries related to the issue
 - Root cause analysis

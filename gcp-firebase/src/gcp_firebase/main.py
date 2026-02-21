@@ -68,6 +68,8 @@ class GcpFirebase:
         credentials: dagger.Secret | None = None,
         # Legacy access token auth (deprecated)
         access_token: dagger.Secret | None = None,
+        # Cache
+        npm_cache: dagger.CacheVolume | None = None,
     ) -> dagger.Container:
         """Create a container with Firebase CLI and authentication configured.
 
@@ -76,9 +78,11 @@ class GcpFirebase:
         2. Service account: credentials JSON
         3. Access token: FIREBASE_TOKEN (deprecated)
         """
+        cache = npm_cache or dag.cache_volume("firebase-npm")
         container = (
             dag.container()
             .from_(f"node:{node_version}-alpine")
+            .with_mounted_cache("/root/.npm", cache)
             .with_exec(["apk", "add", "--no-cache", "openjdk17-jre"])
             .with_exec(["npm", "install", "-g", "firebase-tools"])
         )
@@ -97,11 +101,14 @@ class GcpFirebase:
         source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory")],
         build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = _DEFAULT_BUILD_CMD,
         node_version: Annotated[str, Doc("Node.js version")] = "20",
+        npm_cache: Annotated[dagger.CacheVolume | None, Doc("Custom npm cache volume (uses default if not provided)")] = None,
     ) -> dagger.Directory:
         """Build the web application and return the dist directory."""
+        cache = npm_cache or dag.cache_volume("firebase-npm")
         container = (
             dag.container()
             .from_(f"node:{node_version}-alpine")
+            .with_mounted_cache("/root/.npm", cache)
             .with_directory("/app", source)
             .with_workdir("/app")
         )
@@ -128,6 +135,8 @@ class GcpFirebase:
         skip_build: Annotated[bool, Doc("Skip npm ci and build step (use when source is pre-built)")] = False,
         deploy_functions: Annotated[bool, Doc("Deploy Cloud Functions")] = True,
         force: Annotated[bool, Doc("Force deployment")] = True,
+        # Cache
+        npm_cache: Annotated[dagger.CacheVolume | None, Doc("Custom npm cache volume (uses default if not provided)")] = None,
     ) -> str:
         """Build and deploy to Firebase Hosting.
 
@@ -145,6 +154,7 @@ class GcpFirebase:
                 service_account_email=service_account_email,
                 credentials=credentials,
                 access_token=access_token,
+                npm_cache=npm_cache,
             )
             .with_directory("/app", source)
             .with_workdir("/app")
@@ -178,6 +188,8 @@ class GcpFirebase:
         node_version: Annotated[str, Doc("Node.js version")] = "20",
         skip_build: Annotated[bool, Doc("Skip npm ci and build step (use when source is pre-built)")] = False,
         expires: Annotated[str, Doc("Channel expiration")] = "7d",
+        # Cache
+        npm_cache: Annotated[dagger.CacheVolume | None, Doc("Custom npm cache volume (uses default if not provided)")] = None,
     ) -> str:
         """Deploy to a Firebase Hosting preview channel. Returns the preview URL.
 
@@ -194,6 +206,7 @@ class GcpFirebase:
                 service_account_email=service_account_email,
                 credentials=credentials,
                 access_token=access_token,
+                npm_cache=npm_cache,
             )
             .with_directory("/app", source)
             .with_workdir("/app")
@@ -233,6 +246,8 @@ class GcpFirebase:
         # Options
         site: Annotated[str | None, Doc("Firebase site (defaults to project ID)")] = None,
         node_version: Annotated[str, Doc("Node.js version")] = "20",
+        # Cache
+        npm_cache: Annotated[dagger.CacheVolume | None, Doc("Custom npm cache volume (uses default if not provided)")] = None,
     ) -> str:
         """Delete a Firebase Hosting preview channel.
 
@@ -249,6 +264,7 @@ class GcpFirebase:
                 service_account_email=service_account_email,
                 credentials=credentials,
                 access_token=access_token,
+                npm_cache=npm_cache,
             )
             .with_workdir("/tmp/firebase")
             .with_new_file("/tmp/firebase/firebase.json", '{"hosting": {"public": "."}}')

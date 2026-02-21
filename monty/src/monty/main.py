@@ -46,6 +46,11 @@ class Monty:
         "build": {"command"},
         "write_tests": {"target", "test_framework"},
     }
+    # Build/test tools blocked during write_tests to prevent the LLM
+    # from running tests instead of writing them (can hang on missing infra)
+    _BLOCKED_BUILD_TOOLS = [
+        "python_build", "python_test", "python_lint", "python_typecheck", "python_install",
+    ]
 
     def _mcp_servers(self) -> dict[str, dagger.Service]:
         return {
@@ -70,11 +75,12 @@ class Monty:
     def _load_prompt(self, filename: str) -> dagger.File:
         return dag.current_module().source().file(f"src/monty/prompts/{filename}")
 
-    async def _build_llm(self, env, prompt_file, source=None):
+    async def _build_llm(self, env, prompt_file, source=None, extra_blocked=None):
         return await llm_helpers.build_llm(
             env, "system_prompt.md", prompt_file, self._load_prompt,
             self._CONTEXT_FILES, self._mcp_servers(), self._CLASS_NAME,
             constants.BLOCKED_ENTRYPOINTS, source or self.source,
+            extra_blocked=extra_blocked,
         )
 
     async def _build_suggest_fix_llm(self, env, source=None):
@@ -149,7 +155,10 @@ class Monty:
             env = env.with_string_input("target", target, "Specific file or module to write tests for")
         if test_framework:
             env = env.with_string_input("test_framework", test_framework, "Test framework preference")
-        return (await self._build_llm(env, "write_tests_prompt.md", ws)).env().workspace()
+        return (await self._build_llm(
+            env, "write_tests_prompt.md", ws,
+            extra_blocked=self._BLOCKED_BUILD_TOOLS,
+        )).env().workspace()
 
     @function
     async def build(

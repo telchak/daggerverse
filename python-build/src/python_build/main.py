@@ -14,12 +14,21 @@ class PythonBuild:
         self,
         source: dagger.Directory,
         python_version: str = "3.13",
+        pip_cache: dagger.CacheVolume | None = None,
+        uv_cache: dagger.CacheVolume | None = None,
     ) -> dagger.Container:
-        """Create a container with Python, uv, and source mounted."""
+        """Create a container with Python, uv, and source mounted.
+
+        Mounts pip and uv cache volumes by default to speed up repeated installs.
+        """
+        _pip_cache = pip_cache or dag.cache_volume("python-pip")
+        _uv_cache = uv_cache or dag.cache_volume("python-uv")
         return (
             dag.container()
             .from_(f"python:{python_version}-slim")
-            .with_exec(["pip", "install", "--no-cache-dir", "uv"])
+            .with_mounted_cache("/root/.cache/pip", _pip_cache)
+            .with_mounted_cache("/root/.cache/uv", _uv_cache)
+            .with_exec(["pip", "install", "uv"])
             .with_directory("/app", source)
             .with_workdir("/app")
         )
@@ -30,13 +39,15 @@ class PythonBuild:
         source: Annotated[dagger.Directory, DefaultPath("."), Doc("Python project source directory")],
         command: Annotated[str, Doc("Custom build command (auto-detects if empty)")] = "",
         python_version: Annotated[str, Doc("Python version")] = "3.13",
+        pip_cache: Annotated[dagger.CacheVolume | None, Doc("Custom pip cache volume (uses default if not provided)")] = None,
+        uv_cache: Annotated[dagger.CacheVolume | None, Doc("Custom uv cache volume (uses default if not provided)")] = None,
     ) -> dagger.Directory:
         """Build a Python project and return the source with dist/.
 
         Auto-detects the build system or runs a custom command.
         Defaults to `python -m build` if no build command is specified.
         """
-        container = self._base_container(source, python_version)
+        container = self._base_container(source, python_version, pip_cache, uv_cache)
 
         # Install dependencies first
         container = await self._install_deps(container, source)
@@ -69,12 +80,14 @@ class PythonBuild:
         tool: Annotated[str, Doc("Lint tool to use: 'ruff', 'flake8', 'pylint'")] = "ruff",
         fix: Annotated[bool, Doc("Automatically fix lint errors (ruff only)")] = False,
         python_version: Annotated[str, Doc("Python version")] = "3.13",
+        pip_cache: Annotated[dagger.CacheVolume | None, Doc("Custom pip cache volume (uses default if not provided)")] = None,
+        uv_cache: Annotated[dagger.CacheVolume | None, Doc("Custom uv cache volume (uses default if not provided)")] = None,
     ) -> str:
         """Lint a Python project.
 
         Returns the lint output.
         """
-        container = self._base_container(source, python_version)
+        container = self._base_container(source, python_version, pip_cache, uv_cache)
 
         if tool == "ruff":
             install_cmd = "uv pip install --system ruff"
@@ -105,13 +118,15 @@ class PythonBuild:
         source: Annotated[dagger.Directory, DefaultPath("."), Doc("Python project source directory")],
         command: Annotated[str, Doc("Custom test command (auto-detects if empty)")] = "",
         python_version: Annotated[str, Doc("Python version")] = "3.13",
+        pip_cache: Annotated[dagger.CacheVolume | None, Doc("Custom pip cache volume (uses default if not provided)")] = None,
+        uv_cache: Annotated[dagger.CacheVolume | None, Doc("Custom uv cache volume (uses default if not provided)")] = None,
     ) -> str:
         """Run tests for a Python project.
 
         Auto-detects pytest or unittest, or runs a custom command.
         Returns the test output.
         """
-        container = self._base_container(source, python_version)
+        container = self._base_container(source, python_version, pip_cache, uv_cache)
         container = await self._install_deps(container, source)
 
         if command:
@@ -140,12 +155,14 @@ class PythonBuild:
         source: Annotated[dagger.Directory, DefaultPath("."), Doc("Python project source directory")],
         tool: Annotated[str, Doc("Type checker to use: 'mypy', 'pyright'")] = "mypy",
         python_version: Annotated[str, Doc("Python version")] = "3.13",
+        pip_cache: Annotated[dagger.CacheVolume | None, Doc("Custom pip cache volume (uses default if not provided)")] = None,
+        uv_cache: Annotated[dagger.CacheVolume | None, Doc("Custom uv cache volume (uses default if not provided)")] = None,
     ) -> str:
         """Type-check a Python project.
 
         Returns the type checker output.
         """
-        container = self._base_container(source, python_version)
+        container = self._base_container(source, python_version, pip_cache, uv_cache)
         container = await self._install_deps(container, source)
 
         if tool == "mypy":
@@ -173,13 +190,15 @@ class PythonBuild:
         self,
         source: Annotated[dagger.Directory, DefaultPath("."), Doc("Python project source directory")],
         python_version: Annotated[str, Doc("Python version")] = "3.13",
+        pip_cache: Annotated[dagger.CacheVolume | None, Doc("Custom pip cache volume (uses default if not provided)")] = None,
+        uv_cache: Annotated[dagger.CacheVolume | None, Doc("Custom uv cache volume (uses default if not provided)")] = None,
     ) -> dagger.Directory:
         """Install Python project dependencies.
 
         Auto-detects the package manager (pyproject.toml, requirements.txt, setup.py)
         and installs dependencies. Returns the source directory with deps installed.
         """
-        container = self._base_container(source, python_version)
+        container = self._base_container(source, python_version, pip_cache, uv_cache)
         container = await self._install_deps(container, source)
         return container.directory("/app")
 

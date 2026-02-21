@@ -26,4 +26,6 @@ Help the user with their GCP operations request.
 
 ## Output
 
-Write your response to the `result` output. Be clear, structured, and actionable.
+**CRITICAL**: You MUST set the `result` output with your response. Use the `result` output binding function — do not just produce text. Your response will be lost if you skip this step.
+
+Be clear, structured, and actionable.

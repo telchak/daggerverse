@@ -45,19 +45,37 @@ class Angie:
         "build": {"command"},
         "write_tests": {"target", "test_framework"},
     }
+    # Build/test tools blocked during write_tests to prevent the LLM
+    # from running tests instead of writing them (can hang on missing infra)
+    _BLOCKED_BUILD_TOOLS = [
+        "angular_build", "angular_test", "angular_lint", "angular_install",
+    ]
 
-    def _mcp_servers(self) -> dict[str, dagger.Service]:
+    # Experimental MCP tools needed per task — only load what's relevant.
+    # None means no MCP server at all (workspace tools are sufficient).
+    _TASK_MCP_TOOLS = {
+        "assist": ["build", "test", "modernize"],
+        "review": None,         # workspace tools only — MCP can't see files and confuses the LLM
+        "write_tests": None,    # workspace tools only — just needs to read code and write test files
+        "build": ["build"],
+        "upgrade": ["modernize"],
+        "suggest_fix": None,
+    }
+
+    def _mcp_servers(self, task: str = "assist") -> dict[str, dagger.Service]:
+        experimental_tools = self._TASK_MCP_TOOLS.get(task, [])
+        if experimental_tools is None:
+            return {}
+        args = ["ng", "mcp"]
+        for tool in experimental_tools:
+            args.extend(["--experimental-tool", tool])
         return {
             "angular": (
                 dag.container()
                 .from_(f"node:{self.node_version}")
-                .with_default_args([
-                    "npx", "-y", "@angular/cli", "mcp",
-                    "--experimental-tool", "build",
-                    "--experimental-tool", "test",
-                    "--experimental-tool", "e2e",
-                    "--experimental-tool", "modernize",
-                ])
+                .with_mounted_cache("/root/.npm", dag.cache_volume("node-npm"))
+                .with_exec(["npm", "install", "-g", "@angular/cli"])
+                .with_default_args(args)
                 .as_service()
             ),
         }
@@ -65,11 +83,12 @@ class Angie:
     def _load_prompt(self, filename: str) -> dagger.File:
         return dag.current_module().source().file(f"src/angie/prompts/{filename}")
 
-    async def _build_llm(self, env, prompt_file, source=None):
+    async def _build_llm(self, env, prompt_file, source=None, task: str = "assist", extra_blocked=None):
         return await llm_helpers.build_llm(
             env, "system_prompt.md", prompt_file, self._load_prompt,
-            self._CONTEXT_FILES, self._mcp_servers(), self._CLASS_NAME,
+            self._CONTEXT_FILES, self._mcp_servers(task), self._CLASS_NAME,
             constants.BLOCKED_ENTRYPOINTS, source or self.source,
+            extra_blocked=extra_blocked,
         )
 
     async def _build_suggest_fix_llm(self, env, source=None):
@@ -99,7 +118,7 @@ class Angie:
             .with_workspace(ws)
             .with_string_input("assignment", assignment, "The coding task to accomplish")
         )
-        return (await self._build_llm(env, "assist_prompt.md", ws)).env().workspace()
+        return (await self._build_llm(env, "assist_prompt.md", ws, task="assist")).env().workspace()
 
     @function
     async def review(
@@ -123,7 +142,7 @@ class Angie:
             env = env.with_string_input("diff", diff, "Git diff or PR diff to review")
         if focus:
             env = env.with_string_input("focus", focus, "Specific area to focus the review on")
-        work = await self._build_llm(env, "review_prompt.md", ws)
+        work = await self._build_llm(env, "review_prompt.md", ws, task="review")
         return await work.env().output("result").as_string()
 
     @function
@@ -144,7 +163,10 @@ class Angie:
             env = env.with_string_input("target", target, "Specific file or component to write tests for")
         if test_framework:
             env = env.with_string_input("test_framework", test_framework, "Test framework preference")
-        return (await self._build_llm(env, "write_tests_prompt.md", ws)).env().workspace()
+        return (await self._build_llm(
+            env, "write_tests_prompt.md", ws, task="write_tests",
+            extra_blocked=self._BLOCKED_BUILD_TOOLS,
+        )).env().workspace()
 
     @function
     async def build(
@@ -161,7 +183,7 @@ class Angie:
         env = dag.env().with_workspace(ws)
         if command:
             env = env.with_string_input("command", command, "Build command to run")
-        return (await self._build_llm(env, "build_prompt.md", ws)).env().workspace()
+        return (await self._build_llm(env, "build_prompt.md", ws, task="build")).env().workspace()
 
     @function
     async def upgrade(
@@ -185,7 +207,7 @@ class Angie:
         )
         if dry_run:
             env = env.with_string_input("dry_run", "true", "Only analyze and report, do not modify files")
-        return (await self._build_llm(env, "upgrade_prompt.md", ws)).env().workspace()
+        return (await self._build_llm(env, "upgrade_prompt.md", ws, task="upgrade")).env().workspace()
 
     # --- GitHub integration ---
 
@@ -402,7 +424,7 @@ class Angie:
         """
         llm = await llm_helpers.build_task_llm(
             self.source, self._load_prompt, self._CONTEXT_FILES,
-            self._mcp_servers(), self._CLASS_NAME,
+            self._mcp_servers(task="review"), self._CLASS_NAME,
             constants.BLOCKED_ENTRYPOINTS, constants.BLOCKED_DESTRUCTIVE,
             description, prompt,
         )

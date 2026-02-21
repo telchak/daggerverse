@@ -48,7 +48,9 @@ Review the Angular project source code for quality, best practices, and potentia
 
 ## Output
 
-Write a structured review to the `result` output:
+**CRITICAL**: You MUST set the `result` output with your review. Use the `result` output binding function — do not just produce text. Your review will be lost if you skip this step.
+
+Structure your review as follows:
 
 ### Issues (must fix)
 - List critical issues that should be fixed
@@ -61,3 +63,5 @@ Write a structured review to the `result` output:
 
 ### Summary
 - Overall assessment and priority recommendations
+
+After writing the review, set it on the `result` output immediately.

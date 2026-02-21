@@ -46,7 +46,9 @@ Upgrade a GCP service's version, configuration, or traffic split.
 
 ## Output
 
-Write the upgrade result to the `result` output. Include:
+**CRITICAL**: You MUST set the `result` output with your findings. Use the `result` output binding function — do not just produce text. Your response will be lost if you skip this step.
+
+Include:
 - Previous state (version, configuration)
 - Changes applied (or planned if dry_run)
 - New state after upgrade (skip if dry_run)
