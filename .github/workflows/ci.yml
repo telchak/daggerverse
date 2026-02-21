@@ -147,6 +147,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Restore Dagger engine cache
+        uses: actions/cache@v4
+        with:
+          path: /var/lib/dagger
+          key: dagger-engine-${{ runner.os }}-${{ matrix.module }}-${{ hashFiles(format('{0}/dagger.json', matrix.module)) }}
+          restore-keys: |
+            dagger-engine-${{ runner.os }}-${{ matrix.module }}-
+            dagger-engine-${{ runner.os }}-
+
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.3.0
         with:
@@ -224,6 +233,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Restore Dagger engine cache
+        uses: actions/cache@v4
+        with:
+          path: /var/lib/dagger
+          key: dagger-engine-${{ runner.os }}-${{ matrix.test }}-${{ hashFiles('tests/dagger.json') }}
+          restore-keys: |
+            dagger-engine-${{ runner.os }}-${{ matrix.test }}-
+            dagger-engine-${{ runner.os }}-
+
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.3.0
         with:
@@ -290,6 +308,15 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v6
+
+      - name: Restore Dagger engine cache
+        uses: actions/cache@v4
+        with:
+          path: /var/lib/dagger
+          key: dagger-engine-${{ runner.os }}-angie-github-issue-${{ hashFiles('tests/dagger.json') }}
+          restore-keys: |
+            dagger-engine-${{ runner.os }}-angie-github-issue-
+            dagger-engine-${{ runner.os }}-
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.3.0
