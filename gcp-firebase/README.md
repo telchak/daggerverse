@@ -152,6 +152,31 @@ await dag.gcp_firebase().deploy(
 
 ---
 
+## Caching
+
+All hosting functions mount an npm cache volume by default (`dag.cache_volume("firebase-npm")`) to speed up repeated dependency installs and Firebase CLI setup. You can pass a custom cache volume to share across modules:
+
+```python
+# Share a single npm cache across gcp-firebase and angular
+npm_cache = dag.cache_volume("my-shared-npm")
+
+await dag.gcp_firebase().deploy(
+    project_id="my-project",
+    source=source,
+    credentials=credentials,
+    npm_cache=npm_cache,
+)
+
+dist = await dag.gcp_firebase().build(source=source, npm_cache=npm_cache)
+```
+
+```bash
+# CLI: caching is automatic, no extra flags needed
+dagger call build --source=.
+```
+
+---
+
 ## Firebase Hosting
 
 ### Functions
