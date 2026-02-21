@@ -46,6 +46,11 @@ class Monty:
         "build": {"command"},
         "write_tests": {"target", "test_framework"},
     }
+    # Build/test tools blocked during write_tests to prevent the LLM
+    # from running tests instead of writing them (can hang on missing infra)
+    _BLOCKED_BUILD_TOOLS = [
+        "python_build", "python_test", "python_lint", "python_typecheck", "python_install",
+    ]
 
     def _mcp_servers(self) -> dict[str, dagger.Service]:
         return {
@@ -152,7 +157,7 @@ class Monty:
             env = env.with_string_input("test_framework", test_framework, "Test framework preference")
         return (await self._build_llm(
             env, "write_tests_prompt.md", ws,
-            extra_blocked=constants.BLOCKED_BUILD_TOOLS,
+            extra_blocked=self._BLOCKED_BUILD_TOOLS,
         )).env().workspace()
 
     @function

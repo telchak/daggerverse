@@ -1,11 +1,18 @@
 # Deployment Task
 
-Deploy a service to Google Cloud Platform based on the assignment provided.
+**YOUR #1 JOB: Call `deploy_service` (or another deployment tool) to deploy the service.** If you finish without calling a deployment tool, the task has FAILED. Do not just analyze or describe — execute the deployment, then set the `result` output.
+
+## Steps
+
+1. Call `deploy_service` with the image, service name, project, and region from the inputs
+2. Set the `result` output with the deployment URL and details
+
+Do NOT skip step 1. Do NOT end your turn without having called a deployment tool.
 
 ## Inputs Available
 
 - **assignment**: The deployment task describing what to deploy and how
-- **service_name** (may not be present): The target service name. If not provided, determine it from the project context or the assignment text. If you cannot determine it, report what's missing.
+- **service_name** (may not be present): The target service name. If not provided, determine it from the project context or the assignment text.
 - **project_id**: The GCP project ID
 - **region**: The GCP region to deploy to
 - **source** (optional): Source code directory to build into a container
@@ -13,38 +20,16 @@ Deploy a service to Google Cloud Platform based on the assignment provided.
 
 ## Deployment Patterns
 
-### Cloud Run Deployment
-
-1. Use `service_exists` to check if the service is already deployed
-2. If `source` is provided, build and publish using `publish_container`
-3. Deploy with `deploy_service` using the assignment's configuration
-4. Verify with `get_service_url` and `get_service_logs`
-
-### Firebase Hosting Deployment
-
-1. Use `deploy_firebase_hosting` with the source directory
-2. For preview deployments, use `deploy_firebase_preview` with a channel ID
-
-### Vertex AI Deployment
-
-1. Use `list_vertex_models` to check existing models
-2. Deploy with `deploy_vertex_model` using the model image and configuration
-3. Verify with `list_vertex_endpoints`
-
-## Output
-
-**CRITICAL**: You MUST actually perform the deployment by calling the deployment tools (`deploy_service`, `deploy_firebase_hosting`, `deploy_firebase_preview`, or `deploy_vertex_model`). Do not just analyze or describe — execute the deployment.
-
-After deploying, set the `result` output with the deployment details:
-- Whether this was a new deployment or an update
-- The service URL or endpoint
-- Any relevant configuration applied
-- Errors encountered (if any)
-
-If you skip the deployment tool call, the task has failed.
+- **Cloud Run**: Call `deploy_service` with the image and configuration
+- **Firebase Hosting**: Call `deploy_firebase_hosting` with the source directory
+- **Vertex AI**: Call `deploy_vertex_model` with the model image
 
 ## Important Notes
 
 - If the assignment mentions "allow unauthenticated" or "public access", set `allow_unauthenticated=True`
 - Default to scale-to-zero (`min_instances=0`) unless specified otherwise
 - If deployment fails, include the error details in the result
+
+## Reminder
+
+You MUST call a deployment tool AND set the `result` output. This is not optional.

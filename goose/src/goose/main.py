@@ -259,7 +259,9 @@ class Goose:
         return (
             gcloud
             .with_exec(["apk", "add", "--no-cache", "nodejs", "npm"])
-            .with_default_args(["npx", "-y", "@google-cloud/gcloud-mcp"])
+            .with_mounted_cache("/root/.npm", dag.cache_volume("node-npm"))
+            .with_exec(["npm", "install", "-g", "@google-cloud/gcloud-mcp"])
+            .with_default_args(["npx", "@google-cloud/gcloud-mcp"])
             .as_service()
         )
 

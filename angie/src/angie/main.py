@@ -45,19 +45,27 @@ class Angie:
         "build": {"command"},
         "write_tests": {"target", "test_framework"},
     }
+    # Build/test tools blocked during write_tests to prevent the LLM
+    # from running tests instead of writing them (can hang on missing infra)
+    _BLOCKED_BUILD_TOOLS = [
+        "angular_build", "angular_test", "angular_lint", "angular_install",
+    ]
 
-    # Experimental tools needed per task — only load what's relevant
+    # Experimental MCP tools needed per task — only load what's relevant.
+    # None means no MCP server at all (workspace tools are sufficient).
     _TASK_MCP_TOOLS = {
         "assist": ["build", "test", "modernize"],
-        "review": [],           # defaults (docs, best practices) are enough
-        "write_tests": ["test"],
+        "review": None,         # workspace tools only — MCP can't see files and confuses the LLM
+        "write_tests": None,    # workspace tools only — just needs to read code and write test files
         "build": ["build"],
         "upgrade": ["modernize"],
-        "suggest_fix": [],
+        "suggest_fix": None,
     }
 
     def _mcp_servers(self, task: str = "assist") -> dict[str, dagger.Service]:
         experimental_tools = self._TASK_MCP_TOOLS.get(task, [])
+        if experimental_tools is None:
+            return {}
         args = ["ng", "mcp"]
         for tool in experimental_tools:
             args.extend(["--experimental-tool", tool])
@@ -157,7 +165,7 @@ class Angie:
             env = env.with_string_input("test_framework", test_framework, "Test framework preference")
         return (await self._build_llm(
             env, "write_tests_prompt.md", ws, task="write_tests",
-            extra_blocked=constants.BLOCKED_BUILD_TOOLS,
+            extra_blocked=self._BLOCKED_BUILD_TOOLS,
         )).env().workspace()
 
     @function
