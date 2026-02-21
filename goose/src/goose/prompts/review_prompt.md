@@ -39,4 +39,6 @@ Organize findings into:
 
 ## Output
 
-Write your review to the `result` output with structured findings.
+**CRITICAL**: You MUST set the `result` output with your review. Use the `result` output binding function — do not just produce text. Your review will be lost if you skip this step.
+
+Structure your review with the findings below.
