@@ -139,7 +139,26 @@ async def develop_github_issue_impl(
         source=result,
         base=base,
     )
-    pr_url = await pr.url()
+    try:
+        pr_url = await pr.url()
+    except dagger.ExecError as exc:
+        error_msg = str(exc)
+        if "nothing to commit" in error_msg:
+            await gh.write_comment(
+                repo=repository,
+                issue_id=issue_id,
+                body=(
+                    f"**Agent completed but made no code changes.**\n\n"
+                    f"**Function**: `{function_name}`\n\n"
+                    f"The agent analyzed the issue but did not modify any files. "
+                    f"This may be an intermittent LLM issue — please retry."
+                ),
+            )
+            raise RuntimeError(
+                f"Agent function '{function_name}' produced no file changes for issue #{issue_id}. "
+                f"The workspace was unmodified."
+            ) from exc
+        raise
 
     # Comment on the issue with the PR link
     await gh.write_comment(

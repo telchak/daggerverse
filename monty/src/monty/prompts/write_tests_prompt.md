@@ -12,7 +12,9 @@ Generate tests for Python modules, classes, functions, or API endpoints.
 
 1. **Detect test setup**: Use `glob` to find existing test files and config files (`pyproject.toml`, `conftest.py`)
 2. **Read the target**: Read the target file and one existing test file (if any) to match conventions
-3. **Generate tests**: Write test files using `write_file`
+3. **Generate tests**: Use `write_file` to create test files in the workspace
+
+**CRITICAL**: You MUST use the `write_file` tool to create test files. This is the primary goal of this task. If you do not write files, the task has failed.
 
 **Budget: 10 tool calls.** Focus on the target file and existing test patterns.
 
