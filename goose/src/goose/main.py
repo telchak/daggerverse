@@ -443,6 +443,14 @@ Do not search docs for basic operations you already know how to perform.
         if source:
             self.source = source
 
+        # Fast path: if the assignment contains a container image URI and a
+        # service name, call deploy_service directly instead of routing through
+        # the LLM.  This avoids flaky LLM behavior for straightforward deploys.
+        if not source and service_name:
+            result = self._try_direct_cloud_run_deploy(assignment, service_name)
+            if result is not None:
+                return await result
+
         env = (
             dag.env()
             .with_string_input("assignment", assignment, "The deployment task to accomplish")
@@ -461,6 +469,33 @@ Do not search docs for basic operations you already know how to perform.
 
         work = await self._build_llm(env, "deploy_prompt.md", source, task="deploy")
         return await work.env().output("result").as_string()
+
+    def _try_direct_cloud_run_deploy(self, assignment: str, service_name: str):
+        """Attempt to parse a simple Cloud Run deploy from the assignment text.
+
+        Returns an awaitable deploy result if the assignment specifies a
+        container image URI, or None to fall back to the LLM.
+        """
+        # Match common container image patterns (gcr.io/..., docker.io/...,
+        # us-docker.pkg.dev/..., etc.)
+        m = re.search(
+            r'((?:[\w.-]+\.)?(?:gcr\.io|docker\.io|pkg\.dev|ghcr\.io|docker\.com)/[\w./_:-]+)',
+            assignment,
+        )
+        if not m:
+            return None
+
+        image = m.group(1)
+        allow_unauth = bool(re.search(
+            r'(?:allow[_ ]unauthenticated|public[_ ]access|--allow-unauthenticated)',
+            assignment, re.IGNORECASE,
+        ))
+
+        return self.deploy_service(
+            image=image,
+            service_name=service_name,
+            allow_unauthenticated=allow_unauth,
+        )
 
     @function
     async def troubleshoot(
