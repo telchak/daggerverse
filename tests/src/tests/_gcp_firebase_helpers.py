@@ -141,9 +141,14 @@ async def test_firestore_crud(
             raise RuntimeError(f"Database {database_id} not in describe output")
         results.append(format_operation("READ (describe)", "PASS"))
 
-        # READ - list
-        db_list = await firestore.list_(gcloud=gcloud)
-        if database_id not in db_list:
+        # READ - list (retry for GCP eventual consistency — list index
+        # can lag behind describe/get after a recent create)
+        for attempt in range(5):
+            db_list = await firestore.list_(gcloud=gcloud)
+            if database_id in db_list:
+                break
+            time.sleep(3)
+        else:
             raise RuntimeError(f"Database {database_id} not in list output")
         results.append(format_operation("READ (list)", "PASS"))
         ops["F_READ"] = "PASS"
