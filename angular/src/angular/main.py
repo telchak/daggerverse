@@ -29,7 +29,7 @@ class Angular:
             .with_exec(["npm", "install", "-g", "@angular/cli"])
             .with_directory("/app", source)
             .with_workdir("/app")
-            .with_exec(["sh", "-c", "npm ci 2>/dev/null || npm install"])
+            .with_exec(["sh", "-c", "npm ci --prefer-offline 2>/dev/null || npm install --prefer-offline"])
         )
 
     @function
