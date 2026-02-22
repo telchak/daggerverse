@@ -6,6 +6,7 @@ gcp_firebase.py.
 """
 
 import time
+import uuid
 
 import dagger
 from dagger import dag
@@ -142,12 +143,15 @@ async def test_firestore_crud(
         results.append(format_operation("READ (describe)", "PASS"))
 
         # READ - list (retry for GCP eventual consistency — list index
-        # can lag behind describe/get after a recent create)
-        for attempt in range(5):
-            db_list = await firestore.list_(gcloud=gcloud)
+        # can lag behind describe/get after a recent create).
+        # Each attempt must bust Dagger's content-addressed cache by
+        # varying the gcloud container, otherwise we re-read the same result.
+        for attempt in range(6):
+            cache_busted = gcloud.with_env_variable("_CACHE_BUST", str(uuid.uuid4()))
+            db_list = await firestore.list_(gcloud=cache_busted)
             if database_id in db_list:
                 break
-            time.sleep(3)
+            time.sleep(5)
         else:
             raise RuntimeError(f"Database {database_id} not in list output")
         results.append(format_operation("READ (list)", "PASS"))
