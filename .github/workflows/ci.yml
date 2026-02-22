@@ -164,7 +164,6 @@ jobs:
       - name: Test ${{ matrix.module }}
         id: test
         env:
-          _EXPERIMENTAL_DAGGER_RUNNER_HOST: "docker-image://registry.dagger.io/engine:v0.19.11?volume=dagger-engine"
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           GCP_DEVELOPER_KNOWLEDGE_API_KEY: ${{ secrets.GCP_DEVELOPER_KNOWLEDGE_API_KEY }}
@@ -223,7 +222,7 @@ jobs:
         run: docker stop $(docker ps -q -f 'name=dagger-engine') 2>/dev/null || true
 
       - name: Save Dagger engine cache
-        if: always()
+        if: always() && github.ref == 'refs/heads/main'
         uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
         with:
           key: dagger-engine-${{ runner.os }}-v0.19.11
@@ -260,7 +259,6 @@ jobs:
         id: test
         timeout-minutes: 20
         env:
-          _EXPERIMENTAL_DAGGER_RUNNER_HOST: "docker-image://registry.dagger.io/engine:v0.19.11?volume=dagger-engine"
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
@@ -314,7 +312,7 @@ jobs:
         run: docker stop $(docker ps -q -f 'name=dagger-engine') 2>/dev/null || true
 
       - name: Save Dagger engine cache
-        if: always()
+        if: always() && github.ref == 'refs/heads/main'
         uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
         with:
           key: dagger-engine-${{ runner.os }}-v0.19.11
@@ -344,7 +342,6 @@ jobs:
       - name: Test angie develop-github-issue
         id: test
         env:
-          _EXPERIMENTAL_DAGGER_RUNNER_HOST: "docker-image://registry.dagger.io/engine:v0.19.11?volume=dagger-engine"
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
@@ -391,7 +388,7 @@ jobs:
         run: docker stop $(docker ps -q -f 'name=dagger-engine') 2>/dev/null || true
 
       - name: Save Dagger engine cache
-        if: always()
+        if: always() && github.ref == 'refs/heads/main'
         uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
         with:
           key: dagger-engine-${{ runner.os }}-v0.19.11
