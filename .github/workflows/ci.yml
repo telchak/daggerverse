@@ -225,7 +225,7 @@ jobs:
         run: docker stop $(docker ps -q -f 'name=dagger-engine') 2>/dev/null || true
 
       - name: Save Dagger engine cache
-        if: always()
+        if: always() && github.ref == 'refs/heads/main'
         uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
         with:
           key: dagger-engine-${{ runner.os }}-${{ matrix.module }}
@@ -318,7 +318,7 @@ jobs:
         run: docker stop $(docker ps -q -f 'name=dagger-engine') 2>/dev/null || true
 
       - name: Save Dagger engine cache
-        if: always()
+        if: always() && github.ref == 'refs/heads/main'
         uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
         with:
           key: dagger-engine-${{ runner.os }}-${{ matrix.test }}
@@ -397,7 +397,7 @@ jobs:
         run: docker stop $(docker ps -q -f 'name=dagger-engine') 2>/dev/null || true
 
       - name: Save Dagger engine cache
-        if: always()
+        if: always() && github.ref == 'refs/heads/main'
         uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
         with:
           key: dagger-engine-${{ runner.os }}-angie-develop-github-issue
