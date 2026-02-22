@@ -16,21 +16,29 @@ class Angular:
         source: dagger.Directory,
         node_version: str = "22",
         npm_cache: dagger.CacheVolume | None = None,
+        omit_dev: bool = False,
     ) -> dagger.Container:
         """Create a container with Node.js, Angular CLI, and dependencies installed.
 
         Mounts an npm cache volume by default to speed up repeated installs.
+        When omit_dev is True, skips devDependencies (faster for builds that
+        don't need test frameworks like Playwright).
         """
         cache = npm_cache or dag.cache_volume("angular-npm")
-        return (
+        install_cmd = "npm ci --prefer-offline || npm install --prefer-offline"
+        if omit_dev:
+            install_cmd = "npm ci --prefer-offline --omit=dev || npm install --prefer-offline --omit=dev"
+        ctr = (
             dag.container()
             .from_(f"node:{node_version}-slim")
             .with_mounted_cache("/root/.npm", cache)
+            .with_env_variable("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")
             .with_exec(["npm", "install", "-g", "@angular/cli"])
             .with_directory("/app", source)
             .with_workdir("/app")
-            .with_exec(["sh", "-c", "npm ci --prefer-offline 2>/dev/null || npm install --prefer-offline"])
+            .with_exec(["sh", "-c", install_cmd])
         )
+        return ctr
 
     @function
     async def build(
@@ -46,7 +54,7 @@ class Angular:
         Runs `ng build` with the specified configuration. Auto-detects the
         output path from angular.json if not explicitly provided.
         """
-        container = self._base_container(source, node_version, npm_cache)
+        container = self._base_container(source, node_version, npm_cache, omit_dev=True)
 
         # Run ng build
         build_result = await (
