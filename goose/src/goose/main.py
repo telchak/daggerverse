@@ -494,7 +494,7 @@ Do not search docs for basic operations you already know how to perform.
         # Match common container image patterns (gcr.io/..., docker.io/...,
         # us-docker.pkg.dev/..., etc.)
         m = re.search(
-            r'((?:[\w.-]+\.)?(?:gcr\.io|docker\.io|pkg\.dev|ghcr\.io|docker\.com)/[\w./_:-]+)',
+            r'((?:[\w.-]+\.)?(?:gcr\.io|docker\.io|pkg\.dev|ghcr\.io|docker\.com)/[\w./:@-]+)',
             assignment,
         )
         if not m:
