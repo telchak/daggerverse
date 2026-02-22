@@ -150,9 +150,7 @@ jobs:
       - name: Restore Dagger engine cache
         uses: BYK/docker-volume-cache-action/restore@v1
         with:
-          key: dagger-engine-${{ runner.os }}-v0.19.11-${{ matrix.module }}
-          restore-keys: |
-            dagger-engine-${{ runner.os }}-v0.19.11-
+          key: dagger-engine-${{ runner.os }}-v0.19.11
           volumes: dagger-engine
 
       - name: Setup Dagger
@@ -227,7 +225,7 @@ jobs:
         if: always()
         uses: BYK/docker-volume-cache-action/save@v1
         with:
-          key: dagger-engine-${{ runner.os }}-v0.19.11-${{ matrix.module }}
+          key: dagger-engine-${{ runner.os }}-v0.19.11
           volumes: dagger-engine
 
   test-agents:
@@ -247,9 +245,7 @@ jobs:
       - name: Restore Dagger engine cache
         uses: BYK/docker-volume-cache-action/restore@v1
         with:
-          key: dagger-engine-${{ runner.os }}-v0.19.11-${{ matrix.test }}
-          restore-keys: |
-            dagger-engine-${{ runner.os }}-v0.19.11-
+          key: dagger-engine-${{ runner.os }}-v0.19.11
           volumes: dagger-engine
 
       - name: Setup Dagger
@@ -320,7 +316,7 @@ jobs:
         if: always()
         uses: BYK/docker-volume-cache-action/save@v1
         with:
-          key: dagger-engine-${{ runner.os }}-v0.19.11-${{ matrix.test }}
+          key: dagger-engine-${{ runner.os }}-v0.19.11
           volumes: dagger-engine
 
   test-angie-github-issue:
@@ -334,9 +330,7 @@ jobs:
       - name: Restore Dagger engine cache
         uses: BYK/docker-volume-cache-action/restore@v1
         with:
-          key: dagger-engine-${{ runner.os }}-v0.19.11-angie-github-issue
-          restore-keys: |
-            dagger-engine-${{ runner.os }}-v0.19.11-
+          key: dagger-engine-${{ runner.os }}-v0.19.11
           volumes: dagger-engine
 
       - name: Setup Dagger
@@ -399,7 +393,7 @@ jobs:
         if: always()
         uses: BYK/docker-volume-cache-action/save@v1
         with:
-          key: dagger-engine-${{ runner.os }}-v0.19.11-angie-github-issue
+          key: dagger-engine-${{ runner.os }}-v0.19.11
           volumes: dagger-engine
 
   release:
