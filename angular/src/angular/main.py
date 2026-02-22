@@ -27,7 +27,7 @@ class Angular:
         cache = npm_cache or dag.cache_volume("angular-npm")
         install_cmd = "npm ci --prefer-offline || npm install --prefer-offline"
         if omit_dev:
-            install_cmd = "npm ci --prefer-offline --omit=dev || npm install --prefer-offline --omit=dev"
+            install_cmd = "npm ci --prefer-offline --ignore-scripts || npm install --prefer-offline --ignore-scripts"
         ctr = (
             dag.container()
             .from_(f"node:{node_version}-slim")
