@@ -7,6 +7,21 @@ from typing import Annotated
 import dagger
 from dagger import Doc, dag, field, function, object_type
 
+
+async def _get_result_or_last_reply(work: dagger.LLM, output_name: str = "result") -> str:
+    """Get a string output from the LLM, falling back to last_reply.
+
+    Some LLMs produce text output without calling the output binding tool.
+    This tries the binding first, then falls back to the LLM's last reply.
+    """
+    try:
+        value = await work.env().output(output_name).as_string()
+        if value and value.strip():
+            return value
+    except Exception:
+        pass
+    return await work.last_reply()
+
 # Entrypoints blocked on all LLMs to prevent recursion
 _BLOCKED_ENTRYPOINTS = [
     "assist", "review", "deploy", "troubleshoot",
@@ -300,11 +315,23 @@ You have access to `search_gcp_docs`, `get_gcp_doc`, and `batch_get_gcp_docs` to
 Do not search docs for basic operations you already know how to perform.
 """
 
+    # Tasks that need the gcloud MCP server. None = no MCP server.
+    # deploy/review don't need MCP — deploy has deploy_service as a Dagger function,
+    # review just reads files. Skipping MCP avoids 50s+ startup and tool noise.
+    _TASK_NEEDS_MCP = {
+        "assist": True,
+        "troubleshoot": True,
+        "upgrade": True,
+        "deploy": False,
+        "review": False,
+    }
+
     async def _build_llm(
         self,
         env: dagger.Env,
         prompt_file: str,
         source: dagger.Directory | None = None,
+        task: str = "assist",
     ) -> dagger.LLM:
         """Build an LLM with the environment, current module tools, and prompts."""
         context_md = await self._read_context_file(source)
@@ -316,9 +343,11 @@ Do not search docs for basic operations you already know how to perform.
         llm = (
             dag.llm()
             .with_env(env.with_current_module())
-            .with_mcp_server("gcloud", self._gcloud_mcp_service(self.gcloud))
             .with_system_prompt(system_prompt + context_md)
         )
+
+        if self._TASK_NEEDS_MCP.get(task, True):
+            llm = llm.with_mcp_server("gcloud", self._gcloud_mcp_service(self.gcloud))
 
         for fn in _BLOCKED_ENTRYPOINTS:
             llm = llm.with_blocked_function("Goose", fn)
@@ -375,7 +404,7 @@ Do not search docs for basic operations you already know how to perform.
             env = env.with_workspace(source)
 
         work = await self._build_llm(env, "assist_prompt.md", source)
-        return await work.env().output("result").as_string()
+        return await _get_result_or_last_reply(work)
 
     @function
     async def review(
@@ -403,8 +432,8 @@ Do not search docs for basic operations you already know how to perform.
         if focus:
             env = env.with_string_input("focus", focus, "Specific area to focus the review on")
 
-        work = await self._build_llm(env, "review_prompt.md", source)
-        return await work.env().output("result").as_string()
+        work = await self._build_llm(env, "review_prompt.md", source, task="review")
+        return await _get_result_or_last_reply(work)
 
     @function
     async def deploy(
@@ -429,6 +458,14 @@ Do not search docs for basic operations you already know how to perform.
         if source:
             self.source = source
 
+        # Fast path: if the assignment contains a container image URI and a
+        # service name, call deploy_service directly instead of routing through
+        # the LLM.  This avoids flaky LLM behavior for straightforward deploys.
+        if not source and service_name:
+            result = self._try_direct_cloud_run_deploy(assignment, service_name)
+            if result is not None:
+                return await result
+
         env = (
             dag.env()
             .with_string_input("assignment", assignment, "The deployment task to accomplish")
@@ -445,8 +482,37 @@ Do not search docs for basic operations you already know how to perform.
 
         env = env.with_string_output("result", "The deployment result including the service URL or error details")
 
-        work = await self._build_llm(env, "deploy_prompt.md", source)
-        return await work.env().output("result").as_string()
+        work = await self._build_llm(env, "deploy_prompt.md", source, task="deploy")
+        return await _get_result_or_last_reply(work)
+
+    def _try_direct_cloud_run_deploy(self, assignment: str, service_name: str):
+        """Attempt to parse a simple Cloud Run deploy from the assignment text.
+
+        Returns an awaitable deploy result if the assignment specifies a
+        container image URI, or None to fall back to the LLM.
+        """
+        # Match known container registry domains.  Full domains are
+        # enumerated to avoid ambiguous quantifiers that could backtrack.
+        _REGISTRY_RE = (
+            r'((?:[\w-]+\.gcr\.io|gcr\.io|docker\.io'
+            r'|[\w-]+\.pkg\.dev|ghcr\.io|docker\.com)'
+            r'/[a-zA-Z0-9_./:@-]+)'
+        )
+        m = re.search(_REGISTRY_RE, assignment)
+        if not m:
+            return None
+
+        image = m.group(1)
+        allow_unauth = bool(re.search(
+            r'(?:allow[_ ]unauthenticated|public[_ ]access|--allow-unauthenticated)',
+            assignment, re.IGNORECASE,
+        ))
+
+        return self.deploy_service(
+            image=image,
+            service_name=service_name,
+            allow_unauthenticated=allow_unauth,
+        )
 
     @function
     async def troubleshoot(
@@ -481,8 +547,8 @@ Do not search docs for basic operations you already know how to perform.
 
         env = env.with_string_output("result", "Diagnosis and recommended actions")
 
-        work = await self._build_llm(env, "troubleshoot_prompt.md", source)
-        return await work.env().output("result").as_string()
+        work = await self._build_llm(env, "troubleshoot_prompt.md", source, task="troubleshoot")
+        return await _get_result_or_last_reply(work)
 
     @function
     async def upgrade(
@@ -518,8 +584,8 @@ Do not search docs for basic operations you already know how to perform.
         if dry_run:
             env = env.with_string_input("dry_run", "true", "Only analyze and report, do not apply changes")
 
-        work = await self._build_llm(env, "upgrade_prompt.md", source)
-        return await work.env().output("result").as_string()
+        work = await self._build_llm(env, "upgrade_prompt.md", source, task="upgrade")
+        return await _get_result_or_last_reply(work)
 
     # --- GitHub integration ---
 
@@ -565,7 +631,7 @@ Do not search docs for basic operations you already know how to perform.
 
         # Skip _resolve_all — GCP auth not needed for suggesting code fixes
         work = await self._build_suggest_fix_llm(env, source)
-        return await work.env().output("result").as_string()
+        return await _get_result_or_last_reply(work)
 
     @function
     async def develop_github_issue(
@@ -727,7 +793,7 @@ Do not search docs for basic operations you already know how to perform.
 
         llm = llm.with_prompt(f"## Task: {description}\n\n{prompt}")
 
-        return await llm.env().output("result").as_string()
+        return await _get_result_or_last_reply(llm)
 
     # --- GitHub suggestion tool (exposed to LLM via with_current_module) ---
 

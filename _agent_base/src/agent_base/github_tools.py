@@ -41,7 +41,8 @@ async def suggest_github_fix_impl(
         env = env.with_workspace(workspace)
 
     work = await build_suggest_fix_llm_fn(env, workspace)
-    return await work.env().output("result").as_string()
+    from . import llm_helpers
+    return await llm_helpers.get_result_or_last_reply(work)
 
 
 async def suggest_github_pr_code_comment_impl(

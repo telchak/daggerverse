@@ -118,3 +118,20 @@ async def build_task_llm(
         llm = llm.with_blocked_function(class_name, fn)
 
     return llm.with_prompt(f"## Task: {description}\n\n{prompt}")
+
+
+async def get_result_or_last_reply(work: dagger.LLM, output_name: str = "result") -> str:
+    """Get a string output from the LLM, falling back to last_reply.
+
+    Some LLMs (notably Gemini) sometimes produce text output without
+    calling the output binding tool.  This helper tries the binding first,
+    then falls back to the LLM's last reply so the work isn't lost.
+    """
+    try:
+        value = await work.env().output(output_name).as_string()
+        if value and value.strip():
+            return value
+    except Exception:
+        pass
+    # Fallback: the LLM generated text but didn't bind it
+    return await work.last_reply()

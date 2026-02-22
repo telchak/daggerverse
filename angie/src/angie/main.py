@@ -143,7 +143,7 @@ class Angie:
         if focus:
             env = env.with_string_input("focus", focus, "Specific area to focus the review on")
         work = await self._build_llm(env, "review_prompt.md", ws, task="review")
-        return await work.env().output("result").as_string()
+        return await llm_helpers.get_result_or_last_reply(work)
 
     @function
     async def write_tests(
@@ -425,7 +425,8 @@ class Angie:
         llm = await llm_helpers.build_task_llm(
             self.source, self._load_prompt, self._CONTEXT_FILES,
             self._mcp_servers(task="review"), self._CLASS_NAME,
-            constants.BLOCKED_ENTRYPOINTS, constants.BLOCKED_DESTRUCTIVE,
+            constants.BLOCKED_ENTRYPOINTS,
+            constants.BLOCKED_DESTRUCTIVE + self._BLOCKED_BUILD_TOOLS,
             description, prompt,
         )
-        return await llm.env().output("result").as_string()
+        return await llm_helpers.get_result_or_last_reply(llm)

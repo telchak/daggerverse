@@ -5,7 +5,9 @@ with a given authentication method. They are used by the main test functions in
 gcp_firebase.py.
 """
 
+import asyncio
 import time
+import uuid
 
 import dagger
 from dagger import dag
@@ -141,9 +143,17 @@ async def test_firestore_crud(
             raise RuntimeError(f"Database {database_id} not in describe output")
         results.append(format_operation("READ (describe)", "PASS"))
 
-        # READ - list
-        db_list = await firestore.list_(gcloud=gcloud)
-        if database_id not in db_list:
+        # READ - list (retry for GCP eventual consistency — list index
+        # can lag behind describe/get after a recent create).
+        # Each attempt must bust Dagger's content-addressed cache by
+        # varying the gcloud container, otherwise we re-read the same result.
+        for _ in range(6):
+            cache_busted = gcloud.with_env_variable("_CACHE_BUST", str(uuid.uuid4()))
+            db_list = await firestore.list_(gcloud=cache_busted)
+            if database_id in db_list:
+                break
+            await asyncio.sleep(5)
+        else:
             raise RuntimeError(f"Database {database_id} not in list output")
         results.append(format_operation("READ (list)", "PASS"))
         ops["F_READ"] = "PASS"
