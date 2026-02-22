@@ -491,12 +491,14 @@ Do not search docs for basic operations you already know how to perform.
         Returns an awaitable deploy result if the assignment specifies a
         container image URI, or None to fall back to the LLM.
         """
-        # Match common container image patterns (gcr.io/..., docker.io/...,
-        # us-docker.pkg.dev/..., etc.)
-        m = re.search(
-            r'((?:[\w.-]+\.)?(?:gcr\.io|docker\.io|pkg\.dev|ghcr\.io|docker\.com)/[\w./:@-]+)',
-            assignment,
+        # Match known container registry domains.  Full domains are
+        # enumerated to avoid ambiguous quantifiers that could backtrack.
+        _REGISTRY_RE = (
+            r'((?:[\w-]+\.gcr\.io|gcr\.io|docker\.io'
+            r'|[\w-]+\.pkg\.dev|ghcr\.io|docker\.com)'
+            r'/[a-zA-Z0-9_./:@-]+)'
         )
+        m = re.search(_REGISTRY_RE, assignment)
         if not m:
             return None
 
