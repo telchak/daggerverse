@@ -7,6 +7,21 @@ from typing import Annotated
 import dagger
 from dagger import Doc, dag, field, function, object_type
 
+
+async def _get_result_or_last_reply(work: dagger.LLM, output_name: str = "result") -> str:
+    """Get a string output from the LLM, falling back to last_reply.
+
+    Some LLMs produce text output without calling the output binding tool.
+    This tries the binding first, then falls back to the LLM's last reply.
+    """
+    try:
+        value = await work.env().output(output_name).as_string()
+        if value and value.strip():
+            return value
+    except Exception:
+        pass
+    return await work.last_reply()
+
 # Entrypoints blocked on all LLMs to prevent recursion
 _BLOCKED_ENTRYPOINTS = [
     "assist", "review", "deploy", "troubleshoot",
@@ -389,7 +404,7 @@ Do not search docs for basic operations you already know how to perform.
             env = env.with_workspace(source)
 
         work = await self._build_llm(env, "assist_prompt.md", source)
-        return await work.env().output("result").as_string()
+        return await _get_result_or_last_reply(work)
 
     @function
     async def review(
@@ -418,7 +433,7 @@ Do not search docs for basic operations you already know how to perform.
             env = env.with_string_input("focus", focus, "Specific area to focus the review on")
 
         work = await self._build_llm(env, "review_prompt.md", source, task="review")
-        return await work.env().output("result").as_string()
+        return await _get_result_or_last_reply(work)
 
     @function
     async def deploy(
@@ -468,7 +483,7 @@ Do not search docs for basic operations you already know how to perform.
         env = env.with_string_output("result", "The deployment result including the service URL or error details")
 
         work = await self._build_llm(env, "deploy_prompt.md", source, task="deploy")
-        return await work.env().output("result").as_string()
+        return await _get_result_or_last_reply(work)
 
     def _try_direct_cloud_run_deploy(self, assignment: str, service_name: str):
         """Attempt to parse a simple Cloud Run deploy from the assignment text.
@@ -531,7 +546,7 @@ Do not search docs for basic operations you already know how to perform.
         env = env.with_string_output("result", "Diagnosis and recommended actions")
 
         work = await self._build_llm(env, "troubleshoot_prompt.md", source, task="troubleshoot")
-        return await work.env().output("result").as_string()
+        return await _get_result_or_last_reply(work)
 
     @function
     async def upgrade(
@@ -568,7 +583,7 @@ Do not search docs for basic operations you already know how to perform.
             env = env.with_string_input("dry_run", "true", "Only analyze and report, do not apply changes")
 
         work = await self._build_llm(env, "upgrade_prompt.md", source, task="upgrade")
-        return await work.env().output("result").as_string()
+        return await _get_result_or_last_reply(work)
 
     # --- GitHub integration ---
 
@@ -614,7 +629,7 @@ Do not search docs for basic operations you already know how to perform.
 
         # Skip _resolve_all — GCP auth not needed for suggesting code fixes
         work = await self._build_suggest_fix_llm(env, source)
-        return await work.env().output("result").as_string()
+        return await _get_result_or_last_reply(work)
 
     @function
     async def develop_github_issue(
@@ -776,7 +791,7 @@ Do not search docs for basic operations you already know how to perform.
 
         llm = llm.with_prompt(f"## Task: {description}\n\n{prompt}")
 
-        return await llm.env().output("result").as_string()
+        return await _get_result_or_last_reply(llm)
 
     # --- GitHub suggestion tool (exposed to LLM via with_current_module) ---
 
