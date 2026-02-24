@@ -1,0 +1,13 @@
+{
+  "name": "dagger-mcp-examples",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "python"
+  },
+  "dependencies": [
+    {
+      "name": "dagger-mcp",
+      "source": "../.."
+    }
+  ]
+}

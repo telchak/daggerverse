@@ -1,0 +1,13 @@
+{
+  "name": "python-build-examples",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "typescript"
+  },
+  "dependencies": [
+    {
+      "name": "python-build",
+      "source": "../.."
+    }
+  ]
+}

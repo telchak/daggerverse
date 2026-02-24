@@ -43,6 +43,12 @@ from .python_build_module import (
     test_python_build_install,
     test_python_build_lint,
 )
+from .dagger_agent import (
+    test_dagger_mcp_server,
+    test_daggie_assist,
+    test_daggie_debug,
+    test_daggie_explain,
+)
 from .gcp_agent import (
     test_goose_assist,
     test_goose_deploy,
@@ -261,6 +267,53 @@ class Tests:
             repository=repository,
         )
         return result
+
+    # ========== DAGGER-MCP MODULE TEST ==========
+
+    @function
+    async def dagger_mcp(self) -> str:
+        """Run dagger-mcp module test."""
+        return test_dagger_mcp_server()
+
+    # ========== DAGGIE (DAGGER CI AGENT) TESTS ==========
+
+    @function
+    async def daggie(self) -> str:
+        """Run all Daggie (Dagger CI agent) tests sequentially.
+
+        Tests the agent's ability to create, explain, and debug
+        Dagger modules and pipelines.
+        """
+        results = []
+
+        results.append("=== MCP Server ===")
+        results.append(test_dagger_mcp_server())
+
+        results.append("\n=== Assist ===")
+        results.append(await test_daggie_assist())
+
+        results.append("\n=== Explain ===")
+        results.append(await test_daggie_explain())
+
+        results.append("\n=== Debug ===")
+        results.append(await test_daggie_debug())
+
+        return "\n".join(results)
+
+    @function
+    async def daggie_assist(self) -> str:
+        """Run Daggie assist test."""
+        return await test_daggie_assist()
+
+    @function
+    async def daggie_explain(self) -> str:
+        """Run Daggie explain test."""
+        return await test_daggie_explain()
+
+    @function
+    async def daggie_debug(self) -> str:
+        """Run Daggie debug test."""
+        return await test_daggie_debug()
 
     # ========== MONTY (PYTHON AGENT) TESTS ==========
 

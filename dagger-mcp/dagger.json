@@ -1,0 +1,8 @@
+{
+  "name": "dagger-mcp",
+  "description": "MCP server for Dagger engine introspection — learn schema, run GraphQL queries, and get SDK guidance",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "python"
+  }
+}

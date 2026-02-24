@@ -1,0 +1,13 @@
+{
+  "name": "goose-examples",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "typescript"
+  },
+  "dependencies": [
+    {
+      "name": "goose",
+      "source": "../.."
+    }
+  ]
+}

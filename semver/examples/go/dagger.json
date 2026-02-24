@@ -1,0 +1,13 @@
+{
+  "name": "semver-examples",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "semver",
+      "source": "../.."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "gcp-firebase-examples",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "typescript"
+  },
+  "dependencies": [
+    {
+      "name": "gcp-firebase",
+      "source": "../.."
+    }
+  ]
+}

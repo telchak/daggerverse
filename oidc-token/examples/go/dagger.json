@@ -1,0 +1,13 @@
+{
+  "name": "oidc-token-examples",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "oidc-token",
+      "source": "../.."
+    }
+  ]
+}
