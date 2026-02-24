@@ -25,6 +25,7 @@ Reusable building blocks for CI/CD pipelines. Each module is independent and foc
 | [**oidc-token**](oidc-token/) | OIDC token exchange utilities |
 | [**python-build**](python-build/) | Python build, lint, test, and typecheck utilities |
 | [**semver**](semver/) | Semantic Versioning with Conventional Commits |
+| [**dagger-mcp**](dagger-mcp/) | MCP server for Dagger engine introspection — schema, GraphQL queries, SDK guidance |
 
 ## AI Agents
 
@@ -57,9 +58,19 @@ Deployment, troubleshooting, and observability across Cloud Run, Firebase Hostin
 
 Goose also integrates the [Google Developer Knowledge API](https://developers.googleblog.com/introducing-the-developer-knowledge-api-and-mcp-server/) as native Dagger functions (`search_gcp_docs`, `get_gcp_doc`, `batch_get_gcp_docs`) for real-time GCP documentation search. These are exposed as regular functions rather than an MCP server because Dagger currently only supports stdio-based MCP servers, and the Developer Knowledge API is HTTP-based.
 
+### [Daggie](daggie/) — Dagger CI Specialist Agent
+
+Creating, explaining, and debugging Dagger modules and pipelines across all SDKs (Python, TypeScript, Go).
+
+| MCP Server | Module | Description |
+|------------|--------|-------------|
+| `dagger` | [`dagger-mcp`](dagger-mcp/) | Live Dagger engine introspection — schema, GraphQL queries, SDK translation guidance |
+
+Daggie can also clone and read reference Dagger modules at runtime via `--module-urls` to learn patterns from existing implementations.
+
 ### Shared Agent Base (`_agent_base/`)
 
-Angie and Monty share a common Python package ([`_agent_base/`](_agent_base/)) that provides the duplicated logic:
+Angie, Monty, and Daggie share a common Python package ([`_agent_base/`](_agent_base/)) that provides the duplicated logic:
 
 | Module | Purpose |
 |--------|---------|
@@ -153,6 +164,24 @@ dagger -m monty call assist \
   --assignment "Add a FastAPI endpoint with Pydantic validation"
 ```
 
+### Daggie - Dagger CI development
+
+```bash
+# Create a Dagger module for your project
+dagger -m daggie call assist \
+  --source . \
+  --assignment "Create a Dagger module for building and testing this project"
+
+# Explain a Dagger concept
+dagger -m daggie call explain \
+  --question "How does caching work in Dagger?"
+
+# Debug a pipeline error
+dagger -m daggie call debug \
+  --source . \
+  --error-output "$(dagger call build 2>&1)"
+```
+
 ### Angie - Angular development
 
 ```bash
@@ -170,6 +199,7 @@ daggerverse/
 ├── _agent_base/            # Shared Python package for coding agents
 ├── angular/                # Angular build, lint, test, serve
 ├── calver/                 # Calendar versioning
+├── dagger-mcp/             # MCP server for Dagger engine introspection
 ├── gcp-auth/               # GCP authentication (base)
 ├── gcp-artifact-registry/  # Artifact Registry operations
 ├── gcp-cloud-run/          # Cloud Run deployment
@@ -180,6 +210,7 @@ daggerverse/
 ├── python-build/           # Python build, lint, test, typecheck
 ├── semver/                 # Semantic versioning
 ├── angie/                  # Angular development agent
+├── daggie/                 # Dagger CI specialist agent
 ├── monty/                  # Python development agent
 ├── goose/                  # GCP operations agent
 └── tests/                  # Centralized test suite
@@ -207,12 +238,14 @@ _agent_base ──> Shared agent logic (workspace, GitHub, LLM, routing)
   ├──> angie (Angular development agent)
   │      ├──> angular (deterministic build, lint, test, serve)
   │      └──> Angular CLI MCP
+  ├──> daggie (Dagger CI specialist agent)
+  │      └──> dagger-mcp (Dagger engine introspection MCP)
   └──> monty (Python development agent)
          ├──> python-build (deterministic build, lint, test, typecheck)
          ├──> python-lft MCP (linting, formatting, testing)
          └──> pypi-query MCP (package intelligence)
 
-angular, calver, health-check, oidc-token, python-build, semver (standalone)
+angular, calver, dagger-mcp, health-check, oidc-token, python-build, semver (standalone)
 ```
 
 ## Testing
