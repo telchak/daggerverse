@@ -76,7 +76,13 @@ class Daggie:
         "debug": {"error_output"},
     }
     # Agent-specific entrypoints to block (in addition to shared BLOCKED_ENTRYPOINTS)
+    # NOTE: Only block functions that exist on Daggie. Blocking non-existent
+    # functions (write_tests, build, upgrade) makes the LLM aware of them and
+    # causes hallucinated calls. Override shared list with Daggie-specific one.
     _BLOCKED_EXTRA = ["explain", "debug", "read_module"]
+    _BLOCKED_ENTRYPOINTS = [
+        "assist", "review", "develop_github_issue", "suggest_github_fix",
+    ]
 
     # Per-task MCP configuration — schema introspection helps for creation/explanation/debugging
     _TASK_MCP_TOOLS = {
@@ -148,7 +154,7 @@ class Daggie:
         for name, service in self._mcp_servers(task).items():
             llm = llm.with_mcp_server(name, service)
 
-        for fn in constants.BLOCKED_ENTRYPOINTS + self._BLOCKED_EXTRA + (extra_blocked or []):
+        for fn in self._BLOCKED_ENTRYPOINTS + self._BLOCKED_EXTRA + (extra_blocked or []):
             llm = llm.with_blocked_function(self._CLASS_NAME, fn)
 
         return llm.with_prompt_file(self._load_prompt(prompt_file))
@@ -167,7 +173,7 @@ class Daggie:
             .with_system_prompt(full_system)
         )
 
-        for fn in constants.BLOCKED_ENTRYPOINTS + self._BLOCKED_EXTRA + ["task"] + constants.BLOCKED_DESTRUCTIVE:
+        for fn in self._BLOCKED_ENTRYPOINTS + self._BLOCKED_EXTRA + ["task"] + constants.BLOCKED_DESTRUCTIVE:
             if fn != "suggest_github_pr_code_comment":
                 llm = llm.with_blocked_function(self._CLASS_NAME, fn)
 
@@ -452,7 +458,7 @@ class Daggie:
         llm = await llm_helpers.build_task_llm(
             self.source, self._load_prompt, self._CONTEXT_FILES,
             self._mcp_servers(task="review"), self._CLASS_NAME,
-            constants.BLOCKED_ENTRYPOINTS + self._BLOCKED_EXTRA,
+            self._BLOCKED_ENTRYPOINTS + self._BLOCKED_EXTRA,
             constants.BLOCKED_DESTRUCTIVE,
             description, prompt,
         )
