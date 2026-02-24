@@ -1,0 +1,13 @@
+{
+  "name": "calver-examples",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "typescript"
+  },
+  "dependencies": [
+    {
+      "name": "calver",
+      "source": "../.."
+    }
+  ]
+}

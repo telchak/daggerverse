@@ -37,11 +37,11 @@ def _validate_repository(repository: str) -> str:
     return repository
 
 
-def _validate_package(package: str) -> str:
+def _validate_package(package_name: str) -> str:
     """Validate package name."""
-    if not _PACKAGE_NAME_PATTERN.match(package):
-        raise ValueError(f"Invalid package name: '{package}'")
-    return package
+    if not _PACKAGE_NAME_PATTERN.match(package_name):
+        raise ValueError(f"Invalid package name: '{package_name}'")
+    return package_name
 
 
 def _validate_version(version: str) -> str:
@@ -158,7 +158,7 @@ class GcpArtifactRegistry:
         directory: Annotated[dagger.Directory, Doc("Directory containing files to upload")],
         project_id: Annotated[str, Doc("GCP project ID")],
         repository: Annotated[str, Doc("Generic repository name")],
-        package: Annotated[str, Doc("Package name")],
+        package_name: Annotated[str, Doc("Package name")],
         version: Annotated[str, Doc("Package version")],
         region: Annotated[str, Doc("GCP region")] = "us-central1",
         file_pattern: Annotated[str, Doc("Glob pattern for files")] = "*",
@@ -167,7 +167,7 @@ class GcpArtifactRegistry:
         # Validate all inputs to prevent command injection
         _validate_project_id(project_id)
         _validate_repository(repository)
-        _validate_package(package)
+        _validate_package(package_name)
         _validate_version(version)
         _validate_region(region)
         _validate_glob_pattern(file_pattern)
@@ -176,7 +176,7 @@ class GcpArtifactRegistry:
             f"for file in {file_pattern}; do "
             f"[ -f \"$file\" ] && gcloud artifacts generic upload "
             f"--project={project_id} --repository={repository} --location={region} "
-            f"--package={package} --version={version} --source=\"$file\" --quiet 2>&1 || true; done"
+            f"--package={package_name} --version={version} --source=\"$file\" --quiet 2>&1 || true; done"
         )
 
         return await (

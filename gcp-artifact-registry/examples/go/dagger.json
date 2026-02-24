@@ -1,0 +1,13 @@
+{
+  "name": "gcp-artifact-registry-examples",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "gcp-artifact-registry",
+      "source": "../.."
+    }
+  ]
+}

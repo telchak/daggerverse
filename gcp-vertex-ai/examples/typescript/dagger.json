@@ -1,0 +1,13 @@
+{
+  "name": "gcp-vertex-ai-examples",
+  "engineVersion": "v0.19.11",
+  "sdk": {
+    "source": "typescript"
+  },
+  "dependencies": [
+    {
+      "name": "gcp-vertex-ai",
+      "source": "../.."
+    }
+  ]
+}

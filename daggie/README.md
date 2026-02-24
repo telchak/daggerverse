@@ -168,7 +168,18 @@ jobs:
 
 ## Suggest Fix on CI Failure
 
-The `suggest-github-fix` function analyzes CI pipeline failures and posts GitHub "suggested changes" directly on the PR.
+The `suggest-github-fix` function analyzes CI pipeline failures and posts GitHub "suggested changes" directly on the PR. Developers can then apply the fixes with one click from the GitHub UI.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `--github-token` | GitHub token (as a Dagger secret) with `repo` and `pull-requests` permissions | Yes |
+| `--pr-number` | Pull request number | Yes |
+| `--repo` | GitHub repository URL (e.g. `https://github.com/owner/repo`) | Yes |
+| `--commit-sha` | HEAD commit SHA of the PR branch | Yes |
+| `--error-output` | CI error output (stderr/stdout) | Yes |
+| `--source` | Project source directory | No (uses constructor source) |
 
 ### CLI Usage
 
@@ -181,6 +192,65 @@ dagger call suggest-github-fix \
   --error-output="$(cat ci-output.log)" \
   --source=.
 ```
+
+### GitHub Actions Workflow
+
+Create `.github/workflows/suggest-fix.yml` to automatically call Daggie when a CI step fails on a pull request:
+
+```yaml
+name: Daggie — Suggest Fix on CI Failure
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Your normal CI steps — build, lint, test, etc.
+      - name: Build and test
+        id: ci
+        continue-on-error: true    # Don't fail the job yet — let Daggie analyze first
+        run: |
+          # Run your CI pipeline and capture the output
+          dagger call build --source=. 2>&1 | tee ci-output.log
+
+      # If CI failed, ask Daggie to analyze the error and suggest fixes
+      - name: Suggest fix with Daggie
+        if: steps.ci.outcome == 'failure'
+        uses: dagger/dagger-for-github@v7
+        with:
+          verb: call
+          version: "latest"
+          module: github.com/certainty-labs/daggerverse/daggie
+          args: >-
+            suggest-github-fix
+            --github-token=env:GITHUB_TOKEN
+            --pr-number=${{ github.event.pull_request.number }}
+            --repo="${{ github.server_url }}/${{ github.repository }}"
+            --commit-sha=${{ github.event.pull_request.head.sha }}
+            --error-output="$(cat ci-output.log)"
+            --source=.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      # Fail the job if CI failed (after Daggie has posted suggestions)
+      - name: Fail if CI failed
+        if: steps.ci.outcome == 'failure'
+        run: exit 1
+```
+
+The workflow:
+1. Runs your normal CI steps with `continue-on-error: true` and captures output to a log file
+2. If CI fails, Daggie reads the error output, analyzes the source code, and posts inline "suggested changes" on the PR
+3. The job still fails at the end so the PR shows a red check — but developers get actionable fix suggestions they can apply with one click
 
 ## Constructor Options
 
