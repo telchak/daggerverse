@@ -18,6 +18,25 @@ _MODULE_SOURCE_GLOBS = [
 ]
 
 
+def _parse_module_url(url: str) -> tuple[str, str, str]:
+    """Parse a Dagger module Git URL into (repo_url, branch, path).
+
+    Supports "url#branch:path", "url#branch", and plain "url" formats.
+    """
+    if "#" in url:
+        repo_url, ref_part = url.split("#", 1)
+        if ":" in ref_part:
+            branch, path = ref_part.split(":", 1)
+        else:
+            branch = ref_part
+            path = ""
+    else:
+        repo_url = url
+        branch = "main"
+        path = ""
+    return repo_url, branch, path
+
+
 async def _read_module_tree(tree: dagger.Directory) -> str:
     """Read key files from a cloned Dagger module and return formatted docs."""
     sections = []
@@ -108,19 +127,7 @@ class Daggie:
         sections = []
         for url in self.module_urls:
             try:
-                # Parse URL — supports "url#branch:path" format
-                if "#" in url:
-                    repo_url, ref_part = url.split("#", 1)
-                    if ":" in ref_part:
-                        branch, path = ref_part.split(":", 1)
-                    else:
-                        branch = ref_part
-                        path = ""
-                else:
-                    repo_url = url
-                    branch = "main"
-                    path = ""
-
+                repo_url, branch, path = _parse_module_url(url)
                 tree = dag.git(repo_url).branch(branch).tree()
                 if path:
                     tree = tree.directory(path)
@@ -283,19 +290,7 @@ class Daggie:
         and returns formatted module documentation. Use this to learn
         from existing Dagger modules when implementing new ones.
         """
-        # Parse URL — supports "url#branch:path" format
-        if "#" in url:
-            repo_url, ref_part = url.split("#", 1)
-            if ":" in ref_part:
-                branch, path = ref_part.split(":", 1)
-            else:
-                branch = ref_part
-                path = ""
-        else:
-            repo_url = url
-            branch = "main"
-            path = ""
-
+        repo_url, branch, path = _parse_module_url(url)
         tree = dag.git(repo_url).branch(branch).tree()
         if path:
             tree = tree.directory(path)

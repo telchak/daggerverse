@@ -43,11 +43,32 @@ dagger call assist \
 
 ### With Reference Modules
 
+You can pass existing Dagger modules as references so the agent can read their
+source code and learn from their patterns before writing yours.
+
+The `--module-urls` flag accepts Git URLs in the format:
+`https://github.com/<owner>/<repo>.git#<branch>:<path-to-module>`
+
 ```shell
+# Use kpenfound's Go and Nginx modules as references to build your own.
+# Daggie will clone these modules, read their source code, and follow
+# the same patterns (caching, multi-stage builds, service bindings)
+# when creating your module.
 dagger call assist \
   --source=. \
-  --module-urls="https://github.com/certainty-labs/daggerverse.git#main:daggerverse/python-build" \
-  --assignment="Create a Dagger module following the patterns from the reference module"
+  --module-urls="https://github.com/kpenfound/dagger-modules.git#main:golang,https://github.com/kpenfound/dagger-modules.git#main:nginx" \
+  --assignment="Create a Dagger module (Go SDK) for building and serving my Go web app with Nginx as a reverse proxy. Follow the patterns from the reference modules."
+```
+
+You can also mix references from different repositories:
+
+```shell
+# Combine a reference from kpenfound's repo (Postgres service module)
+# with one from our own daggerverse (Python build patterns)
+dagger call assist \
+  --source=. \
+  --module-urls="https://github.com/kpenfound/dagger-modules.git#main:postgres,https://github.com/certainty-labs/daggerverse.git#main:daggerverse/python-build" \
+  --assignment="Create a Dagger module that builds my Python API and runs integration tests against a Postgres service"
 ```
 
 ### Explain a Concept

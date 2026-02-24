@@ -54,6 +54,16 @@ def _render_args(args: list[dict]) -> str:
     return "(\n" + "\n".join(lines) + "\n  )"
 
 
+def _render_deprecation(item: dict) -> str:
+    """Render a @deprecated directive if applicable."""
+    if not item.get("isDeprecated"):
+        return ""
+    reason = item.get("deprecationReason", "")
+    if reason:
+        return f' @deprecated(reason: "{reason}")'
+    return " @deprecated"
+
+
 def _render_field(field: dict) -> str:
     """Render a single field definition."""
     parts = []
@@ -64,17 +74,82 @@ def _render_field(field: dict) -> str:
 
     args = _render_args(field.get("args", []))
     type_str = _render_type_ref(field["type"])
-    line = f"  {field['name']}{args}: {type_str}"
-
-    if field.get("isDeprecated"):
-        reason = field.get("deprecationReason", "")
-        if reason:
-            line += f' @deprecated(reason: "{reason}")'
-        else:
-            line += " @deprecated"
+    line = f"  {field['name']}{args}: {type_str}{_render_deprecation(field)}"
 
     parts.append(line)
     return "\n".join(parts)
+
+
+def _render_input_field(field: dict) -> str:
+    """Render a single input field definition."""
+    parts = []
+    desc = _render_description(field.get("description"), "  ")
+    if desc:
+        parts.append(desc.rstrip())
+    type_str = _render_type_ref(field["type"])
+    line = f"  {field['name']}: {type_str}"
+    if field.get("defaultValue") is not None:
+        line += f" = {field['defaultValue']}"
+    parts.append(line)
+    return "\n".join(parts)
+
+
+def _render_enum_value(val: dict) -> str:
+    """Render a single enum value definition."""
+    parts = []
+    desc = _render_description(val.get("description"), "  ")
+    if desc:
+        parts.append(desc.rstrip())
+    parts.append(f"  {val['name']}{_render_deprecation(val)}")
+    return "\n".join(parts)
+
+
+def _render_object(name: str, type_data: dict) -> list[str]:
+    """Render an OBJECT type definition."""
+    interfaces = type_data.get("interfaces") or []
+    impl = ""
+    if interfaces:
+        impl = " implements " + " & ".join(i["name"] for i in interfaces)
+    lines = [f"type {name}{impl} {{"]
+    for field in type_data.get("fields") or []:
+        lines.append(_render_field(field))
+    lines.append("}")
+    return lines
+
+
+def _render_input_object(name: str, type_data: dict) -> list[str]:
+    """Render an INPUT_OBJECT type definition."""
+    lines = [f"input {name} {{"]
+    for field in type_data.get("inputFields") or []:
+        lines.append(_render_input_field(field))
+    lines.append("}")
+    return lines
+
+
+def _render_enum(name: str, type_data: dict) -> list[str]:
+    """Render an ENUM type definition."""
+    lines = [f"enum {name} {{"]
+    for val in type_data.get("enumValues") or []:
+        lines.append(_render_enum_value(val))
+    lines.append("}")
+    return lines
+
+
+def _render_interface(name: str, type_data: dict) -> list[str]:
+    """Render an INTERFACE type definition."""
+    lines = [f"interface {name} {{"]
+    for field in type_data.get("fields") or []:
+        lines.append(_render_field(field))
+    lines.append("}")
+    return lines
+
+
+_KIND_RENDERERS = {
+    "OBJECT": _render_object,
+    "INPUT_OBJECT": _render_input_object,
+    "ENUM": _render_enum,
+    "INTERFACE": _render_interface,
+}
 
 
 def render_sdl(type_data: dict) -> str:
@@ -89,59 +164,15 @@ def render_sdl(type_data: dict) -> str:
     if desc:
         lines.append(desc.rstrip())
 
-    if kind == "OBJECT":
-        interfaces = type_data.get("interfaces") or []
-        impl = ""
-        if interfaces:
-            impl = " implements " + " & ".join(i["name"] for i in interfaces)
-        lines.append(f"type {name}{impl} {{")
-        for field in type_data.get("fields") or []:
-            lines.append(_render_field(field))
-        lines.append("}")
-
-    elif kind == "INPUT_OBJECT":
-        lines.append(f"input {name} {{")
-        for field in type_data.get("inputFields") or []:
-            desc = _render_description(field.get("description"), "  ")
-            if desc:
-                lines.append(desc.rstrip())
-            type_str = _render_type_ref(field["type"])
-            line = f"  {field['name']}: {type_str}"
-            if field.get("defaultValue") is not None:
-                line += f" = {field['defaultValue']}"
-            lines.append(line)
-        lines.append("}")
-
-    elif kind == "ENUM":
-        lines.append(f"enum {name} {{")
-        for val in type_data.get("enumValues") or []:
-            desc = _render_description(val.get("description"), "  ")
-            if desc:
-                lines.append(desc.rstrip())
-            line = f"  {val['name']}"
-            if val.get("isDeprecated"):
-                reason = val.get("deprecationReason", "")
-                if reason:
-                    line += f' @deprecated(reason: "{reason}")'
-                else:
-                    line += " @deprecated"
-            lines.append(line)
-        lines.append("}")
-
-    elif kind == "INTERFACE":
-        lines.append(f"interface {name} {{")
-        for field in type_data.get("fields") or []:
-            lines.append(_render_field(field))
-        lines.append("}")
-
+    renderer = _KIND_RENDERERS.get(kind)
+    if renderer:
+        lines.extend(renderer(name, type_data))
     elif kind == "UNION":
         types = type_data.get("possibleTypes") or []
         type_names = " | ".join(t["name"] for t in types)
         lines.append(f"union {name} = {type_names}")
-
     elif kind == "SCALAR":
         lines.append(f"scalar {name}")
-
     else:
         lines.append(f"# Unknown kind: {kind}")
         lines.append(f"# Name: {name}")

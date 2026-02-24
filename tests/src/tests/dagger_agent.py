@@ -7,17 +7,16 @@ and debug Dagger modules and pipelines.
 import dagger
 from dagger import dag
 
+_DAGGER_JSON = "dagger.json"
 
-async def test_dagger_mcp_server() -> str:
+
+def test_dagger_mcp_server() -> str:
     """Test that the dagger-mcp module produces a valid service."""
-    # Just verify the server function returns a service without error.
+    # Verify the server function returns a service without error.
     # The service itself requires privileged nesting to actually respond,
-    # but we can verify the container builds and the module loads.
-    service = dag.dagger_mcp().server()
-
-    # Verify it's a valid service object (doesn't throw)
-    # We can't actually start it without privileged nesting in tests,
     # but confirming the pipeline builds is sufficient.
+    dag.dagger_mcp().server()
+
     return "PASS: dagger-mcp server() returns a valid service"
 
 
@@ -51,7 +50,7 @@ async def test_daggie_assist() -> str:
 
     # Check that some Dagger-related files were created
     all_files = await result.glob("**/*")
-    has_dagger_json = any("dagger.json" in f for f in all_files)
+    has_dagger_json = any(_DAGGER_JSON in f for f in all_files)
     has_source = "app.py" in entries
 
     return f"PASS: assist (files={len(entries)}, dagger_json={has_dagger_json}, has_source={has_source})"
@@ -71,7 +70,7 @@ async def test_daggie_explain() -> str:
     result_lower = result.lower()
     has_relevant_content = any(
         keyword in result_lower
-        for keyword in ("dagger.json", "module", "sdk", "function", "engine")
+        for keyword in (_DAGGER_JSON, "module", "sdk", "function", "engine")
     )
 
     return f"PASS: explain ({len(result)} chars, relevant={has_relevant_content})"
@@ -80,7 +79,7 @@ async def test_daggie_explain() -> str:
 async def test_daggie_debug() -> str:
     """Test debug: provide a broken dagger.json and error, verify fix."""
     source = dag.directory().with_new_file(
-        "dagger.json",
+        _DAGGER_JSON,
         '{\n  "name": "my-module",\n  "sdk": {"source": "python"}\n}\n',
     ).with_new_file(
         "src/my_module/__init__.py",
@@ -113,6 +112,6 @@ async def test_daggie_debug() -> str:
         raise RuntimeError("debug returned empty directory")
 
     # Verify dagger.json still exists and ideally has the fix
-    has_dagger_json = "dagger.json" in entries
+    has_dagger_json = _DAGGER_JSON in entries
 
     return f"PASS: debug (files={len(entries)}, has_dagger_json={has_dagger_json})"

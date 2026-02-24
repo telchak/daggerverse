@@ -273,7 +273,7 @@ class Tests:
     @function
     async def dagger_mcp(self) -> str:
         """Run dagger-mcp module test."""
-        return await test_dagger_mcp_server()
+        return test_dagger_mcp_server()
 
     # ========== DAGGIE (DAGGER CI AGENT) TESTS ==========
 
@@ -287,7 +287,7 @@ class Tests:
         results = []
 
         results.append("=== MCP Server ===")
-        results.append(await test_dagger_mcp_server())
+        results.append(test_dagger_mcp_server())
 
         results.append("\n=== Assist ===")
         results.append(await test_daggie_assist())
