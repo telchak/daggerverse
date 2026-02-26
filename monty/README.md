@@ -258,6 +258,26 @@ jobs:
 |--------|-------------|---------|
 | `--source` | Python project source directory | (required) |
 | `--python-version` | Python version for the MCP server containers | `3.13` |
+| `--self-improve` | Self-improvement mode: `off`, `write`, or `commit` | `off` |
+
+## Self-Improvement
+
+Pass `--self-improve` to let the agent update your context file with discoveries as it works.
+
+| Mode | Behavior |
+|------|----------|
+| `off` (default) | No change to current behavior |
+| `write` | Agent updates the context file (e.g. `MONTY.md`) in the returned directory |
+| `commit` | Agent updates the context file and creates a git commit in the returned directory |
+
+```shell
+dagger call assist \
+  --source=. \
+  --self-improve=write \
+  --assignment="Add a FastAPI health endpoint"
+```
+
+The agent appends learned context (architecture patterns, gotchas, conventions) under a `## Learned Context` heading. Existing content is never overwritten. Applies to `assist`, `write-tests`, `build`, and `upgrade` (all entrypoints that return a directory).
 
 ## MONTY.md
 

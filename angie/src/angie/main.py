@@ -29,6 +29,10 @@ class Angie:
         str,
         Doc("Node.js version for the Angular CLI MCP server container"),
     ] = field(default="22")
+    self_improve: Annotated[
+        str,
+        Doc("Self-improvement mode: 'off' (default), 'write' (update context file), 'commit' (update + git commit)"),
+    ] = field(default="off")
 
     # Private fields set during suggest_github_fix execution
     _github_token: dagger.Secret | None = field(default=None, init=False)
@@ -89,7 +93,15 @@ class Angie:
             self._CONTEXT_FILES, self._mcp_servers(task), self._CLASS_NAME,
             constants.BLOCKED_ENTRYPOINTS, source or self.source,
             extra_blocked=extra_blocked,
+            self_improve=self.self_improve,
         )
+
+    async def _post_process_workspace(self, workspace: dagger.Directory) -> dagger.Directory:
+        if self.self_improve == "commit":
+            return await llm_helpers.commit_context_file(
+                workspace, self._CONTEXT_FILES, self._CLASS_NAME,
+            )
+        return workspace
 
     async def _build_suggest_fix_llm(self, env, source=None):
         return await llm_helpers.build_suggest_fix_llm(
@@ -118,7 +130,8 @@ class Angie:
             .with_workspace(ws)
             .with_string_input("assignment", assignment, "The coding task to accomplish")
         )
-        return (await self._build_llm(env, "assist_prompt.md", ws, task="assist")).env().workspace()
+        result = (await self._build_llm(env, "assist_prompt.md", ws, task="assist")).env().workspace()
+        return await self._post_process_workspace(result)
 
     @function
     async def review(
@@ -163,10 +176,11 @@ class Angie:
             env = env.with_string_input("target", target, "Specific file or component to write tests for")
         if test_framework:
             env = env.with_string_input("test_framework", test_framework, "Test framework preference")
-        return (await self._build_llm(
+        result = (await self._build_llm(
             env, "write_tests_prompt.md", ws, task="write_tests",
             extra_blocked=self._BLOCKED_BUILD_TOOLS,
         )).env().workspace()
+        return await self._post_process_workspace(result)
 
     @function
     async def build(
@@ -183,7 +197,8 @@ class Angie:
         env = dag.env().with_workspace(ws)
         if command:
             env = env.with_string_input("command", command, "Build command to run")
-        return (await self._build_llm(env, "build_prompt.md", ws, task="build")).env().workspace()
+        result = (await self._build_llm(env, "build_prompt.md", ws, task="build")).env().workspace()
+        return await self._post_process_workspace(result)
 
     @function
     async def upgrade(
@@ -207,7 +222,8 @@ class Angie:
         )
         if dry_run:
             env = env.with_string_input("dry_run", "true", "Only analyze and report, do not modify files")
-        return (await self._build_llm(env, "upgrade_prompt.md", ws, task="upgrade")).env().workspace()
+        result = (await self._build_llm(env, "upgrade_prompt.md", ws, task="upgrade")).env().workspace()
+        return await self._post_process_workspace(result)
 
     # --- GitHub integration ---
 

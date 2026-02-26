@@ -147,6 +147,28 @@ Create a context file in your repository root to customize agent behavior. Goose
 
 **explicit CLI flags > context file > gcloud config > defaults**
 
+## Self-Improvement
+
+Pass `--self-improve` to let the agent update your context file with discoveries as it works.
+
+| Mode | Behavior |
+|------|----------|
+| `off` (default) | No change to current behavior |
+| `write` | Agent updates the context file (e.g. `GOOSE.md`) in the workspace |
+| `commit` | Agent updates the context file and creates a git commit |
+
+```shell
+dagger call assist \
+  --google-cloud-dir ~/.config/gcloud \
+  --source=. \
+  --self-improve=write \
+  --assignment="Inspect Cloud Run services and report their status"
+```
+
+The agent appends learned context (architecture patterns, gotchas, conventions) under a `## Learned Context` heading. Existing content is never overwritten.
+
+> **Note:** Most Goose entrypoints return `str`, so the updated context file only persists if the caller exports the workspace. The `develop-github-issue` entrypoint benefits fully since it uses the workspace for PR creation.
+
 ## Suggest Fix on CI Failure
 
 The `suggest-github-fix` function analyzes CI pipeline failures and posts GitHub "suggested changes" directly on the PR. Developers can apply fixes with one click. This function does not require GCP authentication.

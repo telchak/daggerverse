@@ -9,6 +9,34 @@ from . import constants
 
 MAX_CONTEXT_CHARS = 4000  # ~1000 tokens — keeps total prompt under budget
 
+_SELF_IMPROVE_PROMPT = """
+
+## Self-Improvement Instructions
+
+You have self-improvement enabled. As you work, update the project context file
+**{context_file}** with useful discoveries. Use `read_file` to check its current
+contents first, then use `edit_file` to append new entries at the end. If the file
+does not exist yet, use `write_file` to create it.
+
+**What to record** (append, never overwrite existing content):
+- Project architecture patterns you discovered
+- Gotchas, quirks, or non-obvious behaviors
+- Build/test/deploy conventions specific to this project
+- Dependency or version constraints that matter
+- Preferences the developer expressed during this session
+
+**Format**: Use markdown headings and bullet points. Add entries under a
+`## Learned Context` heading at the bottom of the file. Keep each entry to 1-3
+lines. Do not duplicate information already present in the file.
+
+**What NOT to record**:
+- Generic language/framework knowledge
+- Temporary state (current branch, WIP task details)
+- Anything already documented in the file
+
+Do this as a **final step**, after completing your main task successfully.
+"""
+
 
 async def read_context_file(
     source: dagger.Directory,
@@ -25,6 +53,41 @@ async def read_context_file(
     return ""
 
 
+async def resolve_context_file_name(
+    source: dagger.Directory,
+    context_file_names: tuple[str, ...],
+) -> str:
+    """Return the first matching context file name, or the first in the tuple as default."""
+    entries = await source.entries()
+    for name in context_file_names:
+        if name in entries:
+            return name
+    return context_file_names[0]
+
+
+async def commit_context_file(
+    workspace: dagger.Directory,
+    context_file_names: tuple[str, ...],
+    agent_name: str,
+) -> dagger.Directory:
+    """Create a git commit for the context file if it changed."""
+    context_file = await resolve_context_file_name(workspace, context_file_names)
+    return await (
+        dag.container()
+        .from_("alpine/git:latest")
+        .with_mounted_directory("/work", workspace)
+        .with_workdir("/work")
+        .with_exec(["git", "config", "user.name", agent_name])
+        .with_exec(["git", "config", "user.email", f"{agent_name.lower()}@dagger.io"])
+        .with_exec(["git", "add", context_file])
+        .with_exec([
+            "sh", "-c",
+            f'git diff --cached --quiet || git commit -m "chore({agent_name.lower()}): update {context_file} with learned context"',
+        ])
+        .directory("/work")
+    )
+
+
 async def build_llm(
     env: dagger.Env,
     system_prompt_file: str,
@@ -36,10 +99,15 @@ async def build_llm(
     blocked_entrypoints: list[str],
     source: dagger.Directory,
     extra_blocked: list[str] | None = None,
+    self_improve: str = "off",
 ) -> dagger.LLM:
     """Build an LLM with environment, workspace tools, MCP servers, and prompts."""
     context_md = await read_context_file(source, context_file_names)
     system_prompt = await load_prompt_fn(system_prompt_file).contents()
+
+    if self_improve != "off":
+        context_file = await resolve_context_file_name(source, context_file_names)
+        system_prompt += _SELF_IMPROVE_PROMPT.format(context_file=context_file)
 
     llm = (
         dag.llm()

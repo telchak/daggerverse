@@ -258,6 +258,26 @@ The workflow:
 |--------|-------------|---------|
 | `--source` | Project source directory | `/` |
 | `--module-urls` | Git URLs of Dagger modules to clone for reference | `[]` |
+| `--self-improve` | Self-improvement mode: `off`, `write`, or `commit` | `off` |
+
+## Self-Improvement
+
+Pass `--self-improve` to let the agent update your context file with discoveries as it works.
+
+| Mode | Behavior |
+|------|----------|
+| `off` (default) | No change to current behavior |
+| `write` | Agent updates the context file (e.g. `DAGGIE.md`) in the returned directory |
+| `commit` | Agent updates the context file and creates a git commit in the returned directory |
+
+```shell
+dagger call assist \
+  --source=. \
+  --self-improve=write \
+  --assignment="Create a Dagger pipeline for building and testing this Python project"
+```
+
+The agent appends learned context (architecture patterns, gotchas, conventions) under a `## Learned Context` heading. Existing content is never overwritten. Applies to `assist` and `debug` (entrypoints that return a directory).
 
 ## DAGGIE.md
 

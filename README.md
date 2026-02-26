@@ -90,6 +90,26 @@ All agents follow the same design:
 - **GitHub integration** via `develop-github-issue` to read an issue, route it to the right entrypoint, and open a PR
 - **Blocked functions** to prevent LLM recursion on entrypoints
 
+### Self-Improvement
+
+All agents support a `--self-improve` constructor flag that creates a learning loop: the agent updates its context file with discoveries made during the session, so it gets smarter across iterations.
+
+| Mode | Behavior |
+|------|----------|
+| `off` (default) | No change — current behavior |
+| `write` | Agent updates the context file (e.g. `MONTY.md`) in the returned workspace directory |
+| `commit` | Agent updates the context file and creates a git commit in the returned workspace directory |
+
+```bash
+# Monty learns about your project as it works
+dagger -m monty call assist \
+  --source . \
+  --self-improve=write \
+  --assignment "Add a FastAPI health endpoint"
+```
+
+The agent appends discoveries (architecture patterns, gotchas, conventions, constraints) under a `## Learned Context` heading in the context file. Existing content is never overwritten. This applies to all directory-returning entrypoints (`assist`, `build`, `write-tests`, `upgrade`, `debug`).
+
 ## Installation
 
 Install modules with a specific version:

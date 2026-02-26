@@ -57,6 +57,34 @@ _BLOCKED_DESTRUCTIVE = [
 ]
 
 _DAGGER_CONFIG_FILE = "DAGGER.md"
+
+_SELF_IMPROVE_PROMPT = """
+
+## Self-Improvement Instructions
+
+You have self-improvement enabled. As you work, update the project context file
+**{context_file}** with useful discoveries. Use `read_file` to check its current
+contents first, then use `edit_file` to append new entries at the end. If the file
+does not exist yet, use `write_file` to create it.
+
+**What to record** (append, never overwrite existing content):
+- Project architecture patterns you discovered
+- Gotchas, quirks, or non-obvious behaviors
+- Build/test/deploy conventions specific to this project
+- Dependency or version constraints that matter
+- Preferences the developer expressed during this session
+
+**Format**: Use markdown headings and bullet points. Add entries under a
+`## Learned Context` heading at the bottom of the file. Keep each entry to 1-3
+lines. Do not duplicate information already present in the file.
+
+**What NOT to record**:
+- Generic language/framework knowledge
+- Temporary state (current branch, WIP task details)
+- Anything already documented in the file
+
+Do this as a **final step**, after completing your main task successfully.
+"""
 _DOC_GCP_PROJECT_ID = "The GCP project ID"
 _DOC_GCP_REGION = "The GCP region"
 _ERROR_NO_SOURCE_DIR = "No source directory available. Pass --source to use workspace tools."
@@ -102,6 +130,12 @@ class Goose:
 
     # Optional: source directory for workspace tools
     source: Annotated[dagger.Directory | None, Doc("Source directory for workspace operations")] = field(default=None)
+
+    # Self-improvement mode
+    self_improve: Annotated[
+        str,
+        Doc("Self-improvement mode: 'off' (default), 'write' (update context file), 'commit' (update + git commit)"),
+    ] = field(default="off")
 
     # Optional
     developer_knowledge_api_key: Annotated[
@@ -302,6 +336,17 @@ class Goose:
                 return f"\n\n## Project Context (from {name})\n\n{contents}"
         return ""
 
+    async def _resolve_context_file_name(self, source: dagger.Directory | None = None) -> str:
+        """Return the first matching context file name for self-improve."""
+        target = source or self.source
+        if not target:
+            return "GOOSE.md"
+        entries = await target.entries()
+        for name in ("GOOSE.md", _DAGGER_CONFIG_FILE, "AGENT.md", "CLAUDE.md"):
+            if name in entries:
+                return name
+        return "GOOSE.md"
+
     _DOCS_SEARCH_SECTION = """
 
 ## GCP Documentation Search
@@ -339,6 +384,10 @@ Do not search docs for basic operations you already know how to perform.
 
         if self.developer_knowledge_api_key:
             system_prompt += self._DOCS_SEARCH_SECTION
+
+        if self.self_improve != "off":
+            context_file = await self._resolve_context_file_name(source)
+            system_prompt += _SELF_IMPROVE_PROMPT.format(context_file=context_file)
 
         llm = (
             dag.llm()
