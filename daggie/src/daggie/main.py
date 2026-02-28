@@ -7,6 +7,8 @@ from dagger import DefaultPath, Doc, dag, field, function, object_type
 
 from agent_base import constants, github_tools, llm_helpers, routing, workspace
 
+_DAGGER_CONFIG_FILE = "DAGGER.md"
+
 # File patterns to read from cloned Dagger modules
 _MODULE_SOURCE_GLOBS = [
     "dagger.json",
@@ -92,7 +94,7 @@ class Daggie:
 
     # --- Agent-specific configuration ---
 
-    _CONTEXT_FILES = ("DAGGIE.md", "DAGGER.md", "AGENT.md", "CLAUDE.md")
+    _CONTEXT_FILES = ("DAGGIE.md", _DAGGER_CONFIG_FILE, "AGENT.md", "CLAUDE.md")
     _CLASS_NAME = "Daggie"
     _ALLOWED_ROUTER_KEYS = {
         "explain": {},
@@ -152,7 +154,7 @@ class Daggie:
         module_context = await self._load_module_sources()
         context_md = await llm_helpers.read_context_file(
             source or self.source, self._CONTEXT_FILES,
-            extra_read_files=("DAGGER.md",),
+            extra_read_files=(_DAGGER_CONFIG_FILE,),
         )
         system_prompt = await self._load_prompt("system_prompt.md").contents()
 
@@ -187,7 +189,7 @@ class Daggie:
         module_context = await self._load_module_sources()
         context_md = await llm_helpers.read_context_file(
             source or self.source, self._CONTEXT_FILES,
-            extra_read_files=("DAGGER.md",),
+            extra_read_files=(_DAGGER_CONFIG_FILE,),
         )
         system_prompt = await self._load_prompt("system_prompt.md").contents()
         full_system = system_prompt + context_md + module_context

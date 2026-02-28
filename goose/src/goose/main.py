@@ -57,6 +57,8 @@ _BLOCKED_DESTRUCTIVE = [
 ]
 
 _DAGGER_CONFIG_FILE = "DAGGER.md"
+_GOOSE_CONTEXT_FILE = "GOOSE.md"
+_TRUNCATION_NOTICE = "\n\n[Truncated.]"
 
 _SELF_IMPROVE_PROMPT = """
 
@@ -334,6 +336,15 @@ class Goose:
     # Shared file names — read in order, first match used as shared context
     _SHARED_CONTEXT_FILES = ("AGENTS.md", "AGENT.md", "CLAUDE.md")
 
+    async def _read_context_section(
+        self, target: dagger.Directory, name: str,
+    ) -> str:
+        """Read a single context file and return a formatted section."""
+        contents = await target.file(name).contents()
+        if len(contents) > self._MAX_CONTEXT_CHARS:
+            contents = contents[:self._MAX_CONTEXT_CHARS] + _TRUNCATION_NOTICE
+        return f"## Project Context (from {name})\n\n{contents}"
+
     async def _read_context_file(self, source: dagger.Directory | None = None) -> str:
         """Read per-repo context from agent-specific, shared, and DAGGER.md files."""
         target = source or self.source
@@ -343,27 +354,18 @@ class Goose:
         sections: list[str] = []
 
         # 1. Agent-specific file
-        if "GOOSE.md" in entries:
-            contents = await target.file("GOOSE.md").contents()
-            if len(contents) > self._MAX_CONTEXT_CHARS:
-                contents = contents[:self._MAX_CONTEXT_CHARS] + "\n\n[Truncated.]"
-            sections.append(f"## Project Context (from GOOSE.md)\n\n{contents}")
+        if _GOOSE_CONTEXT_FILE in entries:
+            sections.append(await self._read_context_section(target, _GOOSE_CONTEXT_FILE))
 
         # 2. Shared file (AGENTS.md > AGENT.md > CLAUDE.md)
         for name in self._SHARED_CONTEXT_FILES:
             if name in entries:
-                contents = await target.file(name).contents()
-                if len(contents) > self._MAX_CONTEXT_CHARS:
-                    contents = contents[:self._MAX_CONTEXT_CHARS] + "\n\n[Truncated.]"
-                sections.append(f"## Project Context (from {name})\n\n{contents}")
+                sections.append(await self._read_context_section(target, name))
                 break
 
         # 3. DAGGER.md (extra context for GCP/Dagger config)
         if _DAGGER_CONFIG_FILE in entries:
-            contents = await target.file(_DAGGER_CONFIG_FILE).contents()
-            if len(contents) > self._MAX_CONTEXT_CHARS:
-                contents = contents[:self._MAX_CONTEXT_CHARS] + "\n\n[Truncated.]"
-            sections.append(f"## Project Context (from {_DAGGER_CONFIG_FILE})\n\n{contents}")
+            sections.append(await self._read_context_section(target, _DAGGER_CONFIG_FILE))
 
         return "\n\n" + "\n\n".join(sections) if sections else ""
 
@@ -406,7 +408,7 @@ Do not search docs for basic operations you already know how to perform.
             system_prompt += self._DOCS_SEARCH_SECTION
 
         if self.self_improve != "off":
-            system_prompt += _SELF_IMPROVE_PROMPT.format(agent_file="GOOSE.md")
+            system_prompt += _SELF_IMPROVE_PROMPT.format(agent_file=_GOOSE_CONTEXT_FILE)
 
         llm = (
             dag.llm()

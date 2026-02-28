@@ -8,6 +8,8 @@ from dagger import dag
 from . import constants
 
 MAX_CONTEXT_CHARS = 4000  # ~1000 tokens — keeps total prompt under budget
+_TRUNCATION_NOTICE = "\n\n[Truncated.]"
+_WORK_DIR = "/work"
 
 # Shared file names — read in order, first match used as shared context
 _SHARED_CONTEXT_FILES = ("AGENTS.md", "AGENT.md", "CLAUDE.md")
@@ -50,6 +52,17 @@ Do this as a **final step**, after completing your main task successfully.
 """
 
 
+async def _read_and_format_section(
+    source: dagger.Directory,
+    name: str,
+) -> str:
+    """Read a single context file and return a formatted section."""
+    contents = await source.file(name).contents()
+    if len(contents) > MAX_CONTEXT_CHARS:
+        contents = contents[:MAX_CONTEXT_CHARS] + _TRUNCATION_NOTICE
+    return f"## Project Context (from {name})\n\n{contents}"
+
+
 async def read_context_file(
     source: dagger.Directory,
     context_file_names: tuple[str, ...],
@@ -64,31 +77,22 @@ async def read_context_file(
     """
     entries = await source.entries()
     sections: list[str] = []
+    agent_file = context_file_names[0]
 
     # 1. Agent-specific file (first entry in the tuple)
-    agent_file = context_file_names[0]
     if agent_file in entries:
-        contents = await source.file(agent_file).contents()
-        if len(contents) > MAX_CONTEXT_CHARS:
-            contents = contents[:MAX_CONTEXT_CHARS] + "\n\n[Truncated.]"
-        sections.append(f"## Project Context (from {agent_file})\n\n{contents}")
+        sections.append(await _read_and_format_section(source, agent_file))
 
     # 2. Shared file (AGENTS.md > AGENT.md > CLAUDE.md)
     for name in _SHARED_CONTEXT_FILES:
         if name in entries:
-            contents = await source.file(name).contents()
-            if len(contents) > MAX_CONTEXT_CHARS:
-                contents = contents[:MAX_CONTEXT_CHARS] + "\n\n[Truncated.]"
-            sections.append(f"## Project Context (from {name})\n\n{contents}")
+            sections.append(await _read_and_format_section(source, name))
             break
 
     # 3. Extra files (e.g. DAGGER.md for Daggie)
     for name in extra_read_files:
         if name in entries and name != agent_file:
-            contents = await source.file(name).contents()
-            if len(contents) > MAX_CONTEXT_CHARS:
-                contents = contents[:MAX_CONTEXT_CHARS] + "\n\n[Truncated.]"
-            sections.append(f"## Project Context (from {name})\n\n{contents}")
+            sections.append(await _read_and_format_section(source, name))
 
     return "\n\n" + "\n\n".join(sections) if sections else ""
 
@@ -103,8 +107,8 @@ async def commit_context_file(
     return await (
         dag.container()
         .from_("alpine/git:latest")
-        .with_mounted_directory("/work", workspace)
-        .with_workdir("/work")
+        .with_mounted_directory(_WORK_DIR, workspace)
+        .with_workdir(_WORK_DIR)
         .with_exec(["git", "config", "user.name", agent_name])
         .with_exec(["git", "config", "user.email", f"{agent_name.lower()}@dagger.io"])
         .with_exec([
@@ -112,7 +116,7 @@ async def commit_context_file(
             f'git add -f {agent_file} AGENTS.md 2>/dev/null; '
             f'git diff --cached --quiet || git commit -m "chore({agent_name.lower()}): update context files with learned discoveries"',
         ])
-        .directory("/work")
+        .directory(_WORK_DIR)
     )
 
 
