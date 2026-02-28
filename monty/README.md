@@ -18,7 +18,7 @@ dagger install github.com/certainty-labs/daggerverse/monty@<version>
 - **python-lft MCP**: Lint (ruff, flake8, pylint, mypy, bandit), format (black, isort), and test (pytest) via MCP
 - **pypi MCP**: Package intelligence — versions, dependencies, compatibility checks, security audits
 - **Workspace tools**: Read, edit, write, glob, and grep files in your project
-- **Per-repo context**: Reads `MONTY.md`, `AGENT.md`, or `CLAUDE.md` for project-specific instructions
+- **Per-repo context**: Reads `MONTY.md` + `AGENTS.md` (falls back to `AGENT.md`/`CLAUDE.md`) for project-specific instructions
 
 ## Functions
 
@@ -258,6 +258,30 @@ jobs:
 |--------|-------------|---------|
 | `--source` | Python project source directory | (required) |
 | `--python-version` | Python version for the MCP server containers | `3.13` |
+| `--self-improve` | Self-improvement mode: `off`, `write`, or `commit` | `off` |
+
+## Self-Improvement
+
+Pass `--self-improve` to let the agent update context files with discoveries as it works.
+
+| Mode | Behavior |
+|------|----------|
+| `off` (default) | No change to current behavior |
+| `write` | Agent updates context files in the returned directory |
+| `commit` | Agent updates context files and creates a git commit in the returned directory |
+
+```shell
+dagger call assist \
+  --source=. \
+  --self-improve=write \
+  --assignment="Add a FastAPI health endpoint"
+```
+
+The agent writes to **two** files:
+- **`MONTY.md`** — Python-specific patterns, framework conventions, tool gotchas
+- **`AGENTS.md`** — project architecture, cross-cutting conventions, team preferences
+
+Existing content is never overwritten. Applies to `assist`, `write-tests`, `build`, and `upgrade` (all entrypoints that return a directory).
 
 ## MONTY.md
 
@@ -283,7 +307,7 @@ Create a `MONTY.md` file in your project root to give the agent project-specific
 - Type check: `mypy src/`
 ```
 
-The agent also recognizes `AGENT.md` and `CLAUDE.md` as fallbacks.
+The agent also reads `AGENTS.md` for shared project context (falls back to `AGENT.md` and `CLAUDE.md` for legacy repos).
 
 ## MCP Integration
 

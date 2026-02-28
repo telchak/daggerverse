@@ -7,6 +7,8 @@ from dagger import DefaultPath, Doc, dag, field, function, object_type
 
 from agent_base import constants, github_tools, llm_helpers, routing, workspace
 
+_DAGGER_CONFIG_FILE = "DAGGER.md"
+
 # File patterns to read from cloned Dagger modules
 _MODULE_SOURCE_GLOBS = [
     "dagger.json",
@@ -79,6 +81,10 @@ class Daggie:
         list[str],
         Doc("Git URLs of Dagger modules to clone and read for reference (e.g. 'https://github.com/org/repo.git#main:path/to/module')"),
     ] = field(default=list)
+    self_improve: Annotated[
+        str,
+        Doc("Self-improvement mode: 'off' (default), 'write' (update context file), 'commit' (update + git commit)"),
+    ] = field(default="off")
 
     # Private fields set during suggest_github_fix execution
     _github_token: dagger.Secret | None = field(default=None, init=False)
@@ -88,7 +94,7 @@ class Daggie:
 
     # --- Agent-specific configuration ---
 
-    _CONTEXT_FILES = ("DAGGIE.md", "DAGGER.md", "AGENT.md", "CLAUDE.md")
+    _CONTEXT_FILES = ("DAGGIE.md", _DAGGER_CONFIG_FILE, "AGENT.md", "CLAUDE.md")
     _CLASS_NAME = "Daggie"
     _ALLOWED_ROUTER_KEYS = {
         "explain": {},
@@ -148,8 +154,14 @@ class Daggie:
         module_context = await self._load_module_sources()
         context_md = await llm_helpers.read_context_file(
             source or self.source, self._CONTEXT_FILES,
+            extra_read_files=(_DAGGER_CONFIG_FILE,),
         )
         system_prompt = await self._load_prompt("system_prompt.md").contents()
+
+        if self.self_improve != "off":
+            agent_file = self._CONTEXT_FILES[0]
+            system_prompt += llm_helpers._SELF_IMPROVE_PROMPT.format(agent_file=agent_file)
+
         full_system = system_prompt + context_md + module_context
 
         llm = (
@@ -166,10 +178,18 @@ class Daggie:
 
         return llm.with_prompt_file(self._load_prompt(prompt_file))
 
+    async def _post_process_workspace(self, workspace: dagger.Directory) -> dagger.Directory:
+        if self.self_improve == "commit":
+            return await llm_helpers.commit_context_file(
+                workspace, self._CONTEXT_FILES, self._CLASS_NAME,
+            )
+        return workspace
+
     async def _build_suggest_fix_llm(self, env, source=None):
         module_context = await self._load_module_sources()
         context_md = await llm_helpers.read_context_file(
             source or self.source, self._CONTEXT_FILES,
+            extra_read_files=(_DAGGER_CONFIG_FILE,),
         )
         system_prompt = await self._load_prompt("system_prompt.md").contents()
         full_system = system_prompt + context_md + module_context
@@ -205,7 +225,8 @@ class Daggie:
             .with_workspace(ws)
             .with_string_input("assignment", assignment, "The coding task to accomplish")
         )
-        return (await self._build_llm(env, "assist_prompt.md", ws, task="assist")).env().workspace()
+        result = (await self._build_llm(env, "assist_prompt.md", ws, task="assist")).env().workspace()
+        return await self._post_process_workspace(result)
 
     @function
     async def explain(
@@ -250,7 +271,8 @@ class Daggie:
             .with_workspace(ws)
             .with_string_input("error_output", error_output, "The pipeline error output to diagnose")
         )
-        return (await self._build_llm(env, "debug_prompt.md", ws, task="debug")).env().workspace()
+        result = (await self._build_llm(env, "debug_prompt.md", ws, task="debug")).env().workspace()
+        return await self._post_process_workspace(result)
 
     @function
     async def review(

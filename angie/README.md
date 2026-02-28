@@ -17,7 +17,7 @@ dagger install github.com/certainty-labs/daggerverse/angie@<version>
 - **Version upgrades**: Detect current version, research breaking changes, and apply migration code changes
 - **Angular CLI MCP**: Real-time access to Angular documentation, best practices, and modernize tools
 - **Workspace tools**: Read, edit, write, glob, and grep files in your project
-- **Per-repo context**: Reads `ANGIE.md`, `AGENT.md`, or `CLAUDE.md` for project-specific instructions
+- **Per-repo context**: Reads `ANGIE.md` + `AGENTS.md` (falls back to `AGENT.md`/`CLAUDE.md`) for project-specific instructions
 
 ## Functions
 
@@ -256,6 +256,30 @@ jobs:
 |--------|-------------|---------|
 | `--source` | Angular project source directory | (required) |
 | `--node-version` | Node.js version for the Angular CLI MCP server | `22` |
+| `--self-improve` | Self-improvement mode: `off`, `write`, or `commit` | `off` |
+
+## Self-Improvement
+
+Pass `--self-improve` to let the agent update context files with discoveries as it works.
+
+| Mode | Behavior |
+|------|----------|
+| `off` (default) | No change to current behavior |
+| `write` | Agent updates context files in the returned directory |
+| `commit` | Agent updates context files and creates a git commit in the returned directory |
+
+```shell
+dagger call assist \
+  --source=. \
+  --self-improve=write \
+  --assignment="Add a login component with reactive forms"
+```
+
+The agent writes to **two** files:
+- **`ANGIE.md`** — Angular-specific patterns, framework conventions, tool gotchas
+- **`AGENTS.md`** — project architecture, cross-cutting conventions, team preferences
+
+Existing content is never overwritten. Applies to `assist`, `write-tests`, `build`, and `upgrade` (all entrypoints that return a directory).
 
 ## ANGIE.md
 
@@ -280,7 +304,7 @@ Create an `ANGIE.md` file in your project root to give the agent project-specifi
 - Output directory: dist/my-app
 ```
 
-The agent also recognizes `AGENT.md` and `CLAUDE.md` as fallbacks.
+The agent also reads `AGENTS.md` for shared project context (falls back to `AGENT.md` and `CLAUDE.md` for legacy repos).
 
 ## Angular CLI MCP Integration
 

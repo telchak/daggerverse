@@ -8,3 +8,6 @@ BLOCKED_ENTRYPOINTS = [
 
 # Destructive tools blocked on read-only sub-agents
 BLOCKED_DESTRUCTIVE = ["edit_file", "write_file", "suggest_github_pr_code_comment"]
+
+# Valid modes for the self_improve constructor field
+SELF_IMPROVE_MODES = ("off", "write", "commit")

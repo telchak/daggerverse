@@ -57,6 +57,45 @@ _BLOCKED_DESTRUCTIVE = [
 ]
 
 _DAGGER_CONFIG_FILE = "DAGGER.md"
+_GOOSE_CONTEXT_FILE = "GOOSE.md"
+_TRUNCATION_NOTICE = "\n\n[Truncated.]"
+
+_SELF_IMPROVE_PROMPT = """
+
+## Self-Improvement Instructions
+
+You have self-improvement enabled. As you work, record useful discoveries in
+**two** context files. Use `read_file` to check each file's current contents
+first, then use `edit_file` to append new entries at the end. If a file does
+not exist yet, use `write_file` to create it.
+
+### Agent-specific file: `{agent_file}`
+
+Record knowledge specific to this agent's domain here:
+- GCP service configurations and deployment patterns you discovered
+- Infrastructure-specific gotchas (e.g. Cloud Run cold starts, Firebase quota limits)
+- Authentication and IAM patterns for this project
+- Service-specific version constraints or migration notes
+
+### Shared file: `AGENTS.md`
+
+Record general-purpose knowledge about the repository here:
+- Project architecture and folder structure
+- Cross-cutting conventions (naming, error handling, logging)
+- CI/CD and deployment patterns
+- Dependency management approach
+- Team preferences expressed during this session
+
+### Format rules
+
+- Use markdown headings and bullet points
+- Add entries under a `## Learned Context` heading at the bottom of each file
+- Keep each entry to 1-3 lines
+- Do not duplicate information already present in either file
+- Do not record generic GCP knowledge, temporary state, or anything already documented
+
+Do this as a **final step**, after completing your main task successfully.
+"""
 _DOC_GCP_PROJECT_ID = "The GCP project ID"
 _DOC_GCP_REGION = "The GCP region"
 _ERROR_NO_SOURCE_DIR = "No source directory available. Pass --source to use workspace tools."
@@ -102,6 +141,12 @@ class Goose:
 
     # Optional: source directory for workspace tools
     source: Annotated[dagger.Directory | None, Doc("Source directory for workspace operations")] = field(default=None)
+
+    # Self-improvement mode
+    self_improve: Annotated[
+        str,
+        Doc("Self-improvement mode: 'off' (default), 'write' (update context file), 'commit' (update + git commit)"),
+    ] = field(default="off")
 
     # Optional
     developer_knowledge_api_key: Annotated[
@@ -288,19 +333,41 @@ class Goose:
 
     _MAX_CONTEXT_CHARS = 4000  # ~1000 tokens — keeps total prompt under budget
 
+    # Shared file names — read in order, first match used as shared context
+    _SHARED_CONTEXT_FILES = ("AGENTS.md", "AGENT.md", "CLAUDE.md")
+
+    async def _read_context_section(
+        self, target: dagger.Directory, name: str,
+    ) -> str:
+        """Read a single context file and return a formatted section."""
+        contents = await target.file(name).contents()
+        if len(contents) > self._MAX_CONTEXT_CHARS:
+            contents = contents[:self._MAX_CONTEXT_CHARS] + _TRUNCATION_NOTICE
+        return f"## Project Context (from {name})\n\n{contents}"
+
     async def _read_context_file(self, source: dagger.Directory | None = None) -> str:
-        """Read per-repo context from GOOSE.md, DAGGER.md, AGENT.md, or CLAUDE.md."""
+        """Read per-repo context from agent-specific, shared, and DAGGER.md files."""
         target = source or self.source
         if not target:
             return ""
         entries = await target.entries()
-        for name in ("GOOSE.md", _DAGGER_CONFIG_FILE, "AGENT.md", "CLAUDE.md"):
+        sections: list[str] = []
+
+        # 1. Agent-specific file
+        if _GOOSE_CONTEXT_FILE in entries:
+            sections.append(await self._read_context_section(target, _GOOSE_CONTEXT_FILE))
+
+        # 2. Shared file (AGENTS.md > AGENT.md > CLAUDE.md)
+        for name in self._SHARED_CONTEXT_FILES:
             if name in entries:
-                contents = await target.file(name).contents()
-                if len(contents) > self._MAX_CONTEXT_CHARS:
-                    contents = contents[:self._MAX_CONTEXT_CHARS] + "\n\n[Context file truncated to fit token budget.]"
-                return f"\n\n## Project Context (from {name})\n\n{contents}"
-        return ""
+                sections.append(await self._read_context_section(target, name))
+                break
+
+        # 3. DAGGER.md (extra context for GCP/Dagger config)
+        if _DAGGER_CONFIG_FILE in entries:
+            sections.append(await self._read_context_section(target, _DAGGER_CONFIG_FILE))
+
+        return "\n\n" + "\n\n".join(sections) if sections else ""
 
     _DOCS_SEARCH_SECTION = """
 
@@ -339,6 +406,9 @@ Do not search docs for basic operations you already know how to perform.
 
         if self.developer_knowledge_api_key:
             system_prompt += self._DOCS_SEARCH_SECTION
+
+        if self.self_improve != "off":
+            system_prompt += _SELF_IMPROVE_PROMPT.format(agent_file=_GOOSE_CONTEXT_FILE)
 
         llm = (
             dag.llm()

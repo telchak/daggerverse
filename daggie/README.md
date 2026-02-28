@@ -17,7 +17,7 @@ dagger install github.com/certainty-labs/daggerverse/daggie@<version>
 - **Module references**: Clone and read existing Dagger modules at runtime for learning patterns
 - **Dagger MCP**: Live access to Dagger engine schema introspection, GraphQL queries, and SDK guidance
 - **Workspace tools**: Read, edit, write, glob, and grep files in your project
-- **Per-repo context**: Reads `DAGGIE.md`, `DAGGER.md`, `AGENT.md`, or `CLAUDE.md` for project-specific instructions
+- **Per-repo context**: Reads `DAGGIE.md` + `AGENTS.md` + `DAGGER.md` (falls back to `AGENT.md`/`CLAUDE.md`) for project-specific instructions
 
 ## Functions
 
@@ -258,6 +258,30 @@ The workflow:
 |--------|-------------|---------|
 | `--source` | Project source directory | `/` |
 | `--module-urls` | Git URLs of Dagger modules to clone for reference | `[]` |
+| `--self-improve` | Self-improvement mode: `off`, `write`, or `commit` | `off` |
+
+## Self-Improvement
+
+Pass `--self-improve` to let the agent update context files with discoveries as it works.
+
+| Mode | Behavior |
+|------|----------|
+| `off` (default) | No change to current behavior |
+| `write` | Agent updates context files in the returned directory |
+| `commit` | Agent updates context files and creates a git commit in the returned directory |
+
+```shell
+dagger call assist \
+  --source=. \
+  --self-improve=write \
+  --assignment="Create a Dagger pipeline for building and testing this Python project"
+```
+
+The agent writes to **two** files:
+- **`DAGGIE.md`** — Dagger-specific patterns, SDK conventions, module gotchas
+- **`AGENTS.md`** — project architecture, cross-cutting conventions, team preferences
+
+Existing content is never overwritten. Applies to `assist` and `debug` (entrypoints that return a directory).
 
 ## DAGGIE.md
 
@@ -280,7 +304,7 @@ Create a `DAGGIE.md` file in your project root to give the agent project-specifi
 - Test: `dagger call test --source=.`
 ```
 
-The agent also recognizes `DAGGER.md`, `AGENT.md`, and `CLAUDE.md` as fallbacks.
+The agent also reads `AGENTS.md` for shared project context (falls back to `AGENT.md` and `CLAUDE.md` for legacy repos), plus `DAGGER.md` for Dagger-specific configuration.
 
 ## Dagger MCP Integration
 
