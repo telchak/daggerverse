@@ -21,9 +21,9 @@
     },
     {
       "customType": "regex",
-      "description": "dagger-for-github action version input",
+      "description": "DAGGER_VERSION env var in CI workflow",
       "fileMatch": ["\\.github/workflows/.*\\.yml$"],
-      "matchStrings": ["(?s)uses:\\s*dagger/dagger-for-github@.+?version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "matchStrings": ["DAGGER_VERSION:\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "dagger/dagger",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
