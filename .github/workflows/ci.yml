@@ -469,7 +469,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git fetch --tags
-          VERSION=$(dagger call -m ./calver generate --source=. --format="vYYYY.MM.MICRO")
+          VERSION=$(dagger call -m ./calver generate --source=. --format="vYYYY.MM.DD")
 
           # Build release notes
           ALL_MODULES=$(echo '${{ needs.discover.outputs.modules }}' '${{ needs.discover.outputs.agents }}' | jq -s 'add')
