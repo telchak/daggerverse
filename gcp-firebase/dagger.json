@@ -1,7 +1,7 @@
 {
   "name": "gcp-firebase",
   "description": "Firebase Hosting deployment utilities for Dagger pipelines",
-  "engineVersion": "v0.19.11",
+  "engineVersion": "v0.20.0",
   "sdk": {
     "source": "python"
   }
