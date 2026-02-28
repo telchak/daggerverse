@@ -92,13 +92,13 @@ All agents follow the same design:
 
 ### Self-Improvement
 
-All agents support a `--self-improve` constructor flag that creates a learning loop: the agent updates its context file with discoveries made during the session, so it gets smarter across iterations.
+All agents support a `--self-improve` constructor flag that creates a learning loop: the agent updates context files with discoveries made during the session, so it gets smarter across iterations.
 
 | Mode | Behavior |
 |------|----------|
 | `off` (default) | No change — current behavior |
-| `write` | Agent updates the context file (e.g. `MONTY.md`) in the returned workspace directory |
-| `commit` | Agent updates the context file and creates a git commit in the returned workspace directory |
+| `write` | Agent updates context files in the returned workspace directory |
+| `commit` | Agent updates context files and creates a git commit in the returned workspace directory |
 
 ```bash
 # Monty learns about your project as it works
@@ -108,7 +108,13 @@ dagger -m monty call assist \
   --assignment "Add a FastAPI health endpoint"
 ```
 
-The agent appends discoveries (architecture patterns, gotchas, conventions, constraints) under a `## Learned Context` heading in the context file. Existing content is never overwritten. This applies to all directory-returning entrypoints (`assist`, `build`, `write-tests`, `upgrade`, `debug`).
+The agent writes to **two** context files:
+- **Agent-specific file** (e.g. `MONTY.md`) — language/framework patterns, stack-specific conventions, tool gotchas
+- **Shared file** (`AGENTS.md`) — project architecture, cross-cutting conventions, CI/CD patterns, team preferences
+
+This separation prevents agent-specific knowledge from polluting shared context. When Monty discovers a Python async pattern, it goes in `MONTY.md`. When it discovers the project's folder structure, it goes in `AGENTS.md`.
+
+**Reading** merges both files: the agent reads its own file (e.g. `MONTY.md`) plus the shared file (`AGENTS.md`, with `AGENT.md` and `CLAUDE.md` as legacy fallbacks). This applies to all directory-returning entrypoints (`assist`, `build`, `write-tests`, `upgrade`, `debug`).
 
 ## Installation
 
@@ -398,7 +404,7 @@ To create a new coding agent (e.g., "Rusty" for Rust) based on the shared `_agen
 4. **Write `rusty/src/rusty/main.py`** with agent-specific config:
    - Class name and docstring
    - Constructor fields (e.g., `rust_version`)
-   - `_CONTEXT_FILES` (e.g., `("RUSTY.md", "AGENT.md", "CLAUDE.md")`)
+   - `_CONTEXT_FILES` (e.g., `("RUSTY.md",)` — agent-specific file; shared files like `AGENTS.md` are read automatically)
    - `_CLASS_NAME` (e.g., `"Rusty"`)
    - `_ALLOWED_ROUTER_KEYS` for `develop-github-issue` routing
    - `_mcp_servers()` returning agent-specific MCP services

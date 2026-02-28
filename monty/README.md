@@ -18,7 +18,7 @@ dagger install github.com/certainty-labs/daggerverse/monty@<version>
 - **python-lft MCP**: Lint (ruff, flake8, pylint, mypy, bandit), format (black, isort), and test (pytest) via MCP
 - **pypi MCP**: Package intelligence — versions, dependencies, compatibility checks, security audits
 - **Workspace tools**: Read, edit, write, glob, and grep files in your project
-- **Per-repo context**: Reads `MONTY.md`, `AGENT.md`, or `CLAUDE.md` for project-specific instructions
+- **Per-repo context**: Reads `MONTY.md` + `AGENTS.md` (falls back to `AGENT.md`/`CLAUDE.md`) for project-specific instructions
 
 ## Functions
 
@@ -262,13 +262,13 @@ jobs:
 
 ## Self-Improvement
 
-Pass `--self-improve` to let the agent update your context file with discoveries as it works.
+Pass `--self-improve` to let the agent update context files with discoveries as it works.
 
 | Mode | Behavior |
 |------|----------|
 | `off` (default) | No change to current behavior |
-| `write` | Agent updates the context file (e.g. `MONTY.md`) in the returned directory |
-| `commit` | Agent updates the context file and creates a git commit in the returned directory |
+| `write` | Agent updates context files in the returned directory |
+| `commit` | Agent updates context files and creates a git commit in the returned directory |
 
 ```shell
 dagger call assist \
@@ -277,7 +277,11 @@ dagger call assist \
   --assignment="Add a FastAPI health endpoint"
 ```
 
-The agent appends learned context (architecture patterns, gotchas, conventions) under a `## Learned Context` heading. Existing content is never overwritten. Applies to `assist`, `write-tests`, `build`, and `upgrade` (all entrypoints that return a directory).
+The agent writes to **two** files:
+- **`MONTY.md`** — Python-specific patterns, framework conventions, tool gotchas
+- **`AGENTS.md`** — project architecture, cross-cutting conventions, team preferences
+
+Existing content is never overwritten. Applies to `assist`, `write-tests`, `build`, and `upgrade` (all entrypoints that return a directory).
 
 ## MONTY.md
 
@@ -303,7 +307,7 @@ Create a `MONTY.md` file in your project root to give the agent project-specific
 - Type check: `mypy src/`
 ```
 
-The agent also recognizes `AGENT.md` and `CLAUDE.md` as fallbacks.
+The agent also reads `AGENTS.md` for shared project context (falls back to `AGENT.md` and `CLAUDE.md` for legacy repos).
 
 ## MCP Integration
 

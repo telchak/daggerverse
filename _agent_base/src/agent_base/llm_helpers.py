@@ -9,30 +9,42 @@ from . import constants
 
 MAX_CONTEXT_CHARS = 4000  # ~1000 tokens — keeps total prompt under budget
 
+# Shared file names — read in order, first match used as shared context
+_SHARED_CONTEXT_FILES = ("AGENTS.md", "AGENT.md", "CLAUDE.md")
+
 _SELF_IMPROVE_PROMPT = """
 
 ## Self-Improvement Instructions
 
-You have self-improvement enabled. As you work, update the project context file
-**{context_file}** with useful discoveries. Use `read_file` to check its current
-contents first, then use `edit_file` to append new entries at the end. If the file
-does not exist yet, use `write_file` to create it.
+You have self-improvement enabled. As you work, record useful discoveries in
+**two** context files. Use `read_file` to check each file's current contents
+first, then use `edit_file` to append new entries at the end. If a file does
+not exist yet, use `write_file` to create it.
 
-**What to record** (append, never overwrite existing content):
-- Project architecture patterns you discovered
-- Gotchas, quirks, or non-obvious behaviors
-- Build/test/deploy conventions specific to this project
-- Dependency or version constraints that matter
-- Preferences the developer expressed during this session
+### Agent-specific file: `{agent_file}`
 
-**Format**: Use markdown headings and bullet points. Add entries under a
-`## Learned Context` heading at the bottom of the file. Keep each entry to 1-3
-lines. Do not duplicate information already present in the file.
+Record knowledge specific to this agent's domain here:
+- Language/framework patterns you discovered (e.g. Python async patterns, Angular signals usage)
+- Stack-specific build/test/lint conventions
+- Framework version constraints or migration notes
+- Tool-specific gotchas (e.g. pytest fixtures, Angular CLI quirks)
 
-**What NOT to record**:
-- Generic language/framework knowledge
-- Temporary state (current branch, WIP task details)
-- Anything already documented in the file
+### Shared file: `AGENTS.md`
+
+Record general-purpose knowledge about the repository here:
+- Project architecture and folder structure
+- Cross-cutting conventions (naming, error handling, logging)
+- CI/CD and deployment patterns
+- Dependency management approach
+- Team preferences expressed during this session
+
+### Format rules
+
+- Use markdown headings and bullet points
+- Add entries under a `## Learned Context` heading at the bottom of each file
+- Keep each entry to 1-3 lines
+- Do not duplicate information already present in either file
+- Do not record generic language/framework knowledge, temporary state, or anything already documented
 
 Do this as a **final step**, after completing your main task successfully.
 """
@@ -41,28 +53,44 @@ Do this as a **final step**, after completing your main task successfully.
 async def read_context_file(
     source: dagger.Directory,
     context_file_names: tuple[str, ...],
+    extra_read_files: tuple[str, ...] = (),
 ) -> str:
-    """Read per-repo context from the first matching file in the priority list."""
+    """Read per-repo context from agent-specific, shared, and extra files.
+
+    Reads up to three sections:
+    1. Agent-specific file (context_file_names[0], e.g. MONTY.md)
+    2. First matching shared file (AGENTS.md > AGENT.md > CLAUDE.md)
+    3. Any extra files that exist (e.g. DAGGER.md for Daggie/Goose)
+    """
     entries = await source.entries()
-    for name in context_file_names:
+    sections: list[str] = []
+
+    # 1. Agent-specific file (first entry in the tuple)
+    agent_file = context_file_names[0]
+    if agent_file in entries:
+        contents = await source.file(agent_file).contents()
+        if len(contents) > MAX_CONTEXT_CHARS:
+            contents = contents[:MAX_CONTEXT_CHARS] + "\n\n[Truncated.]"
+        sections.append(f"## Project Context (from {agent_file})\n\n{contents}")
+
+    # 2. Shared file (AGENTS.md > AGENT.md > CLAUDE.md)
+    for name in _SHARED_CONTEXT_FILES:
         if name in entries:
             contents = await source.file(name).contents()
             if len(contents) > MAX_CONTEXT_CHARS:
-                contents = contents[:MAX_CONTEXT_CHARS] + "\n\n[Context file truncated to fit token budget.]"
-            return f"\n\n## Project Context (from {name})\n\n{contents}"
-    return ""
+                contents = contents[:MAX_CONTEXT_CHARS] + "\n\n[Truncated.]"
+            sections.append(f"## Project Context (from {name})\n\n{contents}")
+            break
 
+    # 3. Extra files (e.g. DAGGER.md for Daggie)
+    for name in extra_read_files:
+        if name in entries and name != agent_file:
+            contents = await source.file(name).contents()
+            if len(contents) > MAX_CONTEXT_CHARS:
+                contents = contents[:MAX_CONTEXT_CHARS] + "\n\n[Truncated.]"
+            sections.append(f"## Project Context (from {name})\n\n{contents}")
 
-async def resolve_context_file_name(
-    source: dagger.Directory,
-    context_file_names: tuple[str, ...],
-) -> str:
-    """Return the first matching context file name, or the first in the tuple as default."""
-    entries = await source.entries()
-    for name in context_file_names:
-        if name in entries:
-            return name
-    return context_file_names[0]
+    return "\n\n" + "\n\n".join(sections) if sections else ""
 
 
 async def commit_context_file(
@@ -70,8 +98,8 @@ async def commit_context_file(
     context_file_names: tuple[str, ...],
     agent_name: str,
 ) -> dagger.Directory:
-    """Create a git commit for the context file if it changed."""
-    context_file = await resolve_context_file_name(workspace, context_file_names)
+    """Create a git commit for context files if they changed."""
+    agent_file = context_file_names[0]
     return await (
         dag.container()
         .from_("alpine/git:latest")
@@ -79,10 +107,10 @@ async def commit_context_file(
         .with_workdir("/work")
         .with_exec(["git", "config", "user.name", agent_name])
         .with_exec(["git", "config", "user.email", f"{agent_name.lower()}@dagger.io"])
-        .with_exec(["git", "add", context_file])
         .with_exec([
             "sh", "-c",
-            f'git diff --cached --quiet || git commit -m "chore({agent_name.lower()}): update {context_file} with learned context"',
+            f'git add -f {agent_file} AGENTS.md 2>/dev/null; '
+            f'git diff --cached --quiet || git commit -m "chore({agent_name.lower()}): update context files with learned discoveries"',
         ])
         .directory("/work")
     )
@@ -106,8 +134,8 @@ async def build_llm(
     system_prompt = await load_prompt_fn(system_prompt_file).contents()
 
     if self_improve != "off":
-        context_file = await resolve_context_file_name(source, context_file_names)
-        system_prompt += _SELF_IMPROVE_PROMPT.format(context_file=context_file)
+        agent_file = context_file_names[0]
+        system_prompt += _SELF_IMPROVE_PROMPT.format(agent_file=agent_file)
 
     llm = (
         dag.llm()

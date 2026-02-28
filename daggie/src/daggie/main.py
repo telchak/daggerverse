@@ -152,14 +152,13 @@ class Daggie:
         module_context = await self._load_module_sources()
         context_md = await llm_helpers.read_context_file(
             source or self.source, self._CONTEXT_FILES,
+            extra_read_files=("DAGGER.md",),
         )
         system_prompt = await self._load_prompt("system_prompt.md").contents()
 
         if self.self_improve != "off":
-            context_file = await llm_helpers.resolve_context_file_name(
-                source or self.source, self._CONTEXT_FILES,
-            )
-            system_prompt += llm_helpers._SELF_IMPROVE_PROMPT.format(context_file=context_file)
+            agent_file = self._CONTEXT_FILES[0]
+            system_prompt += llm_helpers._SELF_IMPROVE_PROMPT.format(agent_file=agent_file)
 
         full_system = system_prompt + context_md + module_context
 
@@ -188,6 +187,7 @@ class Daggie:
         module_context = await self._load_module_sources()
         context_md = await llm_helpers.read_context_file(
             source or self.source, self._CONTEXT_FILES,
+            extra_read_files=("DAGGER.md",),
         )
         system_prompt = await self._load_prompt("system_prompt.md").contents()
         full_system = system_prompt + context_md + module_context

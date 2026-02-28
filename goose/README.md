@@ -128,12 +128,11 @@ The agent supports four authentication paths. For OIDC and SA JSON, one set of c
 
 ## Context Files
 
-Create a context file in your repository root to customize agent behavior. Goose looks for these files in order (first found wins):
+Create context files in your repository root to customize agent behavior. Goose reads multiple files and merges their content:
 
-1. `GOOSE.md` — Goose-specific context
-2. `DAGGER.md` — General Dagger agent context (backward compatible)
-3. `AGENT.md` — Generic agent context
-4. `CLAUDE.md` — Claude-style context
+1. `GOOSE.md` — Goose-specific context (GCP patterns, service configs)
+2. `AGENTS.md` — Shared context read by all agents (falls back to `AGENT.md` or `CLAUDE.md` for legacy repos)
+3. `DAGGER.md` — Additional Dagger/GCP configuration context (always read if present)
 
 ### Parsed fields (from DAGGER.md)
 
@@ -149,13 +148,13 @@ Create a context file in your repository root to customize agent behavior. Goose
 
 ## Self-Improvement
 
-Pass `--self-improve` to let the agent update your context file with discoveries as it works.
+Pass `--self-improve` to let the agent update context files with discoveries as it works.
 
 | Mode | Behavior |
 |------|----------|
 | `off` (default) | No change to current behavior |
-| `write` | Agent updates the context file (e.g. `GOOSE.md`) in the workspace |
-| `commit` | Agent updates the context file and creates a git commit |
+| `write` | Agent updates context files in the workspace |
+| `commit` | Agent updates context files and creates a git commit |
 
 ```shell
 dagger call assist \
@@ -165,9 +164,13 @@ dagger call assist \
   --assignment="Inspect Cloud Run services and report their status"
 ```
 
-The agent appends learned context (architecture patterns, gotchas, conventions) under a `## Learned Context` heading. Existing content is never overwritten.
+The agent writes to **two** files:
+- **`GOOSE.md`** — GCP-specific patterns, service configurations, infrastructure gotchas
+- **`AGENTS.md`** — project architecture, cross-cutting conventions, team preferences
 
-> **Note:** Most Goose entrypoints return `str`, so the updated context file only persists if the caller exports the workspace. The `develop-github-issue` entrypoint benefits fully since it uses the workspace for PR creation.
+Existing content is never overwritten.
+
+> **Note:** Most Goose entrypoints return `str`, so updated context files only persist if the caller exports the workspace. The `develop-github-issue` entrypoint benefits fully since it uses the workspace for PR creation.
 
 ## Suggest Fix on CI Failure
 
