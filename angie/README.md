@@ -5,7 +5,7 @@ AI-powered Angular development agent with Angular CLI MCP integration. Assists w
 ## Installation
 
 ```shell
-dagger install github.com/certainty-labs/daggerverse/angie@<version>
+dagger install github.com/telchak/daggerverse/angie@<version>
 ```
 
 ## Features
@@ -154,7 +154,7 @@ jobs:
         with:
           verb: call
           version: "latest"
-          module: github.com/certainty-labs/daggerverse/angie
+          module: github.com/telchak/daggerverse/angie
           args: >-
             develop-github-issue
             --github-token=env:GITHUB_TOKEN
@@ -232,7 +232,7 @@ jobs:
         with:
           verb: call
           version: "latest"
-          module: github.com/certainty-labs/daggerverse/angie
+          module: github.com/telchak/daggerverse/angie
           args: >-
             suggest-github-fix
             --github-token=env:GITHUB_TOKEN

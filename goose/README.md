@@ -5,7 +5,7 @@ AI-powered GCP deployment, troubleshooting, and operations agent using the Dagge
 ## Installation
 
 ```shell
-dagger install github.com/certainty-labs/daggerverse/goose@<version>
+dagger install github.com/telchak/daggerverse/goose@<version>
 ```
 
 ## Features
@@ -230,7 +230,7 @@ jobs:
         with:
           verb: call
           version: "latest"
-          module: github.com/certainty-labs/daggerverse/goose
+          module: github.com/telchak/daggerverse/goose
           args: >-
             suggest-github-fix
             --github-token=env:GITHUB_TOKEN

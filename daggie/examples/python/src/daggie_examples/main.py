@@ -24,7 +24,7 @@ class DaggieExamples:
         """Example: Use Daggie as a local coding assistant.
 
         Run from your project root:
-          dagger call -m github.com/certainty-labs/daggerverse/daggie \\
+          dagger call -m github.com/telchak/daggerverse/daggie \\
             assist --source=. --assignment="Create a Dagger pipeline for building and testing"
         """
         return dag.daggie(source=source).assist(assignment=assignment)
@@ -37,14 +37,14 @@ class DaggieExamples:
         """Example: Use Daggie with reference modules to learn patterns.
 
         The agent clones and reads the reference modules before implementing:
-          dagger call -m github.com/certainty-labs/daggerverse/daggie \\
-            --module-urls="https://github.com/certainty-labs/daggerverse.git#main:daggerverse/python-build" \\
+          dagger call -m github.com/telchak/daggerverse/daggie \\
+            --module-urls="https://github.com/telchak/daggerverse.git#main:daggerverse/python-build" \\
             assist --source=. --assignment="Create a similar module for this project"
         """
         return dag.daggie(
             source=source,
             module_urls=[
-                "https://github.com/certainty-labs/daggerverse.git#main:daggerverse/python-build",
+                "https://github.com/telchak/daggerverse.git#main:daggerverse/python-build",
             ],
         ).assist(
             assignment="Create a Dagger module for this project following the patterns from the reference module.",
@@ -58,7 +58,7 @@ class DaggieExamples:
         """Example: Ask Daggie to explain a Dagger concept.
 
         Run:
-          dagger call -m github.com/certainty-labs/daggerverse/daggie \\
+          dagger call -m github.com/telchak/daggerverse/daggie \\
             explain --question="How does caching work in Dagger?"
         """
         return await dag.daggie().explain(question=question)
@@ -72,7 +72,7 @@ class DaggieExamples:
         """Example: Debug a Dagger pipeline error.
 
         Run:
-          dagger call -m github.com/certainty-labs/daggerverse/daggie \\
+          dagger call -m github.com/telchak/daggerverse/daggie \\
             debug --source=. --error-output="$(dagger call build 2>&1)"
         """
         return dag.daggie(source=source).debug(error_output=error_output)
@@ -86,7 +86,7 @@ class DaggieExamples:
         """Example: Review Dagger module code.
 
         Run:
-          dagger call -m github.com/certainty-labs/daggerverse/daggie \\
+          dagger call -m github.com/telchak/daggerverse/daggie \\
             review --source=. --focus="caching and container optimization"
         """
         return await dag.daggie(source=source).review(focus=focus)
@@ -104,7 +104,7 @@ class DaggieExamples:
         """Example: Read a GitHub issue, implement it, and create a PR.
 
         In GitHub Actions (triggered by labeling an issue):
-          dagger call -m github.com/certainty-labs/daggerverse/daggie \\
+          dagger call -m github.com/telchak/daggerverse/daggie \\
             develop-github-issue \\
             --github-token=env:GITHUB_TOKEN \\
             --issue-id=42 \\
@@ -129,7 +129,7 @@ class DaggieExamples:
 
         In GitHub Actions:
           DIFF=$(git diff origin/main...HEAD)
-          dagger call -m github.com/certainty-labs/daggerverse/daggie \\
+          dagger call -m github.com/telchak/daggerverse/daggie \\
             review --source=. --diff="$DIFF" --focus="Dagger best practices"
         """
         return await dag.daggie(source=source).review(
@@ -150,7 +150,7 @@ class DaggieExamples:
         """Example: Post inline fix suggestions on a PR after CI failure.
 
         In GitHub Actions (on build failure):
-          dagger call -m github.com/certainty-labs/daggerverse/daggie \\
+          dagger call -m github.com/telchak/daggerverse/daggie \\
             suggest-github-fix \\
             --github-token=env:GITHUB_TOKEN \\
             --pr-number=123 \\

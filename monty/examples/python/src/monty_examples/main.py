@@ -24,7 +24,7 @@ class MontyExamples:
         """Example: Use Monty as a local coding assistant.
 
         Run from your Python project root:
-          dagger call -m github.com/certainty-labs/daggerverse/monty \\
+          dagger call -m github.com/telchak/daggerverse/monty \\
             assist --source=. --assignment="Add a FastAPI endpoint with Pydantic validation"
 
         Export the modified files back:
@@ -41,7 +41,7 @@ class MontyExamples:
         """Example: Review your Python code locally.
 
         Run from your Python project root:
-          dagger call -m github.com/certainty-labs/daggerverse/monty \\
+          dagger call -m github.com/telchak/daggerverse/monty \\
             review --source=. --focus="type safety and async patterns"
         """
         return await dag.monty(source=source).review(focus=focus)
@@ -56,7 +56,7 @@ class MontyExamples:
         """Example: Preview a dependency upgrade (dry run).
 
         Run from your Python project root:
-          dagger call -m github.com/certainty-labs/daggerverse/monty \\
+          dagger call -m github.com/telchak/daggerverse/monty \\
             upgrade --source=. --target-package=django --target-version=5.0 --dry-run
         """
         return dag.monty(source=source).upgrade(
@@ -78,7 +78,7 @@ class MontyExamples:
         """Example: Read a GitHub issue, implement it, and create a PR.
 
         In GitHub Actions (triggered by labeling an issue):
-          dagger call -m github.com/certainty-labs/daggerverse/monty \\
+          dagger call -m github.com/telchak/daggerverse/monty \\
             develop-github-issue \\
             --github-token=env:GITHUB_TOKEN \\
             --issue-id=42 \\
@@ -103,7 +103,7 @@ class MontyExamples:
 
         In GitHub Actions:
           DIFF=$(git diff origin/main...HEAD)
-          dagger call -m github.com/certainty-labs/daggerverse/monty \\
+          dagger call -m github.com/telchak/daggerverse/monty \\
             review --source=. --diff="$DIFF" --focus="Python best practices"
         """
         return await dag.monty(source=source).review(
@@ -120,7 +120,7 @@ class MontyExamples:
         """Example: Generate tests in CI for untested modules.
 
         In your CI pipeline:
-          dagger call -m github.com/certainty-labs/daggerverse/monty \\
+          dagger call -m github.com/telchak/daggerverse/monty \\
             write-tests --source=. --target="src/app/services/"
         """
         return dag.monty(source=source).write_tests(target=target)
@@ -134,7 +134,7 @@ class MontyExamples:
         """Example: Build the project in CI and get diagnostics on failures.
 
         In your CI pipeline:
-          dagger call -m github.com/certainty-labs/daggerverse/monty \\
+          dagger call -m github.com/telchak/daggerverse/monty \\
             build --source=. --command="python -m build"
         """
         return dag.monty(source=source).build(command=command)

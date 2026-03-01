@@ -5,7 +5,7 @@ MCP server for Dagger engine introspection — learn schema, run GraphQL queries
 ## Installation
 
 ```bash
-dagger install github.com/certainty-labs/daggerverse/dagger-mcp@<version>
+dagger install github.com/telchak/daggerverse/dagger-mcp@<version>
 ```
 
 ## Functions
@@ -57,7 +57,7 @@ llm = dag.llm().with_mcp_server("dagger", mcp_service)
 
 ```bash
 # Verify the module loads
-dagger functions -m github.com/certainty-labs/daggerverse/dagger-mcp
+dagger functions -m github.com/telchak/daggerverse/dagger-mcp
 
 # The server function returns a Service — it's meant to be consumed by
 # other modules, not called directly from the CLI
