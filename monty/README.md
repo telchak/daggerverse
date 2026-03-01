@@ -5,7 +5,7 @@ AI-powered Python development agent with MCP integration. Assists with coding, c
 ## Installation
 
 ```shell
-dagger install github.com/certainty-labs/daggerverse/monty@<version>
+dagger install github.com/telchak/daggerverse/monty@<version>
 ```
 
 ## Features
@@ -157,7 +157,7 @@ jobs:
         with:
           verb: call
           version: "latest"
-          module: github.com/certainty-labs/daggerverse/monty
+          module: github.com/telchak/daggerverse/monty
           args: >-
             develop-github-issue
             --github-token=env:GITHUB_TOKEN
@@ -234,7 +234,7 @@ jobs:
         with:
           verb: call
           version: "latest"
-          module: github.com/certainty-labs/daggerverse/monty
+          module: github.com/telchak/daggerverse/monty
           args: >-
             suggest-github-fix
             --github-token=env:GITHUB_TOKEN

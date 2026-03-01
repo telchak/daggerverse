@@ -5,7 +5,7 @@ AI-powered Dagger CI specialist agent for creating, explaining, and debugging Da
 ## Installation
 
 ```shell
-dagger install github.com/certainty-labs/daggerverse/daggie@<version>
+dagger install github.com/telchak/daggerverse/daggie@<version>
 ```
 
 ## Features
@@ -67,7 +67,7 @@ You can also mix references from different repositories:
 # with one from our own daggerverse (Python build patterns)
 dagger call assist \
   --source=. \
-  --module-urls="https://github.com/kpenfound/dagger-modules.git#main:postgres,https://github.com/certainty-labs/daggerverse.git#main:daggerverse/python-build" \
+  --module-urls="https://github.com/kpenfound/dagger-modules.git#main:postgres,https://github.com/telchak/daggerverse.git#main:daggerverse/python-build" \
   --assignment="Create a Dagger module that builds my Python API and runs integration tests against a Postgres service"
 ```
 
@@ -154,7 +154,7 @@ jobs:
         with:
           verb: call
           version: "latest"
-          module: github.com/certainty-labs/daggerverse/daggie
+          module: github.com/telchak/daggerverse/daggie
           args: >-
             develop-github-issue
             --github-token=env:GITHUB_TOKEN
@@ -228,7 +228,7 @@ jobs:
         with:
           verb: call
           version: "latest"
-          module: github.com/certainty-labs/daggerverse/daggie
+          module: github.com/telchak/daggerverse/daggie
           args: >-
             suggest-github-fix
             --github-token=env:GITHUB_TOKEN

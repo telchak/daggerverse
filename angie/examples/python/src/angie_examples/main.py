@@ -24,7 +24,7 @@ class AngieExamples:
         """Example: Use Angie as a local coding assistant.
 
         Run from your Angular project root:
-          dagger call -m github.com/certainty-labs/daggerverse/angie \\
+          dagger call -m github.com/telchak/daggerverse/angie \\
             assist --source=. --assignment="Add a search component with debounce"
 
         Export the modified files back:
@@ -41,7 +41,7 @@ class AngieExamples:
         """Example: Review your Angular code locally.
 
         Run from your Angular project root:
-          dagger call -m github.com/certainty-labs/daggerverse/angie \\
+          dagger call -m github.com/telchak/daggerverse/angie \\
             review --source=. --focus="performance and change detection"
         """
         return await dag.angie(source=source).review(focus=focus)
@@ -55,7 +55,7 @@ class AngieExamples:
         """Example: Preview an Angular version upgrade (dry run).
 
         Run from your Angular project root:
-          dagger call -m github.com/certainty-labs/daggerverse/angie \\
+          dagger call -m github.com/telchak/daggerverse/angie \\
             upgrade --source=. --target-version=19 --dry-run
         """
         return dag.angie(source=source).upgrade(
@@ -76,7 +76,7 @@ class AngieExamples:
         """Example: Read a GitHub issue, implement it, and create a PR.
 
         In GitHub Actions (triggered by labeling an issue):
-          dagger call -m github.com/certainty-labs/daggerverse/angie \\
+          dagger call -m github.com/telchak/daggerverse/angie \\
             develop-github-issue \\
             --github-token=env:GITHUB_TOKEN \\
             --issue-id=42 \\
@@ -101,7 +101,7 @@ class AngieExamples:
 
         In GitHub Actions:
           DIFF=$(git diff origin/main...HEAD)
-          dagger call -m github.com/certainty-labs/daggerverse/angie \\
+          dagger call -m github.com/telchak/daggerverse/angie \\
             review --source=. --diff="$DIFF" --focus="Angular best practices"
         """
         return await dag.angie(source=source).review(
@@ -118,7 +118,7 @@ class AngieExamples:
         """Example: Generate tests in CI for untested components.
 
         In your CI pipeline:
-          dagger call -m github.com/certainty-labs/daggerverse/angie \\
+          dagger call -m github.com/telchak/daggerverse/angie \\
             write-tests --source=. --target="src/app/features/auth/"
         """
         return dag.angie(source=source).write_tests(target=target)
@@ -132,7 +132,7 @@ class AngieExamples:
         """Example: Build the project in CI and get diagnostics on failures.
 
         In your CI pipeline:
-          dagger call -m github.com/certainty-labs/daggerverse/angie \\
+          dagger call -m github.com/telchak/daggerverse/angie \\
             build --source=. --command="ng build --configuration production"
         """
         return dag.angie(source=source).build(command=command)
@@ -146,7 +146,7 @@ class AngieExamples:
         """Example: Run upgrade compatibility check in CI (dry run).
 
         Schedule as a periodic CI job to check upgrade readiness:
-          dagger call -m github.com/certainty-labs/daggerverse/angie \\
+          dagger call -m github.com/telchak/daggerverse/angie \\
             upgrade --source=. --target-version=20 --dry-run
         """
         return dag.angie(source=source).upgrade(
