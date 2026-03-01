@@ -103,6 +103,14 @@ class Semver:
         # Validate tag_prefix to prevent shell injection
         _validate_tag_prefix(tag_prefix)
 
+        # Check if any tags exist for this prefix
+        existing_tag = await self._get_latest_tag(source, tag_prefix)
+
+        # If no tags exist, return the initial version as-is (first release)
+        if not existing_tag:
+            v = Version.parse(initial_version)
+            return str(v)
+
         # Get commits and determine bump type
         bump_type = await self._analyze_commits(source, tag_prefix)
 
