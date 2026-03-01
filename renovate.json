@@ -27,6 +27,15 @@
       "depNameTemplate": "dagger/dagger",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Dagger version badge in README",
+      "fileMatch": ["(^|/)README\\.md$"],
+      "matchStrings": ["Dagger-v(?<currentValue>[^-]+)-"],
+      "depNameTemplate": "dagger/dagger",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
     }
   ],
   "packageRules": [
