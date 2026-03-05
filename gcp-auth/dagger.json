@@ -1,7 +1,7 @@
 {
   "name": "gcp-auth",
   "description": "GCP authentication utilities for Dagger pipelines using service accounts and OIDC",
-  "engineVersion": "v0.20.0",
+  "engineVersion": "v0.20.1",
   "sdk": {
     "source": "python"
   },
