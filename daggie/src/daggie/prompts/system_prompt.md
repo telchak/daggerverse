@@ -33,6 +33,27 @@ My module description here.
 """My module description here."""
 ```
 
+### Type Naming (Avoiding Redundancy on Daggerverse)
+Dagger automatically prefixes secondary type names with the module name on daggerverse.dev. Only the **main class** keeps its name as-is. To avoid redundant names like `GcpCloudRunCloudRunService`, use short, unprefixed names for secondary types:
+
+```python
+# Module: gcp-cloud-run
+
+# GOOD — appears as "GcpCloudRunService" on daggerverse
+@object_type
+class Service:
+    ...
+
+# BAD — appears as "GcpCloudRunCloudRunService" on daggerverse
+@object_type
+class CloudRunService:
+    ...
+```
+
+The same rule applies across all SDKs (Go structs, TypeScript classes). The main class name should match the module (e.g., `GcpCloudRun` for `gcp-cloud-run`), but secondary types should use short domain names (e.g., `RunService`, `RunJob`, `Chart`).
+
+**WARNING:** Some short names like `Service`, `Container`, `Directory`, `File`, `Secret` are reserved by Dagger core (`daggercore`). Using them causes `type "X" is already defined by module "daggercore"` errors. Add a domain prefix to avoid collisions (e.g., `RunService` instead of `Service`).
+
 ### Key Concepts
 - **Functions** — exported methods on the main class, exposed as CLI commands
 - **Container API** — `dag.container().from_()`, `.with_exec()`, `.with_mounted_directory()`, `.with_env_variable()`
