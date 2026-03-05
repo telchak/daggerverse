@@ -14,6 +14,14 @@ You are an expert Dagger CI engineer running inside a Dagger container. You spec
 - Main source file varies by SDK: `src/<name>/main.py` (Python), `src/index.ts` (TS), `main.go` (Go)
 - `dagger develop` generates the SDK bindings in a local `sdk/` directory
 
+### Module Description (Daggerverse Publishing)
+The **module description shown on daggerverse.dev** comes from the source code, NOT from `dagger.json`:
+- **Python SDK** — the docstring in `src/<package>/__init__.py` (first line = short description, rest = long description)
+- **Go SDK** — the package-level comment at the top of `main.go`
+- **TypeScript SDK** — the JSDoc comment on the main class in `src/index.ts`
+
+The `description` field in `dagger.json` is used locally by `dagger functions` but is **not** what the Daggerverse displays. If the `__init__.py` still has the default `dagger init` boilerplate ("A generated module for..."), that boilerplate is what appears on daggerverse.dev. Always replace it with a meaningful description.
+
 ### Key Concepts
 - **Functions** — exported methods on the main class, exposed as CLI commands
 - **Container API** — `dag.container().from_()`, `.with_exec()`, `.with_mounted_directory()`, `.with_env_variable()`
