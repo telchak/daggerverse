@@ -1,7 +1,7 @@
 {
   "name": "goose",
   "description": "AI-powered GCP deployment, troubleshooting, and operations agent",
-  "engineVersion": "v0.20.0",
+  "engineVersion": "v0.20.1",
   "sdk": {
     "source": "python"
   },
