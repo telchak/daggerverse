@@ -453,6 +453,7 @@ jobs:
         run: |
           # Combine modules and agents for tagging
           ALL_MODULES=$(echo '${{ needs.discover.outputs.modules }}' '${{ needs.discover.outputs.agents }}' | jq -s 'add')
+          TAGGED=""
           for module in $(echo "$ALL_MODULES" | jq -r '.[]'); do
             LATEST_TAG=$(git tag -l "${module}/v*" --sort=-v:refname | head -n1)
             if [ -n "$LATEST_TAG" ] && git diff --quiet "$LATEST_TAG" HEAD -- "$module/"; then
@@ -461,28 +462,18 @@ jobs:
             fi
             TAG=$(dagger call -m ./semver release --source=. --tag-prefix="${module}/" --initial-version="v0.1.0" --github-token=env:GITHUB_TOKEN)
             echo "$module: $TAG"
+            TAGGED="$TAGGED\n| $module | $TAG |"
           done
 
-      - name: Create release
-        if: inputs.dry_run != true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git fetch --tags
-          VERSION=$(dagger call -m ./calver generate --source=. --format="vYYYY.MM.DD")
-
-          # Build release notes
-          ALL_MODULES=$(echo '${{ needs.discover.outputs.modules }}' '${{ needs.discover.outputs.agents }}' | jq -s 'add')
-          NOTES="## Module Versions\n\n"
-          NOTES="$NOTES| Module | Version | Engine |\n|--------|---------|--------|"
-          for module in $(echo "$ALL_MODULES" | jq -r '.[]'); do
-            VER=$(dagger call -m ./semver current --source=. --tag-prefix="${module}/" --initial-version="v0.0.0")
-            ENGINE=$(jq -r '.engineVersion // "unknown"' "$module/dagger.json")
-            NOTES="$NOTES\n| $module | $VER | $ENGINE |"
-          done
-
-          if gh release view "$VERSION" > /dev/null 2>&1; then
-            echo -e "$NOTES" | gh release edit "$VERSION" --notes-file -
+          # Summary of tagged modules
+          if [ -n "$TAGGED" ]; then
+            {
+              echo "## Released Modules"
+              echo ""
+              echo "| Module | Version |"
+              echo "|--------|---------|"
+              echo -e "$TAGGED"
+            } >> $GITHUB_STEP_SUMMARY
           else
-            echo -e "$NOTES" | gh release create "$VERSION" --title "Release $VERSION" --notes-file -
+            echo "No modules changed — nothing to tag." >> $GITHUB_STEP_SUMMARY
           fi
