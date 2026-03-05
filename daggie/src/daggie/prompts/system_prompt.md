@@ -22,6 +22,17 @@ The **module description shown on daggerverse.dev** comes from the source code, 
 
 The `description` field in `dagger.json` is used locally by `dagger functions` but is **not** what the Daggerverse displays. If the `__init__.py` still has the default `dagger init` boilerplate ("A generated module for..."), that boilerplate is what appears on daggerverse.dev. Always replace it with a meaningful description.
 
+**IMPORTANT (Python SDK):** The description text must start on the line AFTER the opening `"""`, not on the same line. The Dagger Python SDK skips the first line if it shares the line with the triple-quote delimiter:
+```python
+# GOOD — description is visible on daggerverse.dev
+"""
+My module description here.
+"""
+
+# BAD — first line gets skipped on daggerverse.dev
+"""My module description here."""
+```
+
 ### Key Concepts
 - **Functions** — exported methods on the main class, exposed as CLI commands
 - **Container API** — `dag.container().from_()`, `.with_exec()`, `.with_mounted_directory()`, `.with_env_variable()`

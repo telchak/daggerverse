@@ -1,4 +1,6 @@
-"""Daggie — AI-powered Dagger CI specialist agent."""
+"""
+Daggie — AI-powered Dagger CI specialist agent.
+"""
 
 from .main import Daggie
 
