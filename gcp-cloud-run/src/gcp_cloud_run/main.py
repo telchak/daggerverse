@@ -143,7 +143,7 @@ def _validate_positive_int(value: int, field: str) -> int:
 
 
 @object_type
-class CloudRunService:
+class RunService:
     """Cloud Run service operations."""
 
     @function
@@ -282,7 +282,7 @@ class CloudRunService:
 
 
 @object_type
-class CloudRunJob:
+class RunJob:
     """Cloud Run job operations."""
 
     @function
@@ -402,11 +402,11 @@ class GcpCloudRun:
     """Google Cloud Run deployment utilities."""
 
     @function
-    def service(self) -> CloudRunService:
+    def service(self) -> RunService:
         """Access Cloud Run service operations."""
-        return CloudRunService()
+        return RunService()
 
     @function
-    def job(self) -> CloudRunJob:
+    def job(self) -> RunJob:
         """Access Cloud Run job operations."""
-        return CloudRunJob()
+        return RunJob()
