@@ -1,4 +1,6 @@
-"""Angie — AI-powered Angular development agent with MCP integration."""
+"""
+Angie — AI-powered Angular development agent with MCP integration.
+"""
 
 from .main import Angie
 

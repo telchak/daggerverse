@@ -1,4 +1,5 @@
-"""GCP Firebase - Dagger module for Firebase Hosting and Firestore management.
+"""
+GCP Firebase - Dagger module for Firebase Hosting and Firestore management.
 
 This module provides utilities for:
 - Firebase Hosting: Build and deploy web applications, preview channels

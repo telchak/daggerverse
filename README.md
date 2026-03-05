@@ -305,7 +305,7 @@ Tests run automatically on push to `main`, pull requests, and manual dispatch vi
 | `test-modules` | Matrix job — tests each non-agent module in parallel. GCP modules (`gcp-*`) receive OIDC credentials automatically |
 | `test-agents` | Matrix job — tests each agent entrypoint in parallel (e.g. `angie-assist`, `goose-deploy`). Agents with `.agent-gcp` marker receive OIDC credentials |
 | `test-angie-github-issue` | Dedicated job for `develop-github-issue` end-to-end test (creates a PR, then cleans it up) |
-| `release` | Runs on `main` only — tags changed modules with semver (via Conventional Commits) and creates a CalVer release |
+| `release` | Runs on `main` only — tags changed modules with semver (via Conventional Commits) |
 
 ### Validation Pipeline
 
@@ -333,20 +333,13 @@ gcp-auth/v1.2.3
 health-check/v0.5.0
 ```
 
-Additionally, a common **CalVer release** (`vYYYY.MM.MICRO`) is created on each push to main to reference the whole set of modules as a coherent version:
-
-```
-v2026.2.0   <- first release of February 2026
-v2026.2.1   <- second release of February 2026
-```
-
 ### Automatic Releases
 
 The **Release Modules** workflow runs on every push to main and:
 - Detects which modules have changes since their last tag
 - Analyzes commit messages using [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/#summary)
 - Automatically determines version bump (major/minor/patch)
-- Creates per-module semver tags and a common CalVer release
+- Creates per-module semver tags
 
 Commit message format:
 

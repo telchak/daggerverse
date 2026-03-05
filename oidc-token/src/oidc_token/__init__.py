@@ -1,4 +1,5 @@
-"""Universal OIDC token handling for CI/CD providers.
+"""
+Universal OIDC token handling for CI/CD providers.
 
 This module provides functions to obtain OIDC JWT tokens from various CI/CD
 providers (GitHub Actions, GitLab CI, CircleCI). These tokens can then be

@@ -289,7 +289,6 @@ Releases are fully automated. When a PR is merged to `main`:
 1. The CI workflow detects which modules changed since their last tag
 2. Commit messages are analyzed to determine the version bump (major/minor/patch)
 3. Per-module semver tags are created (e.g., `gcp-auth/v1.2.3`)
-4. A common CalVer release is created (e.g., `v2026.2.0`)
 
 You do **not** need to manually bump versions or create tags.
 
