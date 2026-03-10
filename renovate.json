@@ -36,6 +36,15 @@
       "depNameTemplate": "dagger/dagger",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Self-hosted runner label dagger-v* in CI workflow",
+      "fileMatch": ["\\.github/workflows/.*\\.yml$"],
+      "matchStrings": ["runs-on:\\s*dagger-v(?<currentValue>\\d+\\.\\d+)"],
+      "depNameTemplate": "dagger/dagger",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>\\d+\\.\\d+)"
     }
   ],
   "packageRules": [
