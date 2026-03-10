@@ -80,17 +80,9 @@ jobs:
 
   validate:
     needs: discover
-    runs-on: ubuntu-latest
+    runs-on: dagger-v0.20
     steps:
       - uses: actions/checkout@v6
-
-      - name: Restore Dagger engine cache
-        uses: BYK/docker-volume-cache-action/restore@be89365902126f508dcae387a32ec3712df6b1cd # v1
-        with:
-          key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-validate
-          restore-keys: |
-            dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-
-          volumes: dagger-engine
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.4.0
@@ -100,8 +92,6 @@ jobs:
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
       - name: Validate modules
-        env:
-          _EXPERIMENTAL_DAGGER_RUNNER_HOST: "docker-image://registry.dagger.io/engine:v${{ env.DAGGER_VERSION }}?volume=dagger-engine"
         run: |
           # Combine modules and agents for validation
           ALL_MODULES=$(echo '${{ needs.discover.outputs.modules }}' '${{ needs.discover.outputs.agents }}' | jq -s 'add')
@@ -147,20 +137,9 @@ jobs:
             } >> $GITHUB_STEP_SUMMARY
           done
 
-      - name: Stop Dagger engine
-        if: always()
-        run: docker stop $(docker ps -q -f 'name=dagger-engine') 2>/dev/null || true
-
-      - name: Save Dagger engine cache
-        if: always() && github.ref == 'refs/heads/main'
-        uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
-        with:
-          key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-validate
-          volumes: dagger-engine
-
   test-modules:
     needs: [discover, validate]
-    runs-on: ubuntu-latest
+    runs-on: dagger-v0.20
     permissions:
       contents: read
       id-token: write
@@ -173,14 +152,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Restore Dagger engine cache
-        uses: BYK/docker-volume-cache-action/restore@be89365902126f508dcae387a32ec3712df6b1cd # v1
-        with:
-          key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-${{ matrix.module }}
-          restore-keys: |
-            dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-
-          volumes: dagger-engine
-
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.4.0
         with:
@@ -191,7 +162,6 @@ jobs:
       - name: Test ${{ matrix.module }}
         id: test
         env:
-          _EXPERIMENTAL_DAGGER_RUNNER_HOST: "docker-image://registry.dagger.io/engine:v${{ env.DAGGER_VERSION }}?volume=dagger-engine"
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           GCP_DEVELOPER_KNOWLEDGE_API_KEY: ${{ secrets.GCP_DEVELOPER_KNOWLEDGE_API_KEY }}
@@ -245,21 +215,10 @@ jobs:
           ENDOFOUTPUT
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      - name: Stop Dagger engine
-        if: always()
-        run: docker stop $(docker ps -q -f 'name=dagger-engine') 2>/dev/null || true
-
-      - name: Save Dagger engine cache
-        if: always() && github.ref == 'refs/heads/main'
-        uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
-        with:
-          key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-${{ matrix.module }}
-          volumes: dagger-engine
-
   test-agents:
     needs: [discover, validate]
     if: ${{ fromJson(needs.discover.outputs.agent_tests)[0] != null }}
-    runs-on: ubuntu-latest
+    runs-on: dagger-v0.20
     permissions:
       contents: read
       id-token: write
@@ -269,14 +228,6 @@ jobs:
         test: ${{ fromJson(needs.discover.outputs.agent_tests) }}
     steps:
       - uses: actions/checkout@v6
-
-      - name: Restore Dagger engine cache
-        uses: BYK/docker-volume-cache-action/restore@be89365902126f508dcae387a32ec3712df6b1cd # v1
-        with:
-          key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-${{ matrix.test }}
-          restore-keys: |
-            dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-
-          volumes: dagger-engine
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.4.0
@@ -289,7 +240,6 @@ jobs:
         id: test
         timeout-minutes: 20
         env:
-          _EXPERIMENTAL_DAGGER_RUNNER_HOST: "docker-image://registry.dagger.io/engine:v${{ env.DAGGER_VERSION }}?volume=dagger-engine"
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
@@ -338,32 +288,13 @@ jobs:
           ENDOFOUTPUT
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      - name: Stop Dagger engine
-        if: always()
-        run: docker stop $(docker ps -q -f 'name=dagger-engine') 2>/dev/null || true
-
-      - name: Save Dagger engine cache
-        if: always() && github.ref == 'refs/heads/main'
-        uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
-        with:
-          key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-${{ matrix.test }}
-          volumes: dagger-engine
-
   test-angie-github-issue:
     needs: [validate]
-    runs-on: ubuntu-latest
+    runs-on: dagger-v0.20
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v6
-
-      - name: Restore Dagger engine cache
-        uses: BYK/docker-volume-cache-action/restore@be89365902126f508dcae387a32ec3712df6b1cd # v1
-        with:
-          key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-angie-develop-github-issue
-          restore-keys: |
-            dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-
-          volumes: dagger-engine
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.4.0
@@ -375,7 +306,6 @@ jobs:
       - name: Test angie develop-github-issue
         id: test
         env:
-          _EXPERIMENTAL_DAGGER_RUNNER_HOST: "docker-image://registry.dagger.io/engine:v${{ env.DAGGER_VERSION }}?volume=dagger-engine"
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
@@ -417,21 +347,10 @@ jobs:
           ENDOFOUTPUT
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      - name: Stop Dagger engine
-        if: always()
-        run: docker stop $(docker ps -q -f 'name=dagger-engine') 2>/dev/null || true
-
-      - name: Save Dagger engine cache
-        if: always() && github.ref == 'refs/heads/main'
-        uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
-        with:
-          key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-angie-develop-github-issue
-          volumes: dagger-engine
-
   release:
     needs: [discover, test-modules, test-agents, test-angie-github-issue]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: dagger-v0.20
     permissions:
       contents: write
     steps:
