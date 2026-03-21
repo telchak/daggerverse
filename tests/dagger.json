@@ -68,6 +68,10 @@
     {
       "name": "daggie",
       "source": "../daggie"
+    },
+    {
+      "name": "speck",
+      "source": "../speck"
     }
   ]
 }

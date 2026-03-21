@@ -28,6 +28,8 @@ When creating a new module, ensure:
 - [ ] Containers use caching where appropriate (`dag.cache_volume()`)
 - [ ] Secrets are handled via `dagger.Secret`, never as plain strings
 - [ ] Dependencies are declared in `dagger.json` if referencing other modules
+- [ ] Validation functions (test, lint, audit) have `@check` decorator and `DefaultPath(".")` on source param for toolchain readiness
+- [ ] If using `with_blocked_function` (LLM agents), only block functions that actually exist on the class
 
 ## Output
 

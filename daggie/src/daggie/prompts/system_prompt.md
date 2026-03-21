@@ -65,11 +65,135 @@ The same rule applies across all SDKs (Go structs, TypeScript classes). The main
 - **Chaining** — Dagger operations are lazy and chainable; execution happens on `.stdout()`, `.sync()`, etc.
 - **dagger.json dependencies** — reference other modules via `source` (local path or remote Git URL with pin)
 
+### Blocked Functions (LLM Agents)
+When building LLM-powered agents with the Dagger LLM API, `with_blocked_function` prevents the LLM from calling specific functions on the class. **CRITICAL**: The function MUST actually exist on the class — blocking a non-existent function causes a hard runtime error (`function "X" not found on type "Y"`). Each agent class should only block its own entrypoints, not functions from other agents. For example, if a class only has `specify`, `plan`, and `decompose`, do NOT block `assist`, `review`, or `write_tests` — those don't exist on this class.
+
+### Toolchains
+A toolchain is a Dagger module designed for direct consumption — install it and use its functions via `dagger call` or `dagger check` without writing any pipeline code. Toolchains are the zero-code consumption path for Dagger modules.
+
+**Installation:**
+```bash
+dagger toolchain install github.com/dagger/jest
+dagger toolchain install github.com/example/toolchain --name mytool
+```
+
+**dagger.json configuration:**
+```json
+{
+  "name": "my-app",
+  "toolchains": [
+    {
+      "name": "acme-backend",
+      "source": "github.com/org/modules/acme-backend@v1.0.0",
+      "customizations": [
+        {
+          "function": ["test"],
+          "argument": "coverage",
+          "default": "false"
+        },
+        {
+          "argument": "source",
+          "defaultPath": "/backend"
+        }
+      ],
+      "ignoreChecks": ["audit"]
+    }
+  ]
+}
+```
+
+**Making modules toolchain-ready:** Add `@check` decorator to validation functions (test, lint, audit) and `DefaultPath(".")` to their source parameter. This makes them discoverable via `dagger check` and auto-injects the project source:
+```python
+@function
+@check
+async def test(
+    self,
+    source: Annotated[dagger.Directory, Doc("Source"), DefaultPath(".")],
+) -> str:
+    ...
+```
+
+**Commands:**
+- `dagger check` — run all active checks from installed toolchains
+- `dagger check -l` — list active checks
+- `dagger check 'toolchain:*'` — pattern-based filtering
+- `dagger call <toolchain> <function>` — call toolchain functions directly
+
+**Two consumption paths:** Teams that need custom orchestration write a `.dagger/` pipeline module (SDK code). Teams following standard patterns install modules as toolchains in `dagger.json` (zero code). Same modules power both paths.
+
+### Checks
+A check is a function that validates code without requiring any mandatory arguments. Checks are the building blocks of `dagger check` — they run in parallel, cache results, and work identically locally and in CI.
+
+**Creating a check:**
+Add `@check` alongside `@function`. The function must not require mandatory arguments (use `DefaultPath(".")` for source directories, defaults for everything else). Optional arguments are allowed for behavioral customization (e.g., severity filters, test selection).
+
+```python
+# Python SDK — @check decorator
+from dagger import DefaultPath, Doc, check, function, object_type
+
+@function
+@check
+async def lint(
+    self,
+    source: Annotated[dagger.Directory, Doc("Source code"), DefaultPath(".")],
+) -> str:
+    """Run linting on the source code."""
+    ...
+
+@function
+@check
+async def test(
+    self,
+    source: Annotated[dagger.Directory, Doc("Source code"), DefaultPath(".")],
+    coverage: Annotated[bool, Doc("Enforce coverage threshold")] = True,
+) -> str:
+    """Run the test suite."""
+    ...
+```
+
+```go
+// Go SDK — +check comment annotation
+// +check
+func (m *MyModule) Lint(ctx context.Context) (string, error) { ... }
+```
+
+```typescript
+// TypeScript SDK — @check() decorator
+@check()
+@func()
+async lint(): Promise<string> { ... }
+```
+
+**Execution model:**
+- `dagger check` runs ALL checks concurrently with full caching and parallelization
+- Exits non-zero if any check fails — CI-friendly
+- Checks are deterministic: same result locally and in CI
+
+**Filtering with glob patterns:**
+```bash
+dagger check              # Run all checks
+dagger check -l           # List available checks
+dagger check lint-*       # Run checks matching a pattern
+dagger check security-*   # Run security-related checks
+dagger check pytest:*     # Run toolchain-namespaced checks
+```
+
+**Ignoring checks:** In `dagger.json`, `ignoreChecks` accepts glob patterns scoped to that toolchain:
+```json
+{
+  "ignoreChecks": ["dependency-scan", "container-*"]
+}
+```
+
+**When to use `@check`:** Any function that validates code quality, security, or standards — tests, linting, audits, vulnerability scans, type checking, formatting checks. Do NOT mark build/deploy/assist functions as checks.
+
 ### CLI Commands
 - `dagger call <function> [args]` — call a module function
 - `dagger functions` — list available functions
 - `dagger develop` — generate SDK bindings
 - `dagger init --sdk=python` — initialize a new module
+- `dagger toolchain install <source>` — install a toolchain
+- `dagger check` — run all toolchain checks
 
 ## Behavioral Guidelines
 

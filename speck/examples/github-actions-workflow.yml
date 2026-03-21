@@ -1,0 +1,207 @@
+# Example GitHub Actions workflow demonstrating Speck integration.
+#
+# This workflow triggers when a GitHub issue is labeled "speck",
+# decomposes the issue into phases with tasks, executes each phase
+# by chaining agents sequentially (impl -> test -> review), and
+# creates one PR per phase with the accumulated changes.
+#
+# Prerequisites:
+# - An LLM API key (e.g. ANTHROPIC_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY)
+# - GitHub token with contents + pull-requests permissions
+# - Optional: DAGGER_CLOUD_TOKEN for Dagger Cloud caching
+
+name: Spec-Driven Development
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  # Step 1: Decompose the issue into phases with tasks
+  decompose:
+    if: github.event.label.name == 'speck'
+    runs-on: ubuntu-latest
+    outputs:
+      result: ${{ steps.speck.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dagger CLI
+        uses: dagger/dagger-for-github@v8
+        with:
+          verb: version
+
+      - name: Decompose issue into phases
+        id: speck
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          RESULT=$(dagger call -m github.com/telchak/daggerverse/speck \
+            --source=. \
+            decompose \
+            --issue-id=${{ github.event.issue.number }} \
+            --repository="https://github.com/${{ github.repository }}" \
+            --github-token=env:GITHUB_TOKEN \
+            --create-pr \
+            --include-tests \
+            --include-review \
+            --agents='[
+              {
+                "name": "monty",
+                "source": "github.com/telchak/daggerverse/monty",
+                "specialization": "Python backend development",
+                "capabilities": ["assist", "review", "write_tests", "build", "upgrade"]
+              },
+              {
+                "name": "angie",
+                "source": "github.com/telchak/daggerverse/angie",
+                "specialization": "Angular/TypeScript frontend development",
+                "capabilities": ["assist", "review", "write_tests", "build", "upgrade"]
+              },
+              {
+                "name": "daggie",
+                "source": "github.com/telchak/daggerverse/daggie",
+                "specialization": "Dagger CI module development",
+                "capabilities": ["assist", "explain", "debug"]
+              }
+            ]' \
+            --tech-stack="Python, FastAPI")
+
+          echo "result=$(echo "$RESULT" | jq -c '.')" >> $GITHUB_OUTPUT
+
+      - name: Post decomposition summary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SPECK_JSON: ${{ steps.speck.outputs.result }}
+        run: |
+          TASK_COUNT=$(echo "$SPECK_JSON" | jq '.total_tasks')
+          PHASES=$(echo "$SPECK_JSON" | jq '.execution_plan.total_phases')
+
+          gh issue comment ${{ github.event.issue.number }} \
+            --body "## Speck Decomposition Complete
+
+          - **Tasks**: $TASK_COUNT
+          - **Phases**: $PHASES
+          - **Status**: Dispatching phases in parallel
+
+          <details>
+          <summary>Full task breakdown</summary>
+
+          \`\`\`json
+          $(echo "$SPECK_JSON" | jq '.')
+          \`\`\`
+          </details>"
+
+  # Step 2: Execute each phase — tasks chained sequentially, phases in parallel
+  execute-phase:
+    needs: decompose
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        phase: ${{ fromJson(needs.decompose.outputs.result).execution_plan.phases }}
+      max-parallel: 3
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dagger CLI
+        uses: dagger/dagger-for-github@v8
+        with:
+          verb: version
+
+      - name: Execute phase ${{ matrix.phase.phase }} — ${{ matrix.phase.name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SPECK_JSON: ${{ needs.decompose.outputs.result }}
+          PHASE_NUM: ${{ matrix.phase.phase }}
+        run: |
+          echo "=== Phase $PHASE_NUM: ${{ matrix.phase.name }} ==="
+
+          # Get tasks for this phase, sorted by order
+          PHASE_TASKS=$(echo "$SPECK_JSON" | jq -c \
+            "[.tasks[] | select(.phase == ($PHASE_NUM | tonumber))] | sort_by(.order)")
+
+          TASK_COUNT=$(echo "$PHASE_TASKS" | jq 'length')
+          echo "Tasks in phase: $TASK_COUNT"
+
+          # Chain tasks: each agent's output becomes the next agent's input
+          for i in $(seq 0 $(( TASK_COUNT - 1 ))); do
+            TASK=$(echo "$PHASE_TASKS" | jq -c ".[$i]")
+            TASK_ID=$(echo "$TASK" | jq -r '.id')
+            TASK_TITLE=$(echo "$TASK" | jq -r '.title')
+            TASK_TYPE=$(echo "$TASK" | jq -r '.task_type')
+            AGENT_SOURCE=$(echo "$TASK" | jq -r '.suggested_agent.source // empty')
+            ENTRYPOINT=$(echo "$TASK" | jq -r '.suggested_agent.entrypoint // "assist"')
+            DESCRIPTION=$(echo "$TASK" | jq -r '.description')
+
+            echo "--- [$TASK_ID] $TASK_TITLE (type=$TASK_TYPE) ---"
+
+            if [ -z "$AGENT_SOURCE" ]; then
+              echo "Skipping: no agent assigned"
+              continue
+            fi
+
+            # Run agent — export changes back to workspace for next task
+            dagger call \
+              -m "$AGENT_SOURCE" \
+              --source=. \
+              "$ENTRYPOINT" \
+              --assignment="$DESCRIPTION" \
+              export --path=.
+
+            echo "[$TASK_ID] completed"
+          done
+
+          echo "=== Phase $PHASE_NUM complete ==="
+
+      - name: Create PR for phase ${{ matrix.phase.phase }}
+        if: matrix.phase.pr_branch != null
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BRANCH: ${{ matrix.phase.pr_branch }}
+          PHASE_NAME: ${{ matrix.phase.name }}
+          PHASE_NUM: ${{ matrix.phase.phase }}
+        run: |
+          # Check if there are any changes to commit
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit for phase $PHASE_NUM"
+            exit 0
+          fi
+
+          # Configure git
+          git config user.name "speck[bot]"
+          git config user.email "speck-bot@users.noreply.github.com"
+
+          # Create branch and commit all accumulated changes
+          git checkout -b "$PR_BRANCH"
+          git add -A
+          git commit -m "Phase $PHASE_NUM: $PHASE_NAME
+
+          Generated by Speck from issue #${{ github.event.issue.number }}"
+
+          # Push and create PR
+          git push origin "$PR_BRANCH"
+          gh pr create \
+            --title "Phase $PHASE_NUM: $PHASE_NAME" \
+            --body "$(cat <<EOF
+## $PHASE_NAME
+
+**Phase**: $PHASE_NUM
+**Issue**: #${{ github.event.issue.number }}
+
+All tasks in this phase were chained sequentially (implement → test → review).
+Changes are accumulated in a single commit.
+
+---
+Generated by [Speck](https://github.com/telchak/daggerverse/tree/main/speck)
+EOF
+          )" \
+            --base main \
+            --head "$PR_BRANCH"
