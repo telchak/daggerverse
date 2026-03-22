@@ -318,8 +318,7 @@ class Speck:
         if issue_id and repository and github_token:
             issue = dag.github_issue(
                 token=github_token,
-                repo=repository,
-            ).read(number=issue_id)
+            ).read(repo=repository, issue_id=issue_id)
             title = await issue.title()
             body = await issue.body()
             return f"# {title}\n\n{body}"
