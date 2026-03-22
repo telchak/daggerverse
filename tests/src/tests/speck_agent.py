@@ -368,13 +368,14 @@ async def test_speck_decompose_with_pipeline(source: dagger.Directory) -> str:
     if "review" not in task_types:
         raise RuntimeError("Expected 'review' tasks when include_review=True, but none found")
 
-    # Verify test tasks use write-tests entrypoint (kebab-case for Dagger CLI)
+    # Verify test tasks use write_tests/write-tests entrypoint
     for task in data["tasks"]:
         if task.get("task_type") == "test" and task.get("suggested_agent"):
-            if task["suggested_agent"].get("entrypoint") != "write-tests":
+            ep = task["suggested_agent"].get("entrypoint", "")
+            if ep.replace("-", "_") != "write_tests":
                 raise RuntimeError(
-                    f"Test task {task['id']} should use 'write-tests' entrypoint, "
-                    f"got '{task['suggested_agent'].get('entrypoint')}'"
+                    f"Test task {task['id']} should use 'write_tests' entrypoint, "
+                    f"got '{ep}'"
                 )
         if task.get("task_type") == "review" and task.get("suggested_agent"):
             if task["suggested_agent"].get("entrypoint") != "review":
