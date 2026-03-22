@@ -299,6 +299,11 @@ jobs:
           FUNC="${{ matrix.test }}"
           ARGS=""
 
+          # Speck tests use Gemini 2.5 Pro for better JSON output reliability
+          if [[ "$FUNC" == "speck-"* ]]; then
+            export GEMINI_MODEL="gemini-2.5-pro"
+          fi
+
           # Check if this agent needs GCP credentials (.agent-gcp marker)
           for agent in $(echo '${{ needs.discover.outputs.agents }}' | jq -r '.[]'); do
             if [[ "$FUNC" == "${agent}-"* ]] && [ -f "$agent/.agent-gcp" ]; then

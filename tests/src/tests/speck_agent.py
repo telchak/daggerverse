@@ -32,13 +32,26 @@ def _clone_realworld() -> dagger.Directory:
 
 
 def _extract_json(raw: str) -> dict:
-    """Parse JSON from raw output, handling markdown fences."""
+    """Parse JSON from raw output, handling common LLM quirks."""
+    text = raw.strip()
+
+    # Strip markdown fences if present
+    match = re.search(r"```(?:json)?[ \t]*\n(.*?)\n```", text, re.DOTALL)
+    if match:
+        text = match.group(1).strip()
+
+    # Extract JSON object if surrounded by prose
+    if not text.startswith("{"):
+        obj_match = re.search(r"\{.*\}", text, re.DOTALL)
+        if obj_match:
+            text = obj_match.group(0)
+
+    # Fix trailing commas (e.g., ",]" or ",}")
+    text = re.sub(r",\s*([}\]])", r"\1", text)
+
     try:
-        return json.loads(raw)
+        return json.loads(text)
     except json.JSONDecodeError:
-        match = re.search(r"```(?:json)?[ \t]*\n(.*?)\n```", raw, re.DOTALL)
-        if match:
-            return json.loads(match.group(1))
         raise RuntimeError(f"Invalid JSON output: {raw[:300]}...")
 
 

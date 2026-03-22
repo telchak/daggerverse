@@ -146,7 +146,9 @@ Within each phase, tasks are chained sequentially — each agent's output become
 ## Rules
 
 - Output MUST be valid JSON — no markdown fences, no prose before or after
-- Every task must have a clear, actionable `description`
+- **JSON safety**: Escape all special characters in string values. Never use literal newlines, tabs, or unescaped double quotes inside JSON strings. Use `\n` for newlines, `\"` for quotes, `\\` for backslashes
+- **Keep descriptions concise**: `description` fields must be under 200 characters. Be direct and specific
+- **Keep titles short**: `title` fields must be under 80 characters
 - `definition_of_done` must contain concrete, verifiable conditions
 - `files_to_modify` should reference actual paths from the plan and codebase
 - `depends_on` must reference task IDs that appear earlier in the list
@@ -163,3 +165,11 @@ Within each phase, tasks are chained sequentially — each agent's output become
 - Each phase's `pr_branch` must be `null` when `create_pr` is `false`
 - Each phase's `pr_branch` must be a valid Git branch name (lowercase, kebab-case, no spaces) when `create_pr` is `true`
 - Each phase must have a unique `pr_branch` value
+
+## CRITICAL: JSON Validity Checklist
+
+Before writing the output, verify:
+1. All string values use escaped quotes (`\"`) not literal quotes
+2. No trailing commas after the last item in arrays or objects
+3. All arrays and objects are properly closed with `]` and `}`
+4. The output is a single, complete JSON object — nothing before or after it
