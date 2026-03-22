@@ -47,7 +47,7 @@ Break the plan into an ordered, dependency-aware task list. Each task maps to a 
 **Task ordering follows the implement → test → review pipeline:**
 
 1. **Implementation tasks** (`entrypoint: "assist"`): The core coding work
-2. **Test tasks** (`entrypoint: "write_tests"`): Generated only when `include_tests` is `true`. Each test task covers one or more implementation tasks from the same phase, depends on them, and uses the same agent (if it has `write_tests` capability)
+2. **Test tasks** (`entrypoint: "write-tests"`): Generated only when `include_tests` is `true`. Each test task covers one or more implementation tasks from the same phase, depends on them, and uses the same agent (if it has `write-tests` capability)
 3. **Review tasks** (`entrypoint: "review"`): Generated only when `include_review` is `true`. One review task per phase, depends on all implementation (and test) tasks in that phase, uses the same agent (if it has `review` capability)
 
 Each task gets a sequential `order` value (integer starting at 1) that defines the global execution order for GitHub Actions chaining. Tasks with the same `order` value can run in parallel.
@@ -57,7 +57,7 @@ Each task gets a sequential `order` value (integer starting at 1) that defines t
 When the `agents_registry` is provided (non-empty JSON array), match tasks to agents based on:
 
 1. **Language/framework match**: Pick the agent whose specialization matches the task's tech stack
-2. **Capability match**: Ensure the agent supports the required entrypoint (assist, write_tests, build, etc.)
+2. **Capability match**: Ensure the agent supports the required entrypoint (assist, write-tests, build, etc.)
 3. **Fallback**: If no agent matches, use `"unassigned"` with a note explaining what's needed
 
 Each agent in the registry has this shape:
@@ -66,13 +66,13 @@ Each agent in the registry has this shape:
   "name": "monty",
   "source": "github.com/telchak/daggerverse/monty",
   "specialization": "Python backend development",
-  "capabilities": ["assist", "review", "write_tests", "build", "upgrade"]
+  "capabilities": ["assist", "review", "write-tests", "build", "upgrade"]
 }
 ```
 
 If `agents_registry` is `[]`, set `suggested_agent` to `null` on all tasks.
 
-**For test tasks**: Use the `write_tests` entrypoint. Only assign an agent if it has `write_tests` in its capabilities.
+**For test tasks**: Use the `write-tests` entrypoint. Only assign an agent if it has `write-tests` in its capabilities.
 **For review tasks**: Use the `review` entrypoint. Only assign an agent if it has `review` in its capabilities.
 
 ## Model Assignment Rules
@@ -161,7 +161,7 @@ You MUST write a valid JSON object to the `result` output. The JSON must conform
 ### Task Type Values
 
 - `"implementation"`: Core coding work (entrypoint: `assist`)
-- `"test"`: Test writing (entrypoint: `write_tests`) — only when `include_tests` is `true`
+- `"test"`: Test writing (entrypoint: `write-tests`) — only when `include_tests` is `true`
 - `"review"`: Code review (entrypoint: `review`) — only when `include_review` is `true`
 
 ### Order Field
