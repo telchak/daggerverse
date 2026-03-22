@@ -137,6 +137,7 @@ class Angie:
     async def review(
         self,
         source: Annotated[dagger.Directory | None, Doc("Source directory to review (uses constructor source if omitted)")] = None,
+        assignment: Annotated[str, Doc("What to review — task description from a CI orchestrator (optional)")] = "",
         diff: Annotated[str, Doc("Git diff or PR diff to review (optional)")] = "",
         focus: Annotated[str, Doc("Specific area to focus the review on (optional)")] = "",
     ) -> str:
@@ -151,6 +152,8 @@ class Angie:
             .with_workspace(ws)
             .with_string_output("result", "The code review result")
         )
+        if assignment:
+            env = env.with_string_input("assignment", assignment, "Task description for this review")
         if diff:
             env = env.with_string_input("diff", diff, "Git diff or PR diff to review")
         if focus:
@@ -162,6 +165,7 @@ class Angie:
     async def write_tests(
         self,
         source: Annotated[dagger.Directory | None, Doc("Source directory (uses constructor source if omitted)")] = None,
+        assignment: Annotated[str, Doc("What to test — task description from a CI orchestrator (optional)")] = "",
         target: Annotated[str, Doc("Specific file or component to write tests for (optional)")] = "",
         test_framework: Annotated[str, Doc("Test framework preference: 'jest', 'karma', 'vitest' (optional)")] = "",
     ) -> dagger.Directory:
@@ -172,6 +176,8 @@ class Angie:
         """
         ws = source or self.source
         env = dag.env().with_workspace(ws)
+        if assignment:
+            env = env.with_string_input("assignment", assignment, "Task description for test generation")
         if target:
             env = env.with_string_input("target", target, "Specific file or component to write tests for")
         if test_framework:
