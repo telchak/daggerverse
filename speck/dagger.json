@@ -1,6 +1,6 @@
 {
-  "name": "angie",
-  "description": "AI-powered Angular development agent with MCP integration",
+  "name": "speck",
+  "description": "AI-powered spec-driven development agent that decomposes prompts and GitHub issues into structured, agent-assignable task lists",
   "engineVersion": "v0.20.3",
   "sdk": {
     "source": "python"
@@ -9,10 +9,6 @@
     "../_agent_base"
   ],
   "dependencies": [
-    {
-      "name": "angular",
-      "source": "../angular"
-    },
     {
       "name": "github-issue",
       "source": "github.com/kpenfound/dag/github-issue@b316e472d3de5bb0e54fe3991be68dc85e33ef38",

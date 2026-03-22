@@ -1,7 +1,7 @@
 {
   "name": "daggie",
   "description": "AI-powered Dagger CI specialist agent for creating, explaining, and debugging Dagger modules and pipelines",
-  "engineVersion": "v0.20.0",
+  "engineVersion": "v0.20.3",
   "sdk": {
     "source": "python"
   },

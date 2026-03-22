@@ -32,7 +32,8 @@ Diagnose and fix the pipeline error described in the **error_output** input.
 
 - **"module not found"**: Check `dagger.json` dependencies and `include` paths
 - **"class not exported"**: Ensure `__init__.py` imports and exports the main class
-- **"function not found"**: Verify `@function` decorator and proper type annotations
+- **"function not found"**: Verify `@function` decorator and proper type annotations. If from `with_blocked_function` in an LLM agent, the blocked function must actually exist on the class — remove any blocked function names that don't exist as methods
+- **"function 'X' not found on type 'Y'"**: Often caused by `with_blocked_function` referencing a function from another agent class. Each agent should only block its own entrypoints
 - **"container exec failed"**: Check base image, installed packages, and command syntax
 - **"secret required"**: Use `dagger.Secret` type instead of `str` for sensitive values
 

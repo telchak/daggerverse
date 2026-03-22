@@ -43,6 +43,14 @@ from .python_build_module import (
     test_python_build_install,
     test_python_build_lint,
 )
+from .speck_agent import (
+    _clone_realworld as _clone_speck_realworld,
+    test_speck_decompose,
+    test_speck_decompose_with_pipeline,
+    test_speck_decompose_with_pr,
+    test_speck_plan,
+    test_speck_specify,
+)
 from .dagger_agent import (
     test_dagger_mcp_server,
     test_daggie_assist,
@@ -416,6 +424,108 @@ class Tests:
         if source is None:
             source = _clone_python_realworld()
         return await test_monty_upgrade_dry_run(source=source)
+
+    # ========== SPECK (SPEC-DRIVEN DEV AGENT) TESTS ==========
+
+    @function
+    async def speck(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Project source (defaults to FastAPI RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run all Speck (spec-driven development agent) tests sequentially.
+
+        Clones the FastAPI RealWorld example app and runs the SDD pipeline
+        against it. Pass --source to test against a different project.
+        """
+        if source is None:
+            source = _clone_speck_realworld()
+
+        results = []
+
+        results.append("=== Specify ===")
+        results.append(await test_speck_specify(source=source))
+
+        results.append("\n=== Plan ===")
+        results.append(await test_speck_plan(source=source))
+
+        results.append("\n=== Decompose ===")
+        results.append(await test_speck_decompose(source=source))
+
+        results.append("\n=== Decompose (with pipeline) ===")
+        results.append(await test_speck_decompose_with_pipeline(source=source))
+
+        results.append("\n=== Decompose (with PR) ===")
+        results.append(await test_speck_decompose_with_pr(source=source))
+
+        return "\n".join(results)
+
+    @function
+    async def speck_specify(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Project source (defaults to FastAPI RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Speck specify test."""
+        if source is None:
+            source = _clone_speck_realworld()
+        return await test_speck_specify(source=source)
+
+    @function
+    async def speck_plan(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Project source (defaults to FastAPI RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Speck plan test."""
+        if source is None:
+            source = _clone_speck_realworld()
+        return await test_speck_plan(source=source)
+
+    @function
+    async def speck_decompose(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Project source (defaults to FastAPI RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Speck decompose test."""
+        if source is None:
+            source = _clone_speck_realworld()
+        return await test_speck_decompose(source=source)
+
+    @function
+    async def speck_decompose_with_pipeline(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Project source (defaults to FastAPI RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Speck decompose test with include_tests and include_review."""
+        if source is None:
+            source = _clone_speck_realworld()
+        return await test_speck_decompose_with_pipeline(source=source)
+
+    @function
+    async def speck_decompose_with_pr(
+        self,
+        source: Annotated[
+            dagger.Directory | None,
+            Doc("Project source (defaults to FastAPI RealWorld example app)"),
+        ] = None,
+    ) -> str:
+        """Run Speck decompose test with create_pr enabled."""
+        if source is None:
+            source = _clone_speck_realworld()
+        return await test_speck_decompose_with_pr(source=source)
 
     @function
     async def all_no_credentials(self) -> str:

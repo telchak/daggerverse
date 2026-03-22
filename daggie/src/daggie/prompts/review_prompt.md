@@ -47,6 +47,12 @@ Review the Dagger module source code for quality, best practices, and potential 
 - Follows idiomatic patterns for the SDK language
 - Proper async/await usage (Python)
 - Correct decorator usage (`@object_type`, `@function`)
+- If using `with_blocked_function` (LLM agents): verify every blocked function name actually exists as a method on the class — blocking a non-existent function causes a hard runtime error
+
+### Toolchain Readiness
+- Validation functions (test, lint, audit) should have `@check` decorator for `dagger check` discoverability
+- Source parameters on check functions should use `DefaultPath(".")` for zero-config toolchain consumption
+- Check if the module could serve as a toolchain (installed via `dagger toolchain install` with no SDK code)
 
 ## Approach
 

@@ -1,6 +1,6 @@
 {
   "name": "tests",
-  "engineVersion": "v0.20.0",
+  "engineVersion": "v0.20.3",
   "sdk": {
     "source": "python"
   },
@@ -68,6 +68,10 @@
     {
       "name": "daggie",
       "source": "../daggie"
+    },
+    {
+      "name": "speck",
+      "source": "../speck"
     }
   ]
 }
