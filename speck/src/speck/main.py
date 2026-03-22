@@ -9,6 +9,8 @@ The structured JSON output is designed for consumption by GitHub Actions
 workflows to dynamically dispatch sub-agents (Monty, Angie, Daggie, etc.).
 """
 
+import json
+import re
 from typing import Annotated
 
 import dagger
@@ -34,6 +36,36 @@ _MODEL_FAMILIES: dict[str, dict[str, str]] = {
         "high": "o3",
     },
 }
+
+
+def _extract_and_validate_json(raw: str) -> str:
+    """Extract and validate JSON from LLM output.
+
+    Handles common LLM output issues:
+    - Markdown fences wrapping the JSON
+    - Trailing commas before ] or }
+    - Text before/after the JSON object
+    Returns the cleaned, valid JSON string.
+    """
+    text = raw.strip()
+
+    # Strip markdown fences if present
+    match = re.search(r"```(?:json)?[ \t]*\n(.*?)\n```", text, re.DOTALL)
+    if match:
+        text = match.group(1).strip()
+
+    # Extract the JSON object if surrounded by prose
+    if not text.startswith("{"):
+        obj_match = re.search(r"\{.*\}", text, re.DOTALL)
+        if obj_match:
+            text = obj_match.group(0)
+
+    # Fix trailing commas (e.g., ",]" or ",}")
+    text = re.sub(r",\s*([}\]])", r"\1", text)
+
+    # Validate
+    json.loads(text)
+    return text
 
 
 def _format_model_table(family: dict[str, str]) -> str:
@@ -183,7 +215,8 @@ class Speck:
         if tech_stack:
             env = env.with_string_input("tech_stack", tech_stack, "Tech stack preferences")
         work = await self._build_llm(env, "decompose_prompt.md")
-        return await llm_helpers.get_result_or_last_reply(work)
+        raw = await llm_helpers.get_result_or_last_reply(work)
+        return _extract_and_validate_json(raw)
 
     @function
     async def decompose_from_spec(
@@ -220,7 +253,8 @@ class Speck:
             .with_string_output("result", "Structured JSON task decomposition")
         )
         work = await self._build_llm(env, "decompose_from_spec_prompt.md")
-        return await llm_helpers.get_result_or_last_reply(work)
+        raw = await llm_helpers.get_result_or_last_reply(work)
+        return _extract_and_validate_json(raw)
 
     # --- Workspace tools ---
 

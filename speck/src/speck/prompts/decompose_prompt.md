@@ -196,7 +196,9 @@ Example: `speck/user-auth/phase-1-setup`, `speck/user-auth/phase-2-core-feature`
 ## Rules
 
 - Output MUST be valid JSON — no markdown fences, no prose before or after
-- Every task must have a clear, actionable `description` — an LLM should be able to complete it without asking questions
+- **JSON safety**: Escape all special characters in string values. Never use literal newlines, tabs, or unescaped double quotes inside JSON strings. Use `\n` for newlines, `\"` for quotes, `\\` for backslashes
+- **Keep descriptions concise**: `description` fields must be under 200 characters. Be direct and specific — an LLM should be able to complete the task without asking questions
+- **Keep titles short**: `title` fields must be under 80 characters
 - `definition_of_done` must contain concrete, verifiable conditions (not vague statements)
 - `files_to_modify` should reference actual paths based on your codebase exploration
 - `depends_on` must reference task IDs that appear earlier in the list
@@ -214,3 +216,11 @@ Example: `speck/user-auth/phase-1-setup`, `speck/user-auth/phase-2-core-feature`
 - Each phase's `pr_branch` must be `null` when `create_pr` is `false`
 - Each phase's `pr_branch` must be a valid Git branch name (lowercase, kebab-case, no spaces) when `create_pr` is `true`
 - Each phase must have a unique `pr_branch` value
+
+## CRITICAL: JSON Validity Checklist
+
+Before writing the output, verify:
+1. All string values use escaped quotes (`\"`) not literal quotes
+2. No trailing commas after the last item in arrays or objects
+3. All arrays and objects are properly closed with `]` and `}`
+4. The output is a single, complete JSON object — nothing before or after it
