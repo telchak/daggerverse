@@ -28,7 +28,7 @@ def _extract_json(raw: str) -> dict:
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
-        match = re.search(r"```(?:json)?\s*\n(.*?)\n```", raw, re.DOTALL)
+        match = re.search(r"```(?:json)?[ \t]*\n(.*?)\n```", raw, re.DOTALL)
         if match:
             return json.loads(match.group(1))
         raise RuntimeError(f"Invalid JSON output: {raw[:300]}...")
