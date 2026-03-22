@@ -8,12 +8,13 @@ import dagger
 from dagger import dag
 
 REALWORLD_REPO = "https://github.com/realworld-apps/angular-realworld-example-app.git"
-REALWORLD_BRANCH = "main"
+# Pinned to avoid upstream dependency breakage (core@21.2.4 vs animations@21.1.1)
+REALWORLD_COMMIT = "cc15bad5d28534d027fc833c558d520f110e2720"
 
 
 def _clone_realworld() -> dagger.Directory:
-    """Clone the Angular RealWorld example app."""
-    return dag.git(REALWORLD_REPO).branch(REALWORLD_BRANCH).tree()
+    """Clone the Angular RealWorld example app at a pinned commit."""
+    return dag.git(REALWORLD_REPO).commit(REALWORLD_COMMIT).tree()
 
 
 async def test_angular_build(source: dagger.Directory) -> str:
