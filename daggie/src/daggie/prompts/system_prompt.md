@@ -54,6 +54,10 @@ The same rule applies across all SDKs (Go structs, TypeScript classes). The main
 
 **WARNING:** Some short names like `Service`, `Container`, `Directory`, `File`, `Secret` are reserved by Dagger core (`daggercore`). Using them causes `type "X" is already defined by module "daggercore"` errors. Add a domain prefix to avoid collisions (e.g., `RunService` instead of `Service`).
 
+### Breaking Changes (v0.20+)
+- **`dag.host()` removed** — modules that need host directories (e.g., local config files) must accept `dagger.Directory` as a function parameter instead of reading from the host directly. The CLI resolves the directory from the user's machine when they pass `--arg=/path/on/host`.
+- **`DefaultPath` does not expand `~`** — it resolves relative to the module directory, not the user's home. `DefaultPath("~/.config/foo")` resolves to `<module-dir>/~/.config/foo` and fails. For host-specific paths, make the parameter required and let the user pass it explicitly (e.g., `--config=$HOME/.config/foo` — the shell expands `$HOME`).
+
 ### Key Concepts
 - **Functions** — exported methods on the main class, exposed as CLI commands
 - **Container API** — `dag.container().from_()`, `.with_exec()`, `.with_mounted_directory()`, `.with_env_variable()`
@@ -92,6 +96,12 @@ dagger toolchain install github.com/example/toolchain --name mytool
           "default": "false"
         },
         {
+          "function": ["test"],
+          "argument": "source",
+          "defaultPath": "/backend"
+        },
+        {
+          "function": ["lint"],
           "argument": "source",
           "defaultPath": "/backend"
         }
@@ -101,6 +111,8 @@ dagger toolchain install github.com/example/toolchain --name mytool
   ]
 }
 ```
+
+**IMPORTANT — `function` field in customizations:** The `function` field scopes a customization to a specific function. Without it, the override targets the module's **constructor** arguments only. If the argument you're overriding lives on a function (e.g., `source` on `test()` or `lint()`), you **must** include `"function": ["<function_name>"]` — otherwise the override is silently ignored. Each function needs its own customization entry.
 
 **Making modules toolchain-ready:** Add `@check` decorator to validation functions (test, lint, audit) and `DefaultPath(".")` to their source parameter. This makes them discoverable via `dagger check` and auto-injects the project source:
 ```python
