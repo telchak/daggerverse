@@ -173,32 +173,37 @@ class GcpAuth:
     def gcloud_container_from_host(
         self,
         project_id: Annotated[str, Doc("GCP project ID")],
+        gcloud_config: Annotated[
+            dagger.Directory,
+            Doc("Host gcloud config directory (typically ~/.config/gcloud)"),
+        ],
         region: Annotated[str, Doc("Default GCP region")] = "us-central1",
         image: Annotated[str, Doc("Google Cloud SDK image")] = _GCLOUD_SDK_IMAGE,
         components: Annotated[list[str] | None, Doc("Additional gcloud components")] = None,
-        gcloud_config_path: Annotated[str, Doc("Path to gcloud config on host")] = "",
     ) -> dagger.Container:
-        """Create authenticated gcloud SDK container using ADC from host."""
-        container = create_base_gcloud_container(image)
+        """Create authenticated gcloud SDK container using ADC from host.
 
-        if not gcloud_config_path:
-            gcloud_config_dir = dag.host().directory(
-                path="~/.config/gcloud",
-                exclude=["logs/", "legacy_credentials/", "credentials.db"],
-            )
-        else:
-            gcloud_config_dir = dag.host().directory(path=gcloud_config_path)
+        Pass your local gcloud config directory for local development.
+        When called from the CLI, it defaults to ~/.config/gcloud automatically.
+        """
+        container = create_base_gcloud_container(image)
 
         container = (
             container
-            .with_directory("/root/.config/gcloud", gcloud_config_dir)
+            .with_directory("/root/.config/gcloud", gcloud_config)
             .with_env_variable(
                 "GOOGLE_APPLICATION_CREDENTIALS",
                 "/root/.config/gcloud/application_default_credentials.json",
             )
+            .with_env_variable(
+                "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE",
+                "/root/.config/gcloud/application_default_credentials.json",
+            )
+            .with_env_variable("CLOUDSDK_CORE_PROJECT", project_id)
+            .with_env_variable("CLOUDSDK_COMPUTE_REGION", region)
+            .with_env_variable("CLOUDSDK_COMPUTE_ZONE", f"{region}-a")
         )
 
-        container = configure_gcloud_project(container, project_id, region)
         return install_gcloud_components(container, components)
 
     # ========== ACCESS TOKENS ==========
