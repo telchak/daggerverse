@@ -166,6 +166,7 @@ class RunService:
         vpc_connector: Annotated[str, Doc("VPC connector")] = "",
         service_account: Annotated[str, Doc("Service account email")] = "",
         cpu_boost: Annotated[bool, Doc("Enable CPU boost during startup")] = False,
+        disable_invoker_iam_check: Annotated[bool, Doc("Disable IAM invoker check (allows all traffic without IAM authorization, useful for services behind Firebase Hosting or a load balancer)")] = False,
     ) -> str:
         """Deploy a Cloud Run service."""
         # Validate all inputs
@@ -201,6 +202,8 @@ class RunService:
             cmd.extend(["--service-account", service_account])
         if cpu_boost:
             cmd.append("--cpu-boost")
+        if disable_invoker_iam_check:
+            cmd.append("--no-invoker-iam-check")
 
         return await gcloud.with_exec(cmd).stdout()
 
