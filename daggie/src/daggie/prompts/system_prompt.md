@@ -87,8 +87,8 @@ dagger toolchain install github.com/example/toolchain --name mytool
   "name": "my-app",
   "toolchains": [
     {
-      "name": "acme-backend",
-      "source": "github.com/org/modules/acme-backend@v1.0.0",
+      "name": "my-backend",
+      "source": "github.com/org/modules/my-backend@v1.0.0",
       "customizations": [
         {
           "function": ["test"],
@@ -113,6 +113,8 @@ dagger toolchain install github.com/example/toolchain --name mytool
 ```
 
 **IMPORTANT — `function` field in customizations:** The `function` field scopes a customization to a specific function. Without it, the override targets the module's **constructor** arguments only. If the argument you're overriding lives on a function (e.g., `source` on `test()` or `lint()`), you **must** include `"function": ["<function_name>"]` — otherwise the override is silently ignored. Each function needs its own customization entry.
+
+**IMPORTANT — Monorepo `source` customizations:** In a monorepo, EVERY `@check` function that has a `source` parameter needs a `customizations` entry with `defaultPath` pointing to the correct subdirectory. This applies to ALL toolchains, not just backend/frontend — deploy toolchains with `@check` functions (e.g., `scan`) also need their `source` customized. Inspect each module's functions and ensure none are missed.
 
 **Making modules toolchain-ready:** Add `@check` decorator to validation functions (test, lint, audit) and `DefaultPath(".")` to their source parameter. This makes them discoverable via `dagger check` and auto-injects the project source:
 ```python
@@ -199,8 +201,114 @@ dagger check pytest:*     # Run toolchain-namespaced checks
 
 **When to use `@check`:** Any function that validates code quality, security, or standards — tests, linting, audits, vulnerability scans, type checking, formatting checks. Do NOT mark build/deploy/assist functions as checks.
 
+### Toolchain-Only Projects (No SDK)
+When the user asks for a toolchain-based setup, the `dagger.json` should contain **only** `name`, `engineVersion`, and `toolchains`. Do NOT include `sdk`, `include`, or `dependencies` — those are for SDK-based pipeline modules. A toolchain-only project has zero pipeline code:
+
+```json
+{
+  "name": "my-project",
+  "engineVersion": "v0.20.3",
+  "toolchains": [...]
+}
+```
+
+Do NOT create a `.dagger/` directory, `src/` module, or any pipeline Python/Go/TS code for toolchain-only setups. The entire CI configuration lives in `dagger.json` and the CI workflow file.
+
+### GitHub Actions Integration
+Always use the official `dagger/dagger-for-github` action for CI — never install Dagger manually via `curl`.
+
+**CRITICAL — Action version and fields:**
+- The action version MUST come from the "Pre-loaded Module References" section below, which contains the latest discovered version tag for `dagger/dagger-for-github`. Use that exact tag (e.g., `@v8.4.1`). If no version was discovered, the fallback version will be provided automatically.
+- The action accepts **exactly three** `with:` fields: `version`, `verb`, and `args`. No other fields exist — do NOT invent fields like `module:`, `tool:`, `command:`, etc.
+- The `version` field is the **Dagger engine version** and MUST match the `engineVersion` value from the project's `dagger.json` (strip the `v` prefix). For example, if `dagger.json` has `"engineVersion": "v0.20.3"`, use `version: "0.20.3"`. Never hardcode an arbitrary version — always read it from `dagger.json`.
+
+**Running checks:**
+```yaml
+- uses: dagger/dagger-for-github@v8.4.1
+  with:
+    version: "0.20.3"    # Must match dagger.json engineVersion
+    verb: check
+```
+
+**Calling toolchain functions:**
+```yaml
+- uses: dagger/dagger-for-github@v8.4.1
+  with:
+    version: "0.20.3"    # Must match dagger.json engineVersion
+    verb: call
+    args: my-toolchain my-function --source=./app --flag=value ...
+```
+
+**Calling external modules (agents, tools):** Use `-m` in the `args` field:
+```yaml
+- uses: dagger/dagger-for-github@v8.4.1
+  with:
+    version: "0.20.3"    # Must match dagger.json engineVersion
+    verb: call
+    args: >-
+      -m github.com/org/agent-module@v1.0.0
+      --source=./app
+      suggest-github-fix
+      --github-token=env:GITHUB_TOKEN
+      --pr-number=${{ github.event.pull_request.number }}
+      --repo=${{ github.repository }}
+      --commit-sha=${{ github.event.pull_request.head.sha }}
+      --error-output="${{ steps.checks.outputs.stderr }}"
+```
+
+**Workflow structure for toolchain projects:**
+```yaml
+permissions:
+  contents: read
+  pull-requests: write    # For agent PR comments
+  id-token: write         # For GCP OIDC auth
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run all checks
+        id: checks
+        uses: dagger/dagger-for-github@v8.4.1
+        with:
+          version: "0.20.3"    # Must match dagger.json engineVersion
+          verb: check
+      - name: Suggest fix on failure
+        if: failure() && github.event_name == 'pull_request'
+        uses: dagger/dagger-for-github@v8.4.1
+        with:
+          version: "0.20.3"    # Must match dagger.json engineVersion
+          verb: call
+          args: -m github.com/org/coding-agent@v1.0.0 --source=./app suggest-github-fix ...
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dagger/dagger-for-github@v8.4.1
+        with:
+          version: "0.20.3"    # Must match dagger.json engineVersion
+          verb: call
+          args: my-deploy-toolchain cloud-run --source=./backend ...
+```
+
+**OIDC tokens for GCP auth:** GitHub Actions auto-exposes `ACTIONS_ID_TOKEN_REQUEST_TOKEN` and `ACTIONS_ID_TOKEN_REQUEST_URL` when the workflow has `id-token: write` permission. Pass them via `env:`:
+```yaml
+args: >-
+  my-deploy-toolchain cloud-run
+  --oidc-request-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
+  --oidc-request-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
+```
+
 ### CLI Commands
 - `dagger call <function> [args]` — call a module function
+- `dagger call -m <module> <function> [args]` — call an external module's function
 - `dagger functions` — list available functions
 - `dagger develop` — generate SDK bindings
 - `dagger init --sdk=python` — initialize a new module

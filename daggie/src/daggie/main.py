@@ -8,6 +8,7 @@ from dagger import DefaultPath, Doc, dag, field, function, object_type
 from agent_base import constants, github_tools, llm_helpers, routing, workspace
 
 _DAGGER_CONFIG_FILE = "DAGGER.md"
+_DAGGER_ACTION_FALLBACK_VERSION = "v8.4.1"
 
 # File patterns to read from cloned Dagger modules
 _MODULE_SOURCE_GLOBS = [
@@ -39,6 +40,26 @@ def _parse_module_url(url: str) -> tuple[str, str, str]:
     return repo_url, branch, path
 
 
+async def _fetch_repo_tags(repo_url: str) -> list[str]:
+    """Fetch all Git tags from a remote repository via git ls-remote."""
+    try:
+        output = await (
+            dag.container()
+            .from_("alpine/git:latest")
+            .with_exec(["git", "ls-remote", "--tags", "--refs", repo_url])
+            .stdout()
+        )
+        # Parse "sha\trefs/tags/tag-name" lines → ["tag-name", ...]
+        tags = []
+        for line in output.strip().splitlines():
+            if "\trefs/tags/" in line:
+                tag = line.split("refs/tags/", 1)[1]
+                tags.append(tag)
+        return sorted(tags)
+    except Exception:
+        return []
+
+
 async def _read_module_tree(tree: dagger.Directory) -> str:
     """Read key files from a cloned Dagger module and return formatted docs."""
     sections = []
@@ -65,8 +86,9 @@ class Daggie:
     Specializes in creating, explaining, and debugging Dagger CI modules
     and pipelines across all SDKs (Python, TypeScript, Go, Java).
 
-    Accepts Git URLs of Dagger modules at runtime, clones them via dag.git(),
-    reads their source code, and uses that knowledge to propose implementations.
+    Accepts Git URLs of Dagger module repositories at runtime, clones them via
+    dag.git(), and auto-discovers all modules within (by finding dagger.json files).
+    You can also point to a specific module with the url#branch:path format.
 
     Pass your project as --source and optionally reference Dagger modules via
     --module-urls for the agent to learn from.
@@ -79,7 +101,9 @@ class Daggie:
     ] = field()
     module_urls: Annotated[
         list[str],
-        Doc("Git URLs of Dagger modules to clone and read for reference (e.g. 'https://github.com/org/repo.git#main:path/to/module')"),
+        Doc("Git URLs of Dagger module repositories to clone and read for reference. "
+            "Points to a repo root to auto-discover all modules (e.g. 'https://github.com/org/modules.git'), "
+            "or to a specific module with 'url#branch:path' (e.g. 'https://github.com/org/repo.git#main:my-module')"),
     ] = field(default=list)
     self_improve: Annotated[
         str,
@@ -126,7 +150,15 @@ class Daggie:
         return dag.current_module().source().file(f"src/daggie/prompts/{filename}")
 
     async def _load_module_sources(self) -> str:
-        """Clone and read all referenced Dagger modules."""
+        """Clone and read all referenced Dagger modules.
+
+        When a URL points to a repository root (no path), auto-discovers
+        all Dagger modules by finding dagger.json files in the tree.
+        When a URL includes a path, reads only that specific module.
+
+        Also fetches Git tags from each repository so the agent knows
+        available versions for toolchain/dependency pinning.
+        """
         if not self.module_urls:
             return ""
 
@@ -135,14 +167,48 @@ class Daggie:
             try:
                 repo_url, branch, path = _parse_module_url(url)
                 tree = dag.git(repo_url).branch(branch).tree()
-                if path:
-                    tree = tree.directory(path)
 
-                module_docs = await _read_module_tree(tree)
-                if module_docs:
-                    sections.append(f"## Reference Module: {url}\n\n{module_docs}")
+                # Fetch available version tags from the repository
+                tags = await _fetch_repo_tags(repo_url)
+                tags_section = ""
+                if tags:
+                    tags_section = "\n\n### Available version tags\n```\n" + "\n".join(tags) + "\n```"
+
+                if path:
+                    # Explicit path — read that single module
+                    module_tree = tree.directory(path)
+                    module_docs = await _read_module_tree(module_tree)
+                    if module_docs:
+                        sections.append(f"## Reference Module: {url} ({path})\n\n{module_docs}{tags_section}")
+                else:
+                    # No path — auto-discover all modules in the repo
+                    dagger_jsons = await tree.glob("**/dagger.json")
+                    # Add tags once at the repo level, before individual modules
+                    if tags_section:
+                        sections.append(f"## Repository: {repo_url}{tags_section}")
+                    for dj_path in dagger_jsons:
+                        module_dir = "/".join(dj_path.split("/")[:-1]) if "/" in dj_path else ""
+                        module_tree = tree.directory(module_dir) if module_dir else tree
+                        module_docs = await _read_module_tree(module_tree)
+                        if module_docs:
+                            label = module_dir or repo_url
+                            sections.append(f"## Reference Module: {label}\n\n{module_docs}")
             except Exception as exc:
                 sections.append(f"## Reference Module: {url}\n\n*Failed to clone: {exc}*")
+
+        # Fetch latest dagger-for-github action version
+        action_tags = await _fetch_repo_tags("https://github.com/dagger/dagger-for-github.git")
+        action_version = _DAGGER_ACTION_FALLBACK_VERSION
+        if action_tags:
+            # Filter to vN.N.N tags (ignore pre-releases, rc, etc.)
+            version_tags = [t for t in action_tags if t.startswith("v") and t.count(".") == 2 and all(p.isdigit() for p in t[1:].split("."))]
+            if version_tags:
+                action_version = version_tags[-1]  # sorted, last = latest
+        sections.append(
+            f"## GitHub Action: dagger/dagger-for-github\n\n"
+            f"Latest stable version tag: **{action_version}**\n"
+            f"Use `dagger/dagger-for-github@{action_version}` in all workflow files."
+        )
 
         if not sections:
             return ""
@@ -211,14 +277,24 @@ class Daggie:
     @function
     async def assist(
         self,
-        assignment: Annotated[str, Doc("What you want the agent to do (e.g. 'Create a Dagger pipeline for building and testing a Python project')")],
+        assignment: Annotated[str, Doc("What you want the agent to do (e.g. 'Create a Dagger pipeline for building and testing a Python project')")] = "",
+        assignment_file: Annotated[dagger.File | None, Doc("File containing the assignment instructions (used if --assignment is not set)")] = None,
         source: Annotated[dagger.Directory | None, Doc("Override source directory (uses constructor source if omitted)")] = None,
     ) -> dagger.Directory:
         """Create Dagger pipelines and modules, implement features.
 
         Reads reference modules, understands your project, and implements
         Dagger CI pipelines. Returns the modified workspace directory.
+
+        Provide instructions via --assignment (takes precedence) or
+        --assignment-file for longer/structured prompts.
         """
+        if not assignment and assignment_file:
+            assignment = await assignment_file.contents()
+        if not assignment:
+            msg = "Provide either --assignment or --assignment-file"
+            raise ValueError(msg)
+
         ws = source or self.source
         env = (
             dag.env()
