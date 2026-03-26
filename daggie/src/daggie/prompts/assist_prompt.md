@@ -19,7 +19,27 @@ Accomplish the coding task described in the **assignment** input.
    - Any helper modules or utilities
 5. **Verify**: Read back modified files to confirm correctness
 
-## Dagger Module Checklist
+## Choosing the Right Approach
+
+Determine whether the assignment calls for:
+
+**A) Toolchain-only setup** (keywords: "toolchains", "dagger check", "zero code", "no pipeline code"):
+- Generate `dagger.json` with `toolchains` array only — NO `sdk`, `include`, or `dependencies` fields
+- Set `engineVersion` from the reference modules' `dagger.json` (use the latest version seen)
+- For monorepos: add `customizations` with `defaultPath` for EVERY `@check` function's `source` param on EVERY toolchain — including deploy modules with `scan` checks. Do NOT skip any toolchain.
+- Generate `.github/workflows/ci.yml` using the `dagger/dagger-for-github` action at the version discovered in the "Pre-loaded Module References" section
+- The action only accepts `version`, `verb`, and `args` fields — no other fields exist
+- Use the `engineVersion` from `dagger.json` (without `v` prefix) as the `version` field
+- Do NOT create `.dagger/`, `src/`, or any pipeline code
+- Call external agents via `-m` in CI workflow `args` field, not as local functions
+
+**B) SDK pipeline module** (keywords: "pipeline", "orchestrate", "custom logic"):
+- Generate `.dagger/` module with `dagger.json` containing `sdk` and `dependencies`
+- Write pipeline code with `@object_type`, `@function` decorators
+
+If the assignment mentions toolchains, always use approach A.
+
+## Dagger Module Checklist (approach B only)
 
 When creating a new module, ensure:
 - [ ] `dagger.json` has correct `name`, `sdk`, `engineVersion`
