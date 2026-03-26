@@ -85,7 +85,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Restore Dagger engine cache
-        uses: BYK/docker-volume-cache-action/restore@be89365902126f508dcae387a32ec3712df6b1cd # v1
+        uses: BYK/docker-volume-cache-action/restore@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
           key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-validate
           restore-keys: |
@@ -153,7 +153,7 @@ jobs:
 
       - name: Save Dagger engine cache
         if: always() && github.ref == 'refs/heads/main'
-        uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
+        uses: BYK/docker-volume-cache-action/save@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
           key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-validate
           volumes: dagger-engine
@@ -174,7 +174,7 @@ jobs:
           fetch-depth: 0
 
       - name: Restore Dagger engine cache
-        uses: BYK/docker-volume-cache-action/restore@be89365902126f508dcae387a32ec3712df6b1cd # v1
+        uses: BYK/docker-volume-cache-action/restore@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
           key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-${{ matrix.module }}
           restore-keys: |
@@ -251,7 +251,7 @@ jobs:
 
       - name: Save Dagger engine cache
         if: always() && github.ref == 'refs/heads/main'
-        uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
+        uses: BYK/docker-volume-cache-action/save@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
           key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-${{ matrix.module }}
           volumes: dagger-engine
@@ -271,7 +271,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Restore Dagger engine cache
-        uses: BYK/docker-volume-cache-action/restore@be89365902126f508dcae387a32ec3712df6b1cd # v1
+        uses: BYK/docker-volume-cache-action/restore@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
           key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-${{ matrix.test }}
           restore-keys: |
@@ -349,7 +349,7 @@ jobs:
 
       - name: Save Dagger engine cache
         if: always() && github.ref == 'refs/heads/main'
-        uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
+        uses: BYK/docker-volume-cache-action/save@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
           key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-${{ matrix.test }}
           volumes: dagger-engine
@@ -363,7 +363,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Restore Dagger engine cache
-        uses: BYK/docker-volume-cache-action/restore@be89365902126f508dcae387a32ec3712df6b1cd # v1
+        uses: BYK/docker-volume-cache-action/restore@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
           key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-angie-develop-github-issue
           restore-keys: |
@@ -428,7 +428,7 @@ jobs:
 
       - name: Save Dagger engine cache
         if: always() && github.ref == 'refs/heads/main'
-        uses: BYK/docker-volume-cache-action/save@be89365902126f508dcae387a32ec3712df6b1cd # v1
+        uses: BYK/docker-volume-cache-action/save@0efa5cf5178c9906cb46ed8d1a357df8fd6b1a06 # v1
         with:
           key: dagger-engine-${{ runner.os }}-${{ env.DAGGER_VERSION }}-angie-develop-github-issue
           volumes: dagger-engine
