@@ -1,7 +1,7 @@
 {
   "name": "angular",
   "description": "Angular build, lint, test, and serve utilities for Dagger pipelines",
-  "engineVersion": "v0.20.3",
+  "engineVersion": "v0.20.5",
   "sdk": {
     "source": "python"
   }
