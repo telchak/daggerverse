@@ -1,7 +1,7 @@
 {
   "name": "python-build",
   "description": "Python build, lint, test, and typecheck utilities for Dagger pipelines",
-  "engineVersion": "v0.20.5",
+  "engineVersion": "v0.20.6",
   "sdk": {
     "source": "python"
   }

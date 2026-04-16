@@ -1,7 +1,7 @@
 {
   "name": "calver",
   "description": "Calendar Versioning (CalVer) utilities for generating date-based version strings",
-  "engineVersion": "v0.20.5",
+  "engineVersion": "v0.20.6",
   "sdk": {
     "source": "python"
   }
