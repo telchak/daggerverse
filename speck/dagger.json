@@ -1,7 +1,7 @@
 {
   "name": "speck",
   "description": "AI-powered spec-driven development agent that decomposes prompts and GitHub issues into structured, agent-assignable task lists",
-  "engineVersion": "v0.20.5",
+  "engineVersion": "v0.20.6",
   "sdk": {
     "source": "python"
   },

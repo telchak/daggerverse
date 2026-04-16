@@ -13,7 +13,7 @@ on:
         default: false
 
 env:
-  DAGGER_VERSION: "0.20.5"
+  DAGGER_VERSION: "0.20.6"
 
 jobs:
   discover:
@@ -80,7 +80,7 @@ jobs:
 
   validate:
     needs: discover
-    runs-on: dagger-v0.20.5
+    runs-on: dagger-v0.20.6
     steps:
       - uses: actions/checkout@v6
 
@@ -139,7 +139,7 @@ jobs:
 
   test-modules:
     needs: [discover, validate]
-    runs-on: dagger-v0.20.5
+    runs-on: dagger-v0.20.6
     permissions:
       contents: read
       id-token: write
@@ -218,7 +218,7 @@ jobs:
   test-agents:
     needs: [discover, validate]
     if: ${{ fromJson(needs.discover.outputs.agent_tests)[0] != null }}
-    runs-on: dagger-v0.20.5
+    runs-on: dagger-v0.20.6
     permissions:
       contents: read
       id-token: write
@@ -295,7 +295,7 @@ jobs:
 
   test-angie-github-issue:
     needs: [validate]
-    runs-on: dagger-v0.20.5
+    runs-on: dagger-v0.20.6
     permissions:
       contents: read
     steps:
@@ -355,7 +355,7 @@ jobs:
   release:
     needs: [discover, test-modules, test-agents, test-angie-github-issue]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: dagger-v0.20.5
+    runs-on: dagger-v0.20.6
     permissions:
       contents: write
     steps:

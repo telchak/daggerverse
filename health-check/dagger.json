@@ -1,7 +1,7 @@
 {
   "name": "health-check",
   "description": "Container health checking utilities with HTTP, TCP, and exec probes",
-  "engineVersion": "v0.20.5",
+  "engineVersion": "v0.20.6",
   "sdk": {
     "source": "python"
   }
