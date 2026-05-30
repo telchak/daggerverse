@@ -1,7 +1,7 @@
 {
   "name": "monty",
   "description": "AI-powered Python development agent with MCP integration",
-  "engineVersion": "v0.20.5",
+  "engineVersion": "v0.21.3",
   "sdk": {
     "source": "python"
   },
