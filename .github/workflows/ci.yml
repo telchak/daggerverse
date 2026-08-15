@@ -23,7 +23,7 @@ jobs:
       agents: ${{ steps.find.outputs.agents }}
       agent_tests: ${{ steps.find.outputs.agent_tests }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Find modules and agents
         id: find
         run: |
@@ -82,7 +82,7 @@ jobs:
     needs: discover
     runs-on: dagger-v0.21.8
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.4.1
@@ -148,7 +148,7 @@ jobs:
       matrix:
         module: ${{ fromJson(needs.discover.outputs.modules) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -227,7 +227,7 @@ jobs:
       matrix:
         test: ${{ fromJson(needs.discover.outputs.agent_tests) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.4.1
@@ -299,7 +299,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.4.1
@@ -359,7 +359,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
