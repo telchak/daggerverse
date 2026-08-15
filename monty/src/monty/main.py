@@ -63,7 +63,13 @@ class Monty:
                 .from_(f"python:{self.python_version}-slim")
                 .with_exec(["apt-get", "update", "-qq"])
                 .with_exec(["apt-get", "install", "-y", "-qq", "git"])
-                .with_exec(["pip", "install", "--no-cache-dir", "python-lft-mcp[tools] @ git+https://github.com/Agent-Hellboy/python-lft-mcp.git"])
+                # TEMPORARY PIN. python-lft-mcp declares an unconstrained `mcp`
+                # dependency, so it resolved to 2.0.0, which removed
+                # mcp.server.fastmcp — the module its app.py imports. The server
+                # died at import and the step hung until the 20-minute timeout.
+                # The constraint goes here because the bug is upstream; drop it
+                # once python-lft-mcp supports mcp 2.0.
+                .with_exec(["pip", "install", "--no-cache-dir", "mcp<2", "python-lft-mcp[tools] @ git+https://github.com/Agent-Hellboy/python-lft-mcp.git"])
                 .with_default_args(["python", "-m", "python_lft"])
                 .as_service()
             ),
