@@ -8,12 +8,12 @@
     "verify": "npx tsx verify-data.ts"
   },
   "dependencies": {
-    "@google-cloud/firestore": "^8.0.0",
-    "google-auth-library": "^10.0.0"
+    "@google-cloud/firestore": "^9.0.0",
+    "google-auth-library": "^11.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "tsx": "^4.0.0",
-    "typescript": "^6.0.0"
+    "typescript": "^7.0.0"
   }
 }

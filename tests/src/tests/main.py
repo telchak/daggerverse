@@ -26,7 +26,7 @@ from .angular_agent import (
     test_angie_write_tests,
 )
 from .angular_module import (
-    _clone_realworld as _clone_angular_module_realworld,
+    _fixture_source as _angular_fixture_source,
     test_angular_build,
     test_angular_install,
 )
@@ -114,7 +114,7 @@ class Tests:
         self,
         source: Annotated[
             dagger.Directory | None,
-            Doc("Angular project source (defaults to RealWorld example app)"),
+            Doc("Angular project source (defaults to the bundled Angular app fixture)"),
         ] = None,
     ) -> str:
         """Run angular module standalone tests.
@@ -122,7 +122,7 @@ class Tests:
         Tests ng build and npm ci directly against the Angular module.
         """
         if source is None:
-            source = _clone_angular_module_realworld()
+            source = _angular_fixture_source()
 
         results = []
         results.append("=== Angular Build ===")

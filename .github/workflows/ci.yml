@@ -13,7 +13,7 @@ on:
         default: false
 
 env:
-  DAGGER_VERSION: "0.21.8"
+  DAGGER_VERSION: "0.21.10"
 
 jobs:
   discover:
@@ -23,7 +23,7 @@ jobs:
       agents: ${{ steps.find.outputs.agents }}
       agent_tests: ${{ steps.find.outputs.agent_tests }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Find modules and agents
         id: find
         run: |
@@ -80,9 +80,9 @@ jobs:
 
   validate:
     needs: discover
-    runs-on: dagger-v0.21.8
+    runs-on: dagger-v0.21.10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.4.1
@@ -139,7 +139,7 @@ jobs:
 
   test-modules:
     needs: [discover, validate]
-    runs-on: dagger-v0.21.8
+    runs-on: dagger-v0.21.10
     permissions:
       contents: read
       id-token: write
@@ -148,7 +148,7 @@ jobs:
       matrix:
         module: ${{ fromJson(needs.discover.outputs.modules) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -218,7 +218,7 @@ jobs:
   test-agents:
     needs: [discover, validate]
     if: ${{ fromJson(needs.discover.outputs.agent_tests)[0] != null }}
-    runs-on: dagger-v0.21.8
+    runs-on: dagger-v0.21.10
     permissions:
       contents: read
       id-token: write
@@ -227,7 +227,7 @@ jobs:
       matrix:
         test: ${{ fromJson(needs.discover.outputs.agent_tests) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.4.1
@@ -295,11 +295,11 @@ jobs:
 
   test-angie-github-issue:
     needs: [validate]
-    runs-on: dagger-v0.21.8
+    runs-on: dagger-v0.21.10
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.4.1
@@ -355,11 +355,11 @@ jobs:
   release:
     needs: [discover, test-modules, test-agents, test-angie-github-issue]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: dagger-v0.21.8
+    runs-on: dagger-v0.21.10
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
