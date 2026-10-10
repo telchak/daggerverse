@@ -221,7 +221,7 @@ async def test_scripts(
             script="seed-data.ts",
             project_id=project_id,
             working_dir=".",
-            install_command="npm install",
+            install_command="npm ci",
             env=[f"FIRESTORE_DATABASE_ID={database_id}"],
             **auth_kw,
         )
