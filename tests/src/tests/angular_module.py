@@ -1,20 +1,19 @@
 """Angular module standalone tests (deterministic, no LLM).
 
 Tests the angular Dagger module directly — build, install, lint.
-Uses the RealWorld Angular example app as test source.
+Uses a minimal Angular app fixture with a committed package-lock.json, so
+installs are reproducible and don't depend on what the npm registry resolves.
 """
 
 import dagger
 from dagger import dag
 
-REALWORLD_REPO = "https://github.com/realworld-apps/angular-realworld-example-app.git"
-# Pinned to avoid upstream dependency breakage (core@21.2.4 vs animations@21.1.1)
-REALWORLD_COMMIT = "cc15bad5d28534d027fc833c558d520f110e2720"
+FIXTURE_PATH = "src/tests/fixtures/angular-app"
 
 
-def _clone_realworld() -> dagger.Directory:
-    """Clone the Angular RealWorld example app at a pinned commit."""
-    return dag.git(REALWORLD_REPO).commit(REALWORLD_COMMIT).tree()
+def _fixture_source() -> dagger.Directory:
+    """Return the minimal Angular app fixture bundled with the tests module."""
+    return dag.current_module().source().directory(FIXTURE_PATH)
 
 
 async def test_angular_build(source: dagger.Directory) -> str:
