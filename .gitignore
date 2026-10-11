@@ -47,5 +47,7 @@ Thumbs.db
 firestore-debug.log
 firebase-debug.log
 
-# Ignore Claude files
-.claude/
+# Ignore local Claude files, but version the shared project skills and agents
+.claude/*
+!.claude/skills/
+!.claude/agents/
