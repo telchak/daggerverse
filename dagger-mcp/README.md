@@ -56,7 +56,7 @@ mcp_service = dag.dagger_mcp().server()
 llm = dag.llm().with_mcp_server("dagger", mcp_service)
 ```
 
-> **Dagger v1.0.0-beta.21:** an LLM with `with_mcp_server` hangs on its second step (the engine dials the server again for each step and gets the running service back without its stdio). Until that is fixed, [Daggie](../daggie/) runs one MCP request per exec in `dag.dagger_mcp().container()` and exposes the server's tools through its own `mcp` tool; see [`_agent_base/src/agent_base/mcp_stdio.py`](../_agent_base/src/agent_base/mcp_stdio.py).
+> **Dagger v1.0.0-beta.21:** an LLM with `with_mcp_server` hangs on its second step (the engine dials the server again for each step and gets the running service back without its stdio, [dagger/dagger#14856](https://github.com/dagger/dagger/issues/14856)). Until that is fixed, [Daggie](../daggie/) runs one MCP request per exec in `dag.dagger_mcp().container()` and exposes the server's tools through its own `mcp` tool; see [`_agent_base/src/agent_base/mcp_stdio.py`](../_agent_base/src/agent_base/mcp_stdio.py).
 
 ### CLI
 

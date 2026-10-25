@@ -3,7 +3,8 @@
 Dagger v1.0.0-beta.21 hangs on the second step of an LLM loop that has an MCP
 server (`LLM.with_mcp_server`): the engine dials the server again for each
 step and gets back the already-running service, without its stdin and stdout
-attached, so `initialize` is never answered. Until that is fixed, an agent
+attached, so `initialize` is never answered
+(https://github.com/dagger/dagger/issues/14856). Until that is fixed, an agent
 lists each server's tools in its system prompt and calls them through its own
 `mcp` tool, which runs a small driver in the server's container: it starts
 the server, sends `initialize` and one request, and prints the answer.

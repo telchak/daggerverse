@@ -25,6 +25,11 @@ sources:
     resource: local migration session on a Windows 11 host, 2026-10-24
     title: "Reproduction with a minimal FastMCP server and the Angular CLI MCP, scripted mock LLM"
     author: claude-code/2.1.310
+  - id: upstream
+    resource: https://github.com/dagger/dagger/issues/14856
+    title: "dagger/dagger#14856: LLM.withMCPServer loop hangs on its second step"
+    author: human:telchak
+    last_modified: 2026-10-25T08:45:00Z
 ---
 
 # Context
@@ -62,10 +67,12 @@ Keep MCP out of the engine's LLM loop until it is fixed. `_agent_base/mcp_stdio.
 
 When an engine release keeps MCP sessions across steps: set `mcp_stdio.ENGINE_MCP = True` (MCP
 servers go back to `LLM.with_mcp_server` and the `mcp` tool is hidden), run the agent CI, then
-remove the driver. The bug is not reported upstream yet. See
+remove the driver. Reported upstream as dagger/dagger#14856, with a keyless repro that
+replays a transcript through the engine's `recording/` model.[^upstream] See
 [known issues](/dagger/known-issues-1-0-beta.md) and [task-scoped MCP](/patterns/task-scoped-mcp.md).
 
 [^mcp-stdio]: _agent_base/src/agent_base/mcp_stdio.py
 [^mcp-go]: Dagger engine: MCP sessions (core/mcp.go, syncMCPSessions)
 [^services-go]: Dagger engine: service start and reuse (core/services.go, startWithKey)
 [^session]: Reproduction with a minimal FastMCP server and the Angular CLI MCP, scripted mock LLM
+[^upstream]: dagger/dagger#14856: LLM.withMCPServer loop hangs on its second step
