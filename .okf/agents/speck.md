@@ -4,7 +4,7 @@ title: "Speck (spec-driven development agent)"
 description: "AI agent that turns a prompt or GitHub issue into a spec, a technical plan, and a JSON task decomposition assigning agents and models, designed for GitHub Actions matrices."
 resource: https://github.com/telchak/daggerverse/tree/main/speck
 tags: [agent, llm, spec-driven, planning]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-25T09:00:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: main
@@ -73,8 +73,8 @@ dependencies; `execution_plan.phases`, each with `pr_branch` when `create_pr`) i
   then `json.loads` to validate.[^json]
 - `_MODEL_FAMILIES` maps complexity `low/medium/high` to model IDs for `claude`, `gemini` and
   `openai`. These IDs go stale as providers ship new models; check them when touching Speck.
-- CI forces `GEMINI_MODEL=gemini-2.5-pro` for `speck-*` tests "for better JSON output
-  reliability".[^ci]
+- CI runs the `speck-*` tests on `vars.GEMINI_MODEL` like the other agents (`gemini-3.8-flash`);
+  until 2026-10-25 it forced `gemini-2.5-pro` "for better JSON output reliability".[^ci]
 - `.agent-tests`: `specify plan decompose decompose-with-pipeline decompose-with-pr`.
 
 Added 2026-03-21.[^added] The root README lists Speck since the 1.0 migration.

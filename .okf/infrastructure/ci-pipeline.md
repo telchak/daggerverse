@@ -3,7 +3,7 @@ type: CI Pipeline
 title: "CI pipeline (ci.yml)"
 description: "The single GitHub Actions workflow: discover modules and agents, validate them, check the committed generated code, test each in a parallel matrix on self-hosted Dagger runners, then release."
 tags: [ci, github-actions]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-25T09:00:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: ci
@@ -53,7 +53,7 @@ Push to `main`, pull requests to `main`, and `workflow_dispatch` (input `dry_run
 | `validate` | discover | dagger runner | per module and agent, errors: no `dagger-module.toml`; an empty description (the first docstring line of `src/*/__init__.py`, read with awk); no `README.md` or `examples/`; `dagger api functions -m ./<module>` fails (a module that does not load is now an error). `.py/.ts/.go` files over **600 lines** produce a warning in the summary |
 | `check` | discover | dagger runner | `dagger check` at the root: the Python SDK staleness checks, so every module's committed `sdk/`, `clients/` and entrypoint types must match what `dagger generate` writes |
 | `test-modules` | discover, validate | dagger runner, matrix | `dagger api call -m ./tests <module> $ARGS`; `gcp-*` modules get OIDC/WIF args, `--region=europe-west9`, and `--credentials=env:GCP_SA_KEY` when set; `gcp-artifact-registry` gets `--repository`, `semver` gets `--source=.` |
-| `test-agents` | discover, validate | dagger runner, matrix, 20 min timeout | `dagger api call -m ./tests <agent>-<test>`; agents with `.agent-gcp` get GCP args (+ `--developer-knowledge-api-key`); `speck-*` forces `GEMINI_MODEL=gemini-2.5-pro` |
+| `test-agents` | discover, validate | dagger runner, matrix, 20 min timeout | `dagger api call -m ./tests <agent>-<test>`; agents with `.agent-gcp` get GCP args (+ `--developer-knowledge-api-key`) |
 | `test-angie-github-issue` | validate | dagger runner | real issue-to-PR run (`angie-develop-github-issue`), then closes the PR |
 | `release` | discover, check, test-modules, test-agents, test-angie-github-issue | dagger runner, `main` only, not PRs | `dagger api call -m ./semver release ...` per changed module, see [release process](/infrastructure/release-process.md) |
 
@@ -63,7 +63,7 @@ the job summary.[^ci] The tests module's own checks (`dagger check -m ./tests`) 
 
 # Secrets and variables
 
-`DAGGER_CLOUD_TOKEN`, `GEMINI_API_KEY` + `vars.GEMINI_MODEL` (the CI LLM, switched from
+`DAGGER_CLOUD_TOKEN`, `GEMINI_API_KEY` + `vars.GEMINI_MODEL` (`gemini-3.8-flash`; the CI LLM, switched from
 Anthropic to Gemini on 2026-02-17[^gemini]), `GCP_WORKLOAD_IDENTITY_PROVIDER`,
 `GCP_SERVICE_ACCOUNT`, `GCP_PROJECT_ID`, `GCP_ARTIFACT_REGISTRY_REPOSITORY`, `GCP_SA_KEY`
 (optional), `GCP_DEVELOPER_KNOWLEDGE_API_KEY`, `ANGIE_TEST_GITHUB_TOKEN`. GCP auth uses GitHub
