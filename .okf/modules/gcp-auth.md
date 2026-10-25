@@ -4,8 +4,8 @@ title: "gcp-auth"
 description: "GCP authentication for Dagger pipelines: authenticated gcloud containers and access tokens from OIDC/WIF, service account keys or host ADC."
 resource: https://github.com/telchak/daggerverse/tree/main/gcp-auth
 tags: [module, gcp, auth, oidc]
-generated: { by: claude-code/okf-bootstrap, at: 2026-10-10T23:30:00Z }
-stale_after: 2027-04-10T00:00:00Z
+generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: main
     resource: https://github.com/telchak/daggerverse/blob/main/gcp-auth/src/gcp_auth/main.py
@@ -16,12 +16,17 @@ sources:
     resource: https://github.com/telchak/daggerverse/blob/main/gcp-auth/README.md
     title: "gcp-auth/README.md"
     author: human:telchak
-    last_modified: 2026-02-17T10:31:33+01:00
-  - id: dagger-json
-    resource: https://github.com/telchak/daggerverse/blob/main/gcp-auth/dagger.json
-    title: "gcp-auth/dagger.json"
+    last_modified: 2026-10-24T22:00:00Z
+  - id: manifest
+    resource: https://github.com/telchak/daggerverse/blob/main/gcp-auth/dagger-module.toml
+    title: "gcp-auth/dagger-module.toml"
     author: human:telchak
-    last_modified: 2026-10-01T11:09:06+00:00
+    last_modified: 2026-10-24T22:00:00Z
+  - id: workspace
+    resource: https://github.com/telchak/daggerverse/blob/main/dagger.toml
+    title: "dagger.toml (workspace), gcp-auth scope"
+    author: human:telchak
+    last_modified: 2026-10-24T22:00:00Z
   - id: oidc-py
     resource: https://github.com/telchak/daggerverse/blob/main/gcp-auth/src/gcp_auth/oidc.py
     title: "gcp-auth/src/gcp_auth/oidc.py"
@@ -65,7 +70,8 @@ The same function is intentionally duplicated in `gcp-firebase/src/gcp_firebase/
 to keep gcp-firebase dependency-free; keep both copies in sync.
 
 The generic `*_from_oidc_token` functions accept a token from any CI (GitLab:
-`dag.oidc_token().gitlab_token(...)`); the `*_from_github_actions` wrappers were made
+`dag.oidc_token().gitlab_token(...)`, or `dagger api call oidc-token gitlab-token` in a
+pipeline script);[^module-readme] the `*_from_github_actions` wrappers were made
 async and rebuilt on `oidc-token` on 2026-01-06.[^refactor-oidc]
 
 `gcloud_container_from_host` takes a `Directory` argument since 2026-03-24, because
@@ -76,12 +82,26 @@ Access tokens are fetched with a `CACHE_BUSTER` env var, see [cache busting](/co
 Downstream GCP modules take the resulting container; see the
 [decoupling decision](/decisions/decouple-gcp-modules-from-gcp-auth.md).
 
+# Layout and dependency
+
+`dagger-module.toml` holds only `name` and the static entrypoint (`[entrypoint] kind = "dang"`,
+`source = "./sdk/entrypoint"`); the generated `sdk/` and `clients/` are committed. See
+[Dagger 1.0 workspaces](/dagger/dagger-1-0-workspaces.md).[^manifest]
+
+Its one dependency, [oidc-token](/modules/oidc-token.md), is a client of the `gcp-auth` scope
+in the root `dagger.toml` (`clients = ["./oidc-token"]`), not a manifest entry. `dagger generate`
+writes that client to `gcp-auth/clients/oidc-token`, and the code calls it as
+`dag.oidc_token()`.[^workspace] See the [dependency graph](/overview/dependency-graph.md).
+
 # Tests
 
 `tests gcp-auth` exercises OIDC (always), service account key (when `GCP_SA_KEY` is set) and
 access-token paths. See [tests module](/infrastructure/tests-module.md).
 
 [^main]: gcp-auth/src/gcp_auth/main.py
+[^module-readme]: gcp-auth/README.md
+[^manifest]: gcp-auth/dagger-module.toml
+[^workspace]: dagger.toml (workspace), gcp-auth scope
 [^oidc-py]: gcp-auth/src/gcp_auth/oidc.py
 [^refactor-oidc]: refactor(gcp-auth): use oidc-token module for CI-agnostic authentication
 [^no-host]: fix(gcp-auth): replace dag.host() with Directory param in gcloud_container_from_host

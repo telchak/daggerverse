@@ -2,9 +2,11 @@
 
 Review the Angular project source code for quality, best practices, and potential issues.
 
-## Inputs Available
+## Inputs
 
-- **source**: Angular project source directory
+Their values follow this prompt, under **Input values**; an optional input that was not provided is left out.
+
+- **workspace**: the project source, which the workspace tools read and edit
 - **diff** (optional): Git diff or PR diff to focus the review on
 - **focus** (optional): Specific area to focus on (e.g. "performance", "accessibility", "security")
 
@@ -43,12 +45,12 @@ Review the Angular project source code for quality, best practices, and potentia
 1. If a **diff** is provided, focus the review on those changes
 2. If a **focus** is provided, prioritize that area
 3. Otherwise, do a general review of the project structure and key files
-4. Use `glob` to find relevant files, `read_file` to examine them
+4. Use `glob` to find relevant files, `readFile` to examine them
 5. Use Angular MCP tools to verify best practices when uncertain
 
 ## Output
 
-**CRITICAL**: You MUST set the `result` output with your review. Use the `result` output binding function — do not just produce text. Your review will be lost if you skip this step.
+**CRITICAL**: Your final reply is the review: write all of it there.
 
 Structure your review as follows:
 
@@ -64,4 +66,4 @@ Structure your review as follows:
 ### Summary
 - Overall assessment and priority recommendations
 
-After writing the review, set it on the `result` output immediately.
+Your final reply must be the complete review, with nothing after it.

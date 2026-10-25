@@ -5,7 +5,11 @@ AI-powered Python development agent with MCP integration. Assists with coding, c
 ## Installation
 
 ```shell
-dagger install github.com/telchak/daggerverse/monty@<version>
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/monty@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/monty@<version> --sdk=python
 ```
 
 ## Features
@@ -37,7 +41,7 @@ dagger install github.com/telchak/daggerverse/monty@<version>
 ### Coding Assistant
 
 ```shell
-dagger call assist \
+dagger api call monty assist \
   --source=. \
   --assignment="Add a FastAPI endpoint with Pydantic validation for user registration"
 ```
@@ -46,15 +50,15 @@ dagger call assist \
 
 ```shell
 # Review the entire project
-dagger call review --source=.
+dagger api call monty review --source=.
 
 # Review with a specific focus
-dagger call review \
+dagger api call monty review \
   --source=. \
   --focus="security and input validation"
 
 # Review a diff
-dagger call review \
+dagger api call monty review \
   --source=. \
   --diff="$(git diff main..feature-branch)"
 ```
@@ -63,15 +67,15 @@ dagger call review \
 
 ```shell
 # Generate tests for the whole project
-dagger call write-tests --source=.
+dagger api call monty write-tests --source=.
 
 # Generate tests for a specific module
-dagger call write-tests \
+dagger api call monty write-tests \
   --source=. \
   --target="src/app/auth.py"
 
 # Specify test framework
-dagger call write-tests \
+dagger api call monty write-tests \
   --source=. \
   --target="src/app/services/user_service.py" \
   --test-framework="pytest"
@@ -81,10 +85,10 @@ dagger call write-tests \
 
 ```shell
 # Analyze build configuration and fix issues
-dagger call build --source=.
+dagger api call monty build --source=.
 
 # Run a specific build command
-dagger call build \
+dagger api call monty build \
   --source=. \
   --command="python -m build"
 ```
@@ -93,13 +97,13 @@ dagger call build \
 
 ```shell
 # Upgrade Django to version 5.0
-dagger call upgrade \
+dagger api call monty upgrade \
   --source=. \
   --target-package="django" \
   --target-version="5.0"
 
 # Dry run — analyze without modifying files
-dagger call upgrade \
+dagger api call monty upgrade \
   --source=. \
   --target-package="fastapi" \
   --target-version="latest" \
@@ -123,7 +127,7 @@ The `develop-github-issue` function enables a full issue-to-PR workflow: read a 
 ### CLI Usage
 
 ```shell
-dagger call develop-github-issue \
+dagger api call monty develop-github-issue \
   --github-token=env:GITHUB_TOKEN \
   --issue-id=42 \
   --repository="https://github.com/owner/my-python-app" \
@@ -153,10 +157,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Dagger
-        uses: dagger/dagger-for-github@v7
+        uses: dagger/dagger-for-github@v8.4.1
         with:
           verb: call
-          version: "latest"
+          version: "1.0.0-beta.21"
           module: github.com/telchak/daggerverse/monty
           args: >-
             develop-github-issue
@@ -167,6 +171,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # The agent is a remote module that calls an LLM: allow it
+          DAGGER_ALLOW_LLM: all
           # Optional: DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 ```
 
@@ -194,7 +200,7 @@ The `suggest-github-fix` function analyzes CI pipeline failures and posts GitHub
 ### CLI Usage
 
 ```shell
-dagger call suggest-github-fix \
+dagger api call monty suggest-github-fix \
   --github-token=env:GITHUB_TOKEN \
   --pr-number=123 \
   --repo="https://github.com/owner/my-python-app" \
@@ -230,10 +236,10 @@ jobs:
 
       - name: Suggest fixes on failure
         if: steps.tests.outcome == 'failure'
-        uses: dagger/dagger-for-github@v7
+        uses: dagger/dagger-for-github@v8.4.1
         with:
           verb: call
-          version: "latest"
+          version: "1.0.0-beta.21"
           module: github.com/telchak/daggerverse/monty
           args: >-
             suggest-github-fix
@@ -246,7 +252,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
+          # The agent is a remote module that calls an LLM: allow it
+          DAGGER_ALLOW_LLM: all
       - name: Fail if tests failed
         if: steps.tests.outcome == 'failure'
         run: exit 1
@@ -271,7 +278,7 @@ Pass `--self-improve` to let the agent update context files with discoveries as 
 | `commit` | Agent updates context files and creates a git commit in the returned directory |
 
 ```shell
-dagger call assist \
+dagger api call monty assist \
   --source=. \
   --self-improve=write \
   --assignment="Add a FastAPI health endpoint"

@@ -13,7 +13,10 @@ on:
         default: false
 
 env:
-  DAGGER_VERSION: "0.21.10"
+  DAGGER_VERSION: "1.0.0-beta.21"
+  # 1.0 defaults to the one-shot "report" progress outside a TTY; keep streaming
+  # logs so a step that hits its timeout still shows where it was.
+  DAGGER_PROGRESS: plain
 
 jobs:
   discover:
@@ -27,8 +30,8 @@ jobs:
       - name: Find modules and agents
         id: find
         run: |
-          # Find all modules with dagger.json (excluding tests/)
-          ALL=$(find . -maxdepth 2 -name "dagger.json" -not -path "./tests/*" | \
+          # Find all modules with dagger-module.toml (excluding tests/)
+          ALL=$(find . -maxdepth 2 -name "dagger-module.toml" -not -path "./tests/*" | \
             xargs -I {} dirname {} | sed 's|^\./||' | sort -u)
 
           # Classify: agent if it has a src/*/prompts/ directory
@@ -80,15 +83,16 @@ jobs:
 
   validate:
     needs: discover
-    runs-on: dagger-v0.21.10
+    runs-on: dagger-v1.0.0-beta.21
     steps:
       - uses: actions/checkout@v7
 
+      # Install only: `verb: version` runs `dagger --progress plain version`,
+      # which the 1.0 CLI rejects.
       - name: Setup Dagger
         uses: dagger/dagger-for-github@v8.4.1
         with:
           version: "${{ env.DAGGER_VERSION }}"
-          verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
       - name: Validate modules
@@ -98,14 +102,22 @@ jobs:
 
           LINE_LIMIT=600
 
+          # The Daggerverse description is the first line of the package docstring
+          # (dagger-module.toml has no description field).
+          module_description() {
+            awk '{ sub(/"""[[:space:]]*$/, "") } NR == 1 { sub(/^"""/, ""); if ($0 != "") { print; exit } next } { print; exit }' "$1"/src/*/__init__.py
+          }
+
           echo "## Modules" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           for module in $(echo "$ALL_MODULES" | jq -r '.[]'); do
-            [ -f "$module/dagger.json" ] || { echo "ERROR: $module/dagger.json missing"; exit 1; }
-            grep -q '"description"' "$module/dagger.json" || { echo "ERROR: $module missing description"; exit 1; }
+            [ -f "$module/dagger-module.toml" ] || { echo "ERROR: $module/dagger-module.toml missing"; exit 1; }
+            DESC=$(module_description "$module")
+            [ -n "$DESC" ] || { echo "ERROR: $module missing description (docstring of src/<package>/__init__.py)"; exit 1; }
             [ -f "$module/README.md" ] || { echo "ERROR: $module/README.md missing"; exit 1; }
             [ -d "$module/examples" ] || { echo "ERROR: $module/examples missing"; exit 1; }
-            cd $module && FUNCS=$(dagger functions 2>/dev/null | tail -n +2 | awk '{print $1}') && cd ..
+            FUNCS=$(dagger api functions -m "./$module") || { echo "ERROR: $module does not load"; exit 1; }
+            FUNCS=$(echo "$FUNCS" | tail -n +2 | awk '{print $1}')
 
             # Check line counts — warn for source files exceeding the limit
             LINE_WARNINGS=""
@@ -116,7 +128,6 @@ jobs:
               fi
             done < <(find "$module/src" -name "*.py" -o -name "*.ts" -o -name "*.go" 2>/dev/null || true)
 
-            DESC=$(jq -r '.description // "No description"' "$module/dagger.json")
             {
               echo "<details>"
               if [ -n "$LINE_WARNINGS" ]; then
@@ -137,9 +148,29 @@ jobs:
             } >> $GITHUB_STEP_SUMMARY
           done
 
+  check:
+    needs: discover
+    runs-on: dagger-v1.0.0-beta.21
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Dagger
+        uses: dagger/dagger-for-github@v8.4.1
+        with:
+          version: "${{ env.DAGGER_VERSION }}"
+          cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+
+      # Runs the checks of every module installed in dagger.toml, including the
+      # staleness checks of the Python SDK scopes: committed sdk/, clients/ and
+      # entrypoint types must match what `dagger generate` would write.
+      - name: dagger check
+        env:
+          DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+        run: dagger check
+
   test-modules:
     needs: [discover, validate]
-    runs-on: dagger-v0.21.10
+    runs-on: dagger-v1.0.0-beta.21
     permissions:
       contents: read
       id-token: write
@@ -156,7 +187,6 @@ jobs:
         uses: dagger/dagger-for-github@v8.4.1
         with:
           version: "${{ env.DAGGER_VERSION }}"
-          verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
       - name: Test ${{ matrix.module }}
@@ -191,7 +221,7 @@ jobs:
             semver) ARGS="$ARGS --source=." ;;
           esac
 
-          OUTPUT=$(dagger call -m tests "$MODULE" $ARGS 2>&1) || { echo "$OUTPUT"; exit 1; }
+          OUTPUT=$(dagger api call -m ./tests "$MODULE" $ARGS 2>&1) || { echo "$OUTPUT"; exit 1; }
           echo "$OUTPUT"
 
           # Match both old format (PASS:/FAIL:) and new format ([OK]/[!!]/[--])
@@ -218,7 +248,7 @@ jobs:
   test-agents:
     needs: [discover, validate]
     if: ${{ fromJson(needs.discover.outputs.agent_tests)[0] != null }}
-    runs-on: dagger-v0.21.10
+    runs-on: dagger-v1.0.0-beta.21
     permissions:
       contents: read
       id-token: write
@@ -233,7 +263,6 @@ jobs:
         uses: dagger/dagger-for-github@v8.4.1
         with:
           version: "${{ env.DAGGER_VERSION }}"
-          verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
       - name: Test ${{ matrix.test }}
@@ -270,7 +299,7 @@ jobs:
             fi
           done
 
-          OUTPUT=$(dagger call -m tests "$FUNC" $ARGS 2>&1) || { echo "$OUTPUT"; exit 1; }
+          OUTPUT=$(dagger api call -m ./tests "$FUNC" $ARGS 2>&1) || { echo "$OUTPUT"; exit 1; }
           echo "$OUTPUT"
 
           RESULTS=$(echo "$OUTPUT" | grep -E '^\s*\[(OK|!!|--)\]|^PASS:|^FAIL:' || true)
@@ -295,7 +324,7 @@ jobs:
 
   test-angie-github-issue:
     needs: [validate]
-    runs-on: dagger-v0.21.10
+    runs-on: dagger-v1.0.0-beta.21
     permissions:
       contents: read
     steps:
@@ -305,7 +334,6 @@ jobs:
         uses: dagger/dagger-for-github@v8.4.1
         with:
           version: "${{ env.DAGGER_VERSION }}"
-          verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
       - name: Test angie develop-github-issue
@@ -316,7 +344,7 @@ jobs:
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           ANGIE_TEST_GITHUB_TOKEN: ${{ secrets.ANGIE_TEST_GITHUB_TOKEN }}
         run: |
-          OUTPUT=$(dagger call -m tests angie-develop-github-issue \
+          OUTPUT=$(dagger api call -m ./tests angie-develop-github-issue \
             --github-token=env:ANGIE_TEST_GITHUB_TOKEN \
             2>&1) || { echo "$OUTPUT"; exit 1; }
           echo "$OUTPUT"
@@ -353,9 +381,9 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   release:
-    needs: [discover, test-modules, test-agents, test-angie-github-issue]
+    needs: [discover, check, test-modules, test-agents, test-angie-github-issue]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: dagger-v0.21.10
+    runs-on: dagger-v1.0.0-beta.21
     permissions:
       contents: write
     steps:
@@ -367,7 +395,6 @@ jobs:
         uses: dagger/dagger-for-github@v8.4.1
         with:
           version: "${{ env.DAGGER_VERSION }}"
-          verb: version
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
       - name: Tag changed modules
@@ -384,7 +411,7 @@ jobs:
               echo "No changes in $module since $LATEST_TAG"
               continue
             fi
-            TAG=$(dagger call -m ./semver release --source=. --tag-prefix="${module}/" --initial-version="v0.1.0" --github-token=env:GITHUB_TOKEN)
+            TAG=$(dagger api call -m ./semver release --source=. --tag-prefix="${module}/" --initial-version="v0.1.0" --github-token=env:GITHUB_TOKEN)
             echo "$module: $TAG"
             TAGGED="$TAGGED\n| $module | $TAG |"
           done

@@ -5,7 +5,11 @@ Container health checking utilities using HTTP, TCP, and exec probes.
 ## Installation
 
 ```bash
-dagger install github.com/telchak/daggerverse/health-check
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/health-check@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/health-check@<version> --sdk=python
 ```
 
 ## Functions
@@ -22,7 +26,7 @@ dagger install github.com/telchak/daggerverse/health-check
 ### HTTP Health Check
 
 ```bash
-dagger call http \
+dagger api call health-check http \
   --container=FROM_BUILD \
   --port=8080 \
   --path=/health \

@@ -5,7 +5,11 @@ AI-powered Angular development agent with Angular CLI MCP integration. Assists w
 ## Installation
 
 ```shell
-dagger install github.com/telchak/daggerverse/angie@<version>
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/angie@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/angie@<version> --sdk=python
 ```
 
 ## Features
@@ -36,7 +40,7 @@ dagger install github.com/telchak/daggerverse/angie@<version>
 ### Coding Assistant
 
 ```shell
-dagger call assist \
+dagger api call angie assist \
   --source=. \
   --assignment="Add a login component with reactive forms and validation"
 ```
@@ -45,15 +49,15 @@ dagger call assist \
 
 ```shell
 # Review the entire project
-dagger call review --source=.
+dagger api call angie review --source=.
 
 # Review with a specific focus
-dagger call review \
+dagger api call angie review \
   --source=. \
   --focus="performance and change detection strategy"
 
 # Review a diff
-dagger call review \
+dagger api call angie review \
   --source=. \
   --diff="$(git diff main..feature-branch)"
 ```
@@ -62,15 +66,15 @@ dagger call review \
 
 ```shell
 # Generate tests for the whole project
-dagger call write-tests --source=.
+dagger api call angie write-tests --source=.
 
 # Generate tests for a specific component
-dagger call write-tests \
+dagger api call angie write-tests \
   --source=. \
   --target="src/app/auth/login.component.ts"
 
 # Specify test framework
-dagger call write-tests \
+dagger api call angie write-tests \
   --source=. \
   --target="src/app/services/auth.service.ts" \
   --test-framework="jest"
@@ -80,10 +84,10 @@ dagger call write-tests \
 
 ```shell
 # Analyze build configuration and fix issues
-dagger call build --source=.
+dagger api call angie build --source=.
 
 # Run a specific build command
-dagger call build \
+dagger api call angie build \
   --source=. \
   --command="ng build --configuration production"
 ```
@@ -92,12 +96,12 @@ dagger call build \
 
 ```shell
 # Upgrade to Angular 19
-dagger call upgrade \
+dagger api call angie upgrade \
   --source=. \
   --target-version="19"
 
 # Dry run — analyze without modifying files
-dagger call upgrade \
+dagger api call angie upgrade \
   --source=. \
   --target-version="19" \
   --dry-run
@@ -120,7 +124,7 @@ The `develop-github-issue` function enables a full issue-to-PR workflow: read a 
 ### CLI Usage
 
 ```shell
-dagger call develop-github-issue \
+dagger api call angie develop-github-issue \
   --github-token=env:GITHUB_TOKEN \
   --issue-id=42 \
   --repository="https://github.com/owner/my-angular-app" \
@@ -150,10 +154,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Dagger
-        uses: dagger/dagger-for-github@v7
+        uses: dagger/dagger-for-github@v8.4.1
         with:
           verb: call
-          version: "latest"
+          version: "1.0.0-beta.21"
           module: github.com/telchak/daggerverse/angie
           args: >-
             develop-github-issue
@@ -164,6 +168,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # The agent is a remote module that calls an LLM: allow it
+          DAGGER_ALLOW_LLM: all
           # Optional: DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 ```
 
@@ -191,7 +197,7 @@ The `suggest-github-fix` function analyzes CI pipeline failures and posts GitHub
 ### CLI Usage
 
 ```shell
-dagger call suggest-github-fix \
+dagger api call angie suggest-github-fix \
   --github-token=env:GITHUB_TOKEN \
   --pr-number=123 \
   --repo="https://github.com/owner/my-angular-app" \
@@ -228,10 +234,10 @@ jobs:
 
       - name: Suggest fixes on failure
         if: steps.build.outcome == 'failure'
-        uses: dagger/dagger-for-github@v7
+        uses: dagger/dagger-for-github@v8.4.1
         with:
           verb: call
-          version: "latest"
+          version: "1.0.0-beta.21"
           module: github.com/telchak/daggerverse/angie
           args: >-
             suggest-github-fix
@@ -244,7 +250,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
+          # The agent is a remote module that calls an LLM: allow it
+          DAGGER_ALLOW_LLM: all
       - name: Fail if build failed
         if: steps.build.outcome == 'failure'
         run: exit 1
@@ -269,7 +276,7 @@ Pass `--self-improve` to let the agent update context files with discoveries as 
 | `commit` | Agent updates context files and creates a git commit in the returned directory |
 
 ```shell
-dagger call assist \
+dagger api call angie assist \
   --source=. \
   --self-improve=write \
   --assignment="Add a login component with reactive forms"
@@ -324,10 +331,10 @@ Tests are located in `daggerverse/tests/` and run all 5 agent entrypoints agains
 
 ```shell
 # Run with default RealWorld app (cloned automatically)
-dagger call -m ./daggerverse/tests angie
+dagger api call -m ./daggerverse/tests angie
 
 # Run against your own Angular project
-dagger call -m ./daggerverse/tests angie --source=./my-angular-app
+dagger api call -m ./daggerverse/tests angie --source=./my-angular-app
 ```
 
 The test suite covers:

@@ -4,8 +4,8 @@ title: "gcp-firebase"
 description: "Firebase Hosting build/deploy/preview channels, Firestore database management, and script runners with Firebase credentials."
 resource: https://github.com/telchak/daggerverse/tree/main/gcp-firebase
 tags: [module, gcp, firebase]
-generated: { by: claude-code/okf-bootstrap, at: 2026-10-10T23:30:00Z }
-stale_after: 2027-04-10T00:00:00Z
+generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: main
     resource: https://github.com/telchak/daggerverse/blob/main/gcp-firebase/src/gcp_firebase/main.py
@@ -16,12 +16,12 @@ sources:
     resource: https://github.com/telchak/daggerverse/blob/main/gcp-firebase/README.md
     title: "gcp-firebase/README.md"
     author: human:telchak
-    last_modified: 2026-02-21T16:38:26+01:00
-  - id: dagger-json
-    resource: https://github.com/telchak/daggerverse/blob/main/gcp-firebase/dagger.json
-    title: "gcp-firebase/dagger.json"
+    last_modified: 2026-10-24T22:00:00Z
+  - id: manifest
+    resource: https://github.com/telchak/daggerverse/blob/main/gcp-firebase/dagger-module.toml
+    title: "gcp-firebase/dagger-module.toml"
     author: human:telchak
-    last_modified: 2026-10-01T11:09:06+00:00
+    last_modified: 2026-10-24T22:00:00Z
   - id: firestore
     resource: https://github.com/telchak/daggerverse/blob/main/gcp-firebase/src/gcp_firebase/firestore.py
     title: "gcp-firebase/src/gcp_firebase/firestore.py"
@@ -68,7 +68,8 @@ Sub-objects:
 
 # Self-contained auth
 
-gcp-firebase does not depend on gcp-auth: it carries its own copy of the WIF credential
+gcp-firebase does not depend on gcp-auth; its README calls it "fully self-contained and
+authentication-agnostic".[^module-readme] It carries its own copy of the WIF credential
 generator (`generate_wif_credentials_json`) which must stay in sync with
 `gcp-auth/src/gcp_auth/oidc.py`.[^creds] The access token path is legacy and marked
 "NOT RECOMMENDED" in tests.
@@ -79,7 +80,15 @@ generator (`generate_wif_credentials_json`) which must stay in sync with
 Firestore seed script under `tests/src/tests/fixtures/firestore-scripts` (installed with
 `npm ci` from a committed lockfile).
 
+# Layout
+
+`dagger-module.toml` holds only `name` and the static entrypoint (`[entrypoint] kind = "dang"`,
+`source = "./sdk/entrypoint"`); the generated `sdk/` and `clients/core` are committed (no
+dependency clients). See [Dagger 1.0 workspaces](/dagger/dagger-1-0-workspaces.md).[^manifest]
+
 [^main]: gcp-firebase/src/gcp_firebase/main.py
+[^module-readme]: gcp-firebase/README.md
+[^manifest]: gcp-firebase/dagger-module.toml
 [^firestore]: gcp-firebase/src/gcp_firebase/firestore.py
 [^scripts]: gcp-firebase/src/gcp_firebase/scripts.py
 [^creds]: gcp-firebase/src/gcp_firebase/credentials.py

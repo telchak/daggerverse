@@ -1,21 +1,31 @@
 ---
 type: Repository
 title: "telchak/daggerverse"
-description: "A monorepo of small, independent, reusable Dagger modules and AI agents for CI/CD, published on the Daggerverse."
+description: "A monorepo of small, independent, reusable Dagger modules and AI agents for CI/CD, published on the Daggerverse; a Dagger 1.0 workspace pinned to v1.0.0-beta.21."
 tags: [overview, monorepo, dagger]
-generated: { by: claude-code/okf-bootstrap, at: 2026-10-10T23:30:00Z }
-stale_after: 2027-04-10T00:00:00Z
+generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: readme
     resource: https://github.com/telchak/daggerverse/blob/main/README.md
     title: "Repository README"
     author: human:telchak
-    last_modified: 2026-10-01T11:09:06+00:00
+    last_modified: 2026-10-24T22:00:00Z
   - id: contributing
     resource: https://github.com/telchak/daggerverse/blob/main/CONTRIBUTING.md
     title: "Contributing guide"
     author: human:telchak
-    last_modified: 2026-03-05T15:49:35+01:00
+    last_modified: 2026-10-24T22:00:00Z
+  - id: workspace
+    resource: https://github.com/telchak/daggerverse/blob/main/dagger.toml
+    title: "dagger.toml (workspace)"
+    author: human:telchak
+    last_modified: 2026-10-24T22:00:00Z
+  - id: ci
+    resource: https://github.com/telchak/daggerverse/blob/main/.github/workflows/ci.yml
+    title: "CI workflow"
+    author: human:telchak
+    last_modified: 2026-10-24T22:00:00Z
   - id: first-commit
     resource: https://github.com/telchak/daggerverse/commit/65664213f21d8fcd9feb78e550993caa7b626f4c
     title: "first commit (2025-12-23)"
@@ -29,21 +39,32 @@ sources:
 AI agents, built with the Dagger Python SDK and published on daggerverse.dev.[^readme] It
 started on 2025-12-23[^first-commit] and is maintained by Sami Chibani (GitHub `telchak`).
 
-Every top-level directory that holds a `dagger.json` is a module, versioned and tagged
-independently (`<module>/vX.Y.Z`, see the [release process](/infrastructure/release-process.md)).
+It is a Dagger 1.0 workspace pinned to **v1.0.0-beta.21** (`DAGGER_VERSION` in CI).[^ci] The
+CLI starts an engine of its own version, so contributors use that same CLI
+version.[^contributing] The root `dagger.toml` registers every module as a Python SDK scope whose
+`clients` are its dependencies, and `dagger.lock` pins the Git refs and images they
+resolve.[^workspace] See
+[Dagger 1.0 workspaces](/dagger/dagger-1-0-workspaces.md) and the
+[migration decision](/decisions/migrate-to-dagger-1-0.md).
+
+Every top-level directory that holds a `dagger-module.toml` is a module (12 plain modules, 5
+agents, plus `tests`), versioned and tagged independently (`<module>/vX.Y.Z`, see the
+[release process](/infrastructure/release-process.md)). Tags from before the 1.0 migration
+(`<module>/v0.x`) keep `dagger.json` and work with Dagger 0.x.[^readme]
 
 # Layout
 
 | Path | What it is |
 |------|-----------|
+| `dagger.toml`, `dagger.lock` | Workspace configuration (one Python SDK scope per module, with its clients) and lockfile |
 | `calver/`, `semver/` | Versioning utilities ([calver](/modules/calver.md), [semver](/modules/semver.md)) |
 | `oidc-token/`, `gcp-auth/` | Authentication ([oidc-token](/modules/oidc-token.md), [gcp-auth](/modules/gcp-auth.md)) |
 | `gcp-artifact-registry/`, `gcp-cloud-run/`, `gcp-vertex-ai/`, `gcp-firebase/` | GCP service modules, see [GCP modules](/modules/index.md) |
 | `health-check/` | [Container health checks](/modules/health-check.md) |
-| `angular/`, `python-build/` | Deterministic build modules ([angular](/modules/angular.md), [python-build](/modules/python-build.md)) |
+| `angular/`, `python-build/` | Deterministic build modules with workspace checks ([angular](/modules/angular.md), [python-build](/modules/python-build.md)) |
 | `dagger-mcp/` | [MCP server for Dagger introspection](/modules/dagger-mcp.md) |
 | `angie/`, `monty/`, `daggie/`, `goose/`, `speck/` | AI agents, see [agents](/agents/index.md) |
-| `_agent_base/` | Shared Python package for the coding agents, see [agent-base](/agents/agent-base.md) |
+| `_agent_base/` | Shared Python package included by the agents, see [agent-base](/agents/agent-base.md) |
 | `tests/` | The [centralized test module](/infrastructure/tests-module.md) |
 | `.github/workflows/ci.yml` | The single [CI pipeline](/infrastructure/ci-pipeline.md) |
 | `.okf/` | This knowledge bundle |
@@ -56,17 +77,20 @@ Every module follows the same shape, enforced by CI validation:[^contributing]
 
 ```
 <module>/
-  dagger.json          # name, description, engineVersion, sdk, dependencies (+ include for agents)
+  dagger-module.toml   # name + static entrypoint; agents: engineVersion, include, [runtime]
   README.md            # required
-  examples/            # required; go/, python/, typescript/ example modules
-  pyproject.toml       # Python SDK project; uv.lock committed
+  examples/            # required; go/, python/, typescript/ example modules (still on dagger.json)
+  pyproject.toml       # uv workspace over sdk/ and clients/*; uv.lock committed (uv sync --locked)
   src/<pkg>/__init__.py  # docstring = description shown on daggerverse.dev
   src/<pkg>/main.py    # the @object_type class
   src/<pkg>/prompts/   # agents only: the presence of this dir is what makes CI treat it as an agent
-  sdk/                 # generated by `dagger develop`, git-ignored, linguist-generated
+  sdk/                 # generated by `dagger generate`, committed, linguist-generated
+  clients/             # generated: core + one client per dependency, committed
 ```
 
-See [module anatomy](/conventions/module-anatomy.md) for the rules behind each file.
+Generated code is never edited by hand: re-run `dagger generate -y` after a signature or client
+change, and `dagger check` (the CI `check` job) fails when it is stale.[^contributing] See
+[module anatomy](/conventions/module-anatomy.md) for the rules behind each file.
 
 # Conventions at a glance
 
@@ -77,4 +101,6 @@ See [module anatomy](/conventions/module-anatomy.md) for the rules behind each f
 
 [^readme]: Repository README
 [^contributing]: Contributing guide
+[^workspace]: dagger.toml (workspace)
+[^ci]: CI workflow
 [^first-commit]: first commit (2025-12-23)

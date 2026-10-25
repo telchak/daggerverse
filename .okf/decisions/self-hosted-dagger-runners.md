@@ -3,8 +3,8 @@ type: Decision
 title: "Self-hosted ARC runners labelled by Dagger version"
 description: "CI jobs run on self-hosted Actions Runner Controller runners labelled dagger-v<version> instead of ubuntu-latest with engine-cache restore."
 tags: [decision, ci, runners, caching]
-generated: { by: claude-code/okf-bootstrap, at: 2026-10-10T23:30:00Z }
-stale_after: 2027-04-10T00:00:00Z
+generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: arc
     resource: https://github.com/telchak/daggerverse/commit/432fe2f2187ad81bc2538dd9a14c3d212436a7fb
@@ -21,6 +21,21 @@ sources:
     title: "ci: fix Dagger engine caching with docker-volume-cache-action"
     author: human:telchak
     last_modified: 2026-02-22T00:28:10+01:00
+  - id: ci
+    resource: https://github.com/telchak/daggerverse/blob/main/.github/workflows/ci.yml
+    title: "CI workflow"
+    author: human:telchak
+    last_modified: 2026-10-24T22:00:00Z
+  - id: contributing
+    resource: https://github.com/telchak/daggerverse/blob/main/CONTRIBUTING.md
+    title: "Contributing guide, Prerequisites"
+    author: human:telchak
+    last_modified: 2026-10-24T22:00:00Z
+  - id: renovate
+    resource: https://github.com/telchak/daggerverse/blob/main/renovate.json
+    title: "renovate.json"
+    author: human:telchak
+    last_modified: 2026-10-24T22:00:00Z
 ---
 
 # Timeline
@@ -36,6 +51,15 @@ sources:
 The runner label embeds the engine version, so it is bumped by [Renovate](/infrastructure/renovate.md)
 together with `DAGGER_VERSION`, and a runner for the new version must exist before the PR can run.
 
+With Dagger 1.0 every Dagger job runs on `dagger-v1.0.0-beta.21` (`DAGGER_VERSION: "1.0.0-beta.21"`),
+so an ARC runner scale set with that label must exist before the migration merges.[^ci] The CLI
+starts an engine of its own version, so CLI and engine must match on the runners too.[^contributing] Renovate's
+label regex accepts prerelease suffixes, and the 1.0 betas are read as Git tags (`github-tags`
+datasource), since they have no GitHub Releases.[^renovate]
+
 [^arc]: ci(github-actions): Add ARC GitHub Runners to CI workflow
 [^revert-cache]: revert: remove Dagger engine caching (added latency instead of saving)
 [^vol-cache]: ci: fix Dagger engine caching with docker-volume-cache-action
+[^ci]: CI workflow
+[^contributing]: Contributing guide, Prerequisites
+[^renovate]: renovate.json

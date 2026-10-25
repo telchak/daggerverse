@@ -51,7 +51,7 @@ as "check before relying on this" and confirm against the code. History of the b
   * [Context files and self-improvement](patterns/context-files-and-self-improvement.md)
   * [develop-github-issue (issue to PR)](patterns/develop-github-issue.md)
   * [Exploration budget in prompts](patterns/exploration-budget.md)
-  * [LLM output binding and fallbacks](patterns/llm-output-binding.md)
+  * [LLM results and fallbacks](patterns/llm-output-binding.md)
   * [suggest-github-fix (self-healing CI)](patterns/suggest-github-fix.md)
   * [Task-scoped MCP servers](patterns/task-scoped-mcp.md)
 
@@ -82,6 +82,8 @@ as "check before relying on this" and confirm against the code. History of the b
   * [GCP service modules accept pre-authenticated inputs](decisions/decouple-gcp-modules-from-gcp-auth.md)
   * [Give agents deterministic build modules](decisions/deterministic-build-modules-for-agents.md)
   * [Gemini as the CI LLM provider](decisions/gemini-as-ci-llm.md)
+  * [Call MCP servers through a one-shot stdio driver (temporary)](decisions/mcp-exec-driver.md)
+  * [Migrate every module to Dagger 1.0 (beta)](decisions/migrate-to-dagger-1-0.md)
   * [Native OIDC in Dagger instead of google-github-actions/auth](decisions/native-oidc-instead-of-google-github-actions-auth.md)
   * [Per-module semver tags instead of a repo CalVer release](decisions/per-module-semver-tags.md)
   * [Pin mcp<2 for Python MCP servers (temporary)](decisions/pin-mcp-below-2.md)
@@ -91,13 +93,14 @@ as "check before relying on this" and confirm against the code. History of the b
 
 # Dagger platform
 
-* [Dagger platform](dagger/) - Upstream Dagger knowledge this repo depends on, pinned to v0.21.10.
+* [Dagger platform](dagger/) - Upstream Dagger knowledge this repo depends on, pinned to v1.0.0-beta.21.
   * [Dagger releases and breaking changes relevant here](dagger/breaking-changes.md)
-  * [Dagger checks and toolchains](dagger/checks-and-toolchains.md)
-  * [Upcoming: Dagger 1.0 workspaces (dagger.toml)](dagger/dagger-1-0-workspaces.md) *(draft)*
+  * [Checks, generators and installed modules (0.x toolchains)](dagger/checks-and-toolchains.md)
+  * [Dagger 1.0 workspaces (dagger.toml, dagger.lock, dagger-module.toml)](dagger/dagger-1-0-workspaces.md)
   * [Publishing on daggerverse.dev](dagger/daggerverse-publishing.md)
   * [Running Dagger in GitHub Actions](dagger/github-actions-integration.md)
-  * [Dagger LLM, Env and MCP](dagger/llm-and-mcp.md)
+  * [Dagger 1.0 beta known issues](dagger/known-issues-1-0-beta.md)
+  * [Dagger LLM, workspace agents and MCP](dagger/llm-and-mcp.md)
   * [Dagger modules, dependencies and the Daggerverse install path](dagger/module-system.md)
   * [Dagger platform overview](dagger/platform.md)
 

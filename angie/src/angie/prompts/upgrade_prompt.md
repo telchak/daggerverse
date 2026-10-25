@@ -2,10 +2,12 @@
 
 Upgrade the Angular project to the target version specified in the **target_version** input.
 
-## Inputs Available
+## Inputs
+
+Their values follow this prompt, under **Input values**; an optional input that was not provided is left out.
 
 - **target_version**: The Angular version to upgrade to (e.g. "19", "18.2", "20.0.0")
-- **source**: Angular project source directory
+- **workspace**: the project source, which the workspace tools read and edit
 - **dry_run** (optional): If "true", only analyze and report — do not modify files
 
 ## Approach
@@ -70,7 +72,7 @@ Upgrade the Angular project to the target version specified in the **target_vers
 
 ## Output
 
-Write a detailed upgrade report to the `result` output:
+End with a detailed upgrade report as your final reply:
 
 ### Current State
 - Current Angular version and key dependencies

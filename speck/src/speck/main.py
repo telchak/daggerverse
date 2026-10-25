@@ -17,6 +17,7 @@ import dagger
 from dagger import DefaultPath, Doc, dag, field, function, object_type
 
 from agent_base import constants, llm_helpers, workspace
+from agent_base.mcp_stdio import McpServer
 
 # Model family mappings: complexity tier → model ID
 _MODEL_FAMILIES: dict[str, dict[str, str]] = {
@@ -99,8 +100,8 @@ class Speck:
     _CONTEXT_FILES = ("SPECK.md", "AGENT.md", "CLAUDE.md")
     _CLASS_NAME = "Speck"
 
-    def _mcp_servers(self) -> dict[str, dagger.Service]:
-        return {}
+    def _mcp_servers(self) -> list[McpServer]:
+        return []
 
     def _load_prompt(self, filename: str) -> dagger.File:
         return dag.current_module().source().file(f"src/speck/prompts/{filename}")
@@ -109,14 +110,17 @@ class Speck:
     # Unlike coding agents, Speck doesn't have assist/review/build/etc.,
     # so we only block functions that actually exist on this class.
     _BLOCKED_ENTRYPOINTS = ["specify", "plan", "decompose", "decompose_from_spec"]
+    # Exposed fields are tools too in Dagger 1.0; hide them from the LLM
+    _FIELDS = ["source"]
 
-    async def _build_llm(self, env, prompt_file, source=None, extra_blocked=None):
+    def _blocked(self, *extra: str) -> list[str]:
+        return [*self._BLOCKED_ENTRYPOINTS, *self._FIELDS, *extra]
+
+    async def _build_llm(self, prompt_file, inputs):
         return await llm_helpers.build_llm(
-            env, "system_prompt.md", prompt_file, self._load_prompt,
-            self._CONTEXT_FILES, self._mcp_servers(), self._CLASS_NAME,
-            self._BLOCKED_ENTRYPOINTS,
-            source or self.source,
-            extra_blocked=extra_blocked,
+            self.source, "system_prompt.md", prompt_file, self._load_prompt,
+            self._CONTEXT_FILES, self._mcp_servers(), self._blocked(),
+            inputs=inputs,
         )
 
     # --- Agent entrypoints ---
@@ -137,14 +141,8 @@ class Speck:
         """
         assignment = await self._resolve_input(prompt, issue_id, repository, github_token)
 
-        env = (
-            dag.env()
-            .with_workspace(self.source)
-            .with_string_input("feature_description", assignment, "The feature to specify")
-            .with_string_output("result", "The feature specification in markdown")
-        )
-        work = await self._build_llm(env, "specify_prompt.md")
-        return await llm_helpers.get_result_or_last_reply(work)
+        work = await self._build_llm("specify_prompt.md", {"feature_description": assignment})
+        return await llm_helpers.reply(work)
 
     @function
     async def plan(
@@ -158,16 +156,8 @@ class Speck:
         architecture decisions, project structure, dependencies, and
         complexity analysis. Returns the plan as markdown text.
         """
-        env = (
-            dag.env()
-            .with_workspace(self.source)
-            .with_string_input("spec", spec, "The feature specification")
-            .with_string_output("result", "The technical implementation plan in markdown")
-        )
-        if tech_stack:
-            env = env.with_string_input("tech_stack", tech_stack, "Tech stack preferences")
-        work = await self._build_llm(env, "plan_prompt.md")
-        return await llm_helpers.get_result_or_last_reply(work)
+        work = await self._build_llm("plan_prompt.md", {"spec": spec, "tech_stack": tech_stack})
+        return await llm_helpers.reply(work)
 
     @function
     async def decompose(
@@ -200,22 +190,17 @@ class Speck:
             raise ValueError(f"model_family must be one of {list(_MODEL_FAMILIES)}, got '{model_family}'")
         model_table = _MODEL_FAMILIES[model_family]
 
-        env = (
-            dag.env()
-            .with_workspace(self.source)
-            .with_string_input("feature_description", assignment, "The feature to decompose")
-            .with_string_input("agents_registry", agents, "Available agents as JSON array")
-            .with_string_input("model_family", model_family, "Model provider family")
-            .with_string_input("model_table", _format_model_table(model_table), "Model mapping for the selected family")
-            .with_string_input("include_tests", "true" if include_tests else "false", "Whether to generate test tasks")
-            .with_string_input("include_review", "true" if include_review else "false", "Whether to generate review tasks")
-            .with_string_input("create_pr", "true" if create_pr else "false", "Whether to generate PR branch names on phases")
-            .with_string_output("result", "Structured JSON task decomposition")
-        )
-        if tech_stack:
-            env = env.with_string_input("tech_stack", tech_stack, "Tech stack preferences")
-        work = await self._build_llm(env, "decompose_prompt.md")
-        raw = await llm_helpers.get_result_or_last_reply(work)
+        work = await self._build_llm("decompose_prompt.md", {
+            "feature_description": assignment,
+            "agents_registry": agents,
+            "model_family": model_family,
+            "model_table": _format_model_table(model_table),
+            "include_tests": "true" if include_tests else "false",
+            "include_review": "true" if include_review else "false",
+            "create_pr": "true" if create_pr else "false",
+            "tech_stack": tech_stack,
+        })
+        raw = await llm_helpers.reply(work)
         return _extract_and_validate_json(raw)
 
     @function
@@ -239,21 +224,17 @@ class Speck:
             raise ValueError(f"model_family must be one of {list(_MODEL_FAMILIES)}, got '{model_family}'")
         model_table = _MODEL_FAMILIES[model_family]
 
-        env = (
-            dag.env()
-            .with_workspace(self.source)
-            .with_string_input("spec", spec, "The feature specification")
-            .with_string_input("plan", plan, "The technical implementation plan")
-            .with_string_input("agents_registry", agents, "Available agents as JSON array")
-            .with_string_input("model_family", model_family, "Model provider family")
-            .with_string_input("model_table", _format_model_table(model_table), "Model mapping for the selected family")
-            .with_string_input("include_tests", "true" if include_tests else "false", "Whether to generate test tasks")
-            .with_string_input("include_review", "true" if include_review else "false", "Whether to generate review tasks")
-            .with_string_input("create_pr", "true" if create_pr else "false", "Whether to generate PR branch names on phases")
-            .with_string_output("result", "Structured JSON task decomposition")
-        )
-        work = await self._build_llm(env, "decompose_from_spec_prompt.md")
-        raw = await llm_helpers.get_result_or_last_reply(work)
+        work = await self._build_llm("decompose_from_spec_prompt.md", {
+            "spec": spec,
+            "plan": plan,
+            "agents_registry": agents,
+            "model_family": model_family,
+            "model_table": _format_model_table(model_table),
+            "include_tests": "true" if include_tests else "false",
+            "include_review": "true" if include_review else "false",
+            "create_pr": "true" if create_pr else "false",
+        })
+        raw = await llm_helpers.reply(work)
         return _extract_and_validate_json(raw)
 
     # --- Workspace tools ---
@@ -261,50 +242,49 @@ class Speck:
     @function
     async def read_file(
         self,
+        ws: dagger.Workspace,
         file_path: Annotated[str, Doc("Path to the file relative to the workspace root")],
         offset: Annotated[int, Doc("Line number to start reading from (1-based)")] = 0,
         limit: Annotated[int, Doc("Maximum number of lines to read")] = 0,
     ) -> str:
         """Read a file from the workspace with line numbers."""
-        return await workspace.read_file_impl(self.source, file_path, offset, limit)
+        return await workspace.read_file_impl(ws, file_path, offset, limit)
 
     @function
     async def edit_file(
         self,
+        ws: dagger.Workspace,
         file_path: Annotated[str, Doc("Path to the file relative to the workspace root")],
         old_string: Annotated[str, Doc("The exact string to find and replace")],
         new_string: Annotated[str, Doc("The replacement string")],
         replace_all: Annotated[bool, Doc("Replace all occurrences (default: first only)")] = False,
-    ) -> dagger.Changeset:
+    ) -> dagger.Workspace:
         """Edit a file by replacing a string. The old_string must match exactly."""
-        self.source, changeset = await workspace.edit_file_impl(
-            self.source, file_path, old_string, new_string, replace_all,
-        )
-        return changeset
+        return await workspace.edit_file_impl(ws, file_path, old_string, new_string, replace_all)
 
     @function
-    async def write_file(
+    def write_file(
         self,
+        ws: dagger.Workspace,
         file_path: Annotated[str, Doc("Path to the file relative to the workspace root")],
         contents: Annotated[str, Doc("The full file contents to write")],
-    ) -> dagger.Changeset:
+    ) -> dagger.Workspace:
         """Create or overwrite a file in the workspace."""
-        self.source, changeset = workspace.write_file_impl(
-            self.source, file_path, contents,
-        )
-        return changeset
+        return workspace.write_file_impl(ws, file_path, contents)
 
     @function
     async def glob(
         self,
+        ws: dagger.Workspace,
         pattern: Annotated[str, Doc("Glob pattern (e.g. 'src/**/*.py', '**/*.toml')")],
     ) -> str:
         """Find files in the workspace matching a glob pattern."""
-        return await workspace.glob_impl(self.source, pattern)
+        return await workspace.glob_impl(ws, pattern)
 
     @function
     async def grep(
         self,
+        ws: dagger.Workspace,
         pattern: Annotated[str, Doc("Search pattern (regex supported)")],
         paths: Annotated[str, Doc("Comma-separated paths to search in (optional)")] = "",
         file_glob: Annotated[str, Doc("Glob pattern to filter files (e.g. '*.py')")] = "",
@@ -312,13 +292,14 @@ class Speck:
         limit: Annotated[int, Doc("Maximum number of matching lines to return")] = 100,
     ) -> str:
         """Search file contents in the workspace using grep."""
-        return await workspace.grep_impl(self.source, pattern, paths, file_glob, insensitive, limit)
+        return await workspace.grep_impl(ws, pattern, paths, file_glob, insensitive, limit)
 
     # --- Task sub-agent ---
 
     @function
     async def task(
         self,
+        ws: dagger.Workspace,
         description: Annotated[str, Doc("Short description of the sub-task")],
         prompt: Annotated[str, Doc("Detailed prompt for the sub-agent")],
     ) -> str:
@@ -328,13 +309,12 @@ class Speck:
         Use this for exploring the codebase to inform specification and planning.
         """
         llm = await llm_helpers.build_task_llm(
-            self.source, self._load_prompt, self._CONTEXT_FILES,
-            self._mcp_servers(), self._CLASS_NAME,
-            self._BLOCKED_ENTRYPOINTS,
-            constants.BLOCKED_DESTRUCTIVE,
+            ws, self._load_prompt, self._CONTEXT_FILES,
+            self._mcp_servers(),
+            self._blocked("task", *constants.BLOCKED_DESTRUCTIVE),
             description, prompt,
         )
-        return await llm_helpers.get_result_or_last_reply(llm)
+        return await llm_helpers.reply(llm)
 
     # --- Internal helpers ---
 

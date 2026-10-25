@@ -1,61 +1,112 @@
 ---
 type: Reference
-title: "Dagger LLM, Env and MCP"
-description: "Dagger's native LLM type: environments with typed inputs/outputs, tool use over Dagger functions, blocked functions, and MCP in both directions."
+title: "Dagger LLM, workspace agents and MCP"
+description: "Dagger 1.0's LLM type: a workspace binding, object tools, built-in trace and skill tools, @agent functions, provider configuration, and MCP in both directions."
 tags: [dagger, llm, mcp, agents]
-generated: { by: claude-code/okf-bootstrap, at: 2026-10-10T23:30:00Z }
-stale_after: 2027-01-10T00:00:00Z
+generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+stale_after: 2027-01-24T00:00:00Z
 sources:
-  - id: llm
-    resource: https://github.com/dagger/dagger/blob/v0.21.10/docs/current_docs/introduction/features/llm.mdx
-    title: "Dagger docs: LLM Integration (v0.21.10)"
+  - id: design
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/hack/designs/workspace-agents.md
+    title: "Dagger design: Workspace Agents (v1.0.0-beta.21)"
     author: team:dagger
-    last_modified: 2026-09-30T13:16:43-03:00
+    last_modified: 2026-10-23T09:33:31+02:00
+  - id: llm-type
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/docs/current_docs/partials/types/_llm.mdx
+    title: "Dagger docs: LLM type (v1.0.0-beta.21)"
+    author: team:dagger
+    last_modified: 2026-10-23T09:33:31+02:00
+  - id: mcp-go
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/core/mcp.go
+    title: "Dagger engine: LLM tool set and built-in tools (core/mcp.go)"
+    author: team:dagger
+    last_modified: 2026-10-23T09:33:31+02:00
+  - id: skills-go
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/core/llm_skills.go
+    title: "Dagger engine: LLM skills (core/llm_skills.go)"
+    author: team:dagger
+    last_modified: 2026-10-23T09:33:31+02:00
+  - id: mcp-cmd
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/internal/cmd/dagger/mcp.go
+    title: "Dagger CLI: dagger mcp (hidden, experimental)"
+    author: team:dagger
+    last_modified: 2026-10-23T09:33:31+02:00
   - id: agent-base
     resource: https://github.com/telchak/daggerverse/blob/main/_agent_base/src/agent_base/llm_helpers.py
     title: "agent_base/llm_helpers.py"
     author: human:telchak
-    last_modified: 2026-02-28T16:53:12+01:00
-  - id: goose-readme
-    resource: https://github.com/telchak/daggerverse/blob/main/README.md
-    title: "Repository README, Goose section"
-    author: human:telchak
-    last_modified: 2026-10-01T11:09:06+00:00
+    last_modified: 2026-10-24T22:00:00Z
+  - id: session
+    resource: local migration session on a Windows 11 host, 2026-10-24
+    title: "Observations from the Dagger 1.0 migration session (scripted mock LLM)"
+    author: claude-code/2.1.310
 ---
 
 # Model
 
-`dag.llm()` runs an agent loop inside the engine. An `Env` declares inputs and outputs
-(`with_string_input`, `with_container_input`, `with_workspace`, `with_string_output`...). The LLM
-discovers Dagger functions on the objects in its env as tools, using their doc strings, and loops
-until done; `env().output(name)` or `env().workspace()` read the results.[^llm]
+`Env` is gone in 1.0. An LLM starts unbound and is given:[^design] [^llm-type]
 
-As used in this repo:[^agent-base]
+- a **workspace** (`with_workspace`; a Directory becomes one with `as_workspace()`): its mutable
+  state. Edits stage in an overlay; nothing reaches the host unless exported.
+- **object tools** (`with_tools(obj, except_=[...])`): every eligible method of the object becomes
+  a tool named after it (camelCase), described by its docstring, with its scalar arguments;
+  `Workspace` arguments are injected from the bound workspace and hidden. `dag.current_node()`
+  binds the object whose function is running, which only works inside a function call.
+- results by return type: a `Changeset` or `Workspace` updates the bound workspace, the object's
+  own type rebinds it as the new state, scalars are returned, other objects are synced.
+
+`loop()` runs the conversation; `last_reply()` and `workspace()` read it but do not run it.
+Identical LLM chains are cached like any other call.[^session]
+
+Built-in tools are always added: trace inspection (`ReadTrace`, `FindSpans`, `ReadLogs`,
+`InspectCall`, `FindCalls`, `ListServices`, and `LoadTrace`, which imports a Dagger Cloud trace by
+ID or URL), `FindArtifacts`, `Timeout`, and skills.[^mcp-go] Skills (`ListSkills`, `ReadSkill`)
+come from the engine's own Dang skills, directories added with `with_skills(dir)`, and every
+`SKILL.md` in the bound workspace.[^skills-go]
+
+# @agent functions
+
+An `@agent` function is middleware, `agent(base: LLM, ws: Workspace) -> LLM`. `dagger agent`
+composes every installed agent module into one interactive prompt; `@agent` methods are left out
+of `with_tools` automatically.[^design]
+
+# Providers
+
+Configured from env vars: `GEMINI_API_KEY` / `GEMINI_MODEL` (provider `google`, used by CI),
+`ANTHROPIC_*`, `OPENAI_*`, or an OpenAI-compatible endpoint with `LOCAL_BASE_URL`, `LOCAL_MODEL`,
+`LOCAL_API_COMPAT=openai`, `LOCAL_API_KEY` (reached through the client, so `127.0.0.1` works).
+Remote modules need `--allow-llm` or `DAGGER_ALLOW_LLM`. `llm.tools()` lists the tool set
+without calling a model.[^session]
+
+# As used in this repo
 
 ```python
 llm = (
     dag.llm()
-    .with_env(env.with_current_module())      # agent's own @functions become tools
-    .with_system_prompt(system_prompt + context_md)
-    .with_mcp_server("angular", service)      # MCP server as a Dagger Service
-    .with_blocked_function("Angie", "assist") # prevent recursion
-    .with_prompt_file(prompt_file)
+    .with_workspace(source.as_workspace())
+    .with_tools(dag.current_node(), except_=tool_exclusions([*blocked, *mcp_stdio.blocked_tools(servers)]))
 )
-result = await llm.env().workspace()
+llm, mcp_context = await mcp_stdio.attach(llm, servers)        # MCP catalog for the `mcp` tool
+llm = llm.with_system_prompt(system_prompt + context_md + mcp_context)
+result = await llm.with_prompt(prompt + format_inputs(inputs)).loop().last_reply()
 ```
 
-The provider is chosen from env vars (`GEMINI_API_KEY`/`GEMINI_MODEL`, `ANTHROPIC_*`, ...).
+`tool_exclusions` converts Python names to camelCase, because unknown names are ignored silently.[^agent-base]
+See [agent-base](/agents/agent-base.md), [blocked functions](/patterns/blocked-functions.md),
+[output binding](/patterns/llm-output-binding.md) and [task-scoped MCP](/patterns/task-scoped-mcp.md).
 
 # MCP
 
-- **Into Dagger:** `LLM.with_mcp_server(name, service)`. Only stdio MCP servers are supported, which
-  is why Goose exposes the HTTP Developer Knowledge API as functions instead.[^goose-readme]
-- **Out of Dagger:** `dagger -m <module> mcp` serves a module as an MCP server over stdio, for modules
-  without required constructor args.[^llm]
+- **Into Dagger:** `LLM.with_mcp_server(name, service)` (stdio servers). In v1.0.0-beta.21 it
+  hangs on the second step, so the agents use their own driver: see
+  [known issues](/dagger/known-issues-1-0-beta.md) and the [decision](/decisions/mcp-exec-driver.md).
+- **Out of Dagger:** `dagger -m <module> mcp` serves a module as a stdio MCP server; in 1.0 the
+  command is hidden and marked experimental.[^mcp-cmd]
 
-Patterns built on this: [blocked functions](/patterns/blocked-functions.md),
-[task-scoped MCP](/patterns/task-scoped-mcp.md), [output binding](/patterns/llm-output-binding.md).
-
-[^llm]: Dagger docs: LLM Integration (v0.21.10)
+[^design]: Dagger design: Workspace Agents (v1.0.0-beta.21)
+[^llm-type]: Dagger docs: LLM type (v1.0.0-beta.21)
+[^mcp-go]: Dagger engine: LLM tool set and built-in tools (core/mcp.go)
+[^skills-go]: Dagger engine: LLM skills (core/llm_skills.go)
+[^mcp-cmd]: Dagger CLI: dagger mcp (hidden, experimental)
 [^agent-base]: agent_base/llm_helpers.py
-[^goose-readme]: Repository README, Goose section
+[^session]: Observations from the Dagger 1.0 migration session (scripted mock LLM)

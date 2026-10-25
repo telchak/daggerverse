@@ -1,6 +1,6 @@
 """MCP server for Dagger engine introspection.
 
-Runs inside a privileged-nested container with access to the Dagger engine
+Runs inside a Dagger-in-Dagger container with access to the Dagger engine
 via DAGGER_SESSION_PORT and DAGGER_SESSION_TOKEN environment variables.
 """
 
