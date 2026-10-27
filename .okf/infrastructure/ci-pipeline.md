@@ -42,8 +42,10 @@ Push to `main`, pull requests to `main`, and `workflow_dispatch` (input `dry_run
   progress; `plain` streams logs.
 - Every job except `discover` runs on the self-hosted runner label `dagger-v1.0.0-beta.21`; the
   ARC runner scale set with that label must exist, or the jobs queue forever.
-- `dagger/dagger-for-github@v8.4.1` only installs the CLI (`version`, `cloud-token`). It is not
-  given `verb: version`, which runs `dagger --progress plain version`, rejected by the 1.0 CLI.[^ci]
+- `dagger/dagger-for-github` (v8.4.1, pinned to its commit SHA with a `# v8.4.1` comment, as
+  SonarCloud asks of third-party actions) only installs the CLI (`version`, `cloud-token`). It is
+  not given `verb: version`, which runs `dagger --progress plain version`, rejected by the 1.0
+  CLI.[^ci]
 
 # Jobs
 
