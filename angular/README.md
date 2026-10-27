@@ -43,7 +43,7 @@ The project path and Node.js version are settings, and checks your project canno
 ```toml
 [modules.angular.settings]
 path = "frontend"
-nodeVersion = "20"
+nodeVersion = "24"
 
 [modules.angular.check]
 skip = ["check-lint"]

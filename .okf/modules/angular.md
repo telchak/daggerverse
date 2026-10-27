@@ -4,7 +4,7 @@ title: "angular"
 description: "Deterministic Angular build, lint, test, serve and install functions, plus workspace checks for dagger check; the non-LLM backbone used by the Angie agent."
 resource: https://github.com/telchak/daggerverse/tree/main/angular
 tags: [module, build, angular, deterministic, checks]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T13:00:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: main
@@ -91,7 +91,7 @@ Settings (camelCase keys) and skipped checks go in the user's `dagger.toml`:[^mo
 ```toml
 [modules.angular.settings]
 path = "frontend"
-nodeVersion = "20"
+nodeVersion = "24"
 
 [modules.angular.check]
 skip = ["check-lint"]

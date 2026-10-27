@@ -3,7 +3,7 @@ type: Reference
 title: "Checks, generators and installed modules (0.x toolchains)"
 description: "Dagger 1.0 checks, generators, services and installed modules, which replace 0.x toolchains, and how this repository's modules expose them."
 tags: [dagger, checks, toolchains, generators, platform-engineering]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T13:00:00Z }
 stale_after: 2027-01-24T00:00:00Z
 sources:
   - id: checking
@@ -76,7 +76,7 @@ a `[modules.<name>]` entry, with `legacy-default-path = true` to keep resolving 
 `defaultPath` arguments against the workspace.[^migrate] In 1.0 an installed module:
 
 - is installed with `dagger module install <ref>` and configured by **settings**, which are its
-  constructor arguments (`[modules.angular.settings] nodeVersion = "20"`), possibly wired to
+  constructor arguments (`[modules.angular.settings] nodeVersion = "24"`), possibly wired to
   another module's output (`dag://myapp/serve`);[^wiring]
 - reads the user's project through a `dagger.Workspace` argument, which Dagger injects for CLI
   calls, checks, generators and LLM tools. `DefaultPath(".")` of a Git-installed module resolves

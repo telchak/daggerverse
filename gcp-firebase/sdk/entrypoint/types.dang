@@ -69,7 +69,7 @@ type ModuleTypes {
             .withArg("access_token", typeDef.withOptional(true).withObject("Secret").withOptional(true), description: "GCP access token", defaultValue: ("null" :: Dagger.JSON!))
             .withArg("project_id", typeDef.withOptional(true).withKind(TypeDefKind.STRING_KIND).withOptional(true), description: "GCP project ID", defaultValue: ("null" :: Dagger.JSON!))
             .withArg("working_dir", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Working directory relative to source root", defaultValue: ("\".\"" :: Dagger.JSON!))
-            .withArg("node_version", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Node.js version", defaultValue: ("\"20\"" :: Dagger.JSON!))
+            .withArg("node_version", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Node.js version", defaultValue: ("\"22\"" :: Dagger.JSON!))
             .withArg("install_command", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Package install command", defaultValue: ("\"npm ci\"" :: Dagger.JSON!))
             .withArg("env", typeDef.withOptional(true).withListOf(typeDef.withKind(TypeDefKind.STRING_KIND)).withOptional(true), description: "Environment variables (KEY=VALUE format)", defaultValue: ("null" :: Dagger.JSON!))
         )
@@ -95,7 +95,7 @@ type ModuleTypes {
             .withDescription("Build the web application and return the dist directory.")
             .withArg("source", typeDef.withObject("Directory"), description: "Source directory", defaultPath: ".")
             .withArg("build_command", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Build command (empty string to skip build)", defaultValue: ("\"npm run build\"" :: Dagger.JSON!))
-            .withArg("node_version", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Node.js version", defaultValue: ("\"20\"" :: Dagger.JSON!))
+            .withArg("node_version", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Node.js version", defaultValue: ("\"22\"" :: Dagger.JSON!))
             .withArg("npm_cache", typeDef.withOptional(true).withObject("CacheVolume").withOptional(true), description: "Custom npm cache volume (uses default if not provided)", defaultValue: ("null" :: Dagger.JSON!))
         )
         .withFunction(
@@ -109,7 +109,7 @@ type ModuleTypes {
             .withArg("credentials", typeDef.withOptional(true).withObject("Secret").withOptional(true), description: "GCP service account credentials JSON", defaultValue: ("null" :: Dagger.JSON!))
             .withArg("access_token", typeDef.withOptional(true).withObject("Secret").withOptional(true), description: "GCP access token (deprecated, use OIDC or credentials)", defaultValue: ("null" :: Dagger.JSON!))
             .withArg("site", typeDef.withOptional(true).withKind(TypeDefKind.STRING_KIND).withOptional(true), description: "Firebase site (defaults to project ID)", defaultValue: ("null" :: Dagger.JSON!))
-            .withArg("node_version", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Node.js version", defaultValue: ("\"20\"" :: Dagger.JSON!))
+            .withArg("node_version", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Node.js version", defaultValue: ("\"22\"" :: Dagger.JSON!))
             .withArg("npm_cache", typeDef.withOptional(true).withObject("CacheVolume").withOptional(true), description: "Custom npm cache volume (uses default if not provided)", defaultValue: ("null" :: Dagger.JSON!))
         )
         .withFunction(
@@ -123,7 +123,7 @@ type ModuleTypes {
             .withArg("credentials", typeDef.withOptional(true).withObject("Secret").withOptional(true), description: "GCP service account credentials JSON", defaultValue: ("null" :: Dagger.JSON!))
             .withArg("access_token", typeDef.withOptional(true).withObject("Secret").withOptional(true), description: "GCP access token (deprecated, use OIDC or credentials)", defaultValue: ("null" :: Dagger.JSON!))
             .withArg("build_command", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Build command (empty string to skip build)", defaultValue: ("\"npm run build\"" :: Dagger.JSON!))
-            .withArg("node_version", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Node.js version", defaultValue: ("\"20\"" :: Dagger.JSON!))
+            .withArg("node_version", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Node.js version", defaultValue: ("\"22\"" :: Dagger.JSON!))
             .withArg("skip_build", typeDef.withKind(TypeDefKind.BOOLEAN_KIND), description: "Skip npm ci and build step (use when source is pre-built)", defaultValue: ("false" :: Dagger.JSON!))
             .withArg("deploy_functions", typeDef.withKind(TypeDefKind.BOOLEAN_KIND), description: "Deploy Cloud Functions", defaultValue: ("true" :: Dagger.JSON!))
             .withArg("force", typeDef.withKind(TypeDefKind.BOOLEAN_KIND), description: "Force deployment", defaultValue: ("true" :: Dagger.JSON!))
@@ -141,7 +141,7 @@ type ModuleTypes {
             .withArg("credentials", typeDef.withOptional(true).withObject("Secret").withOptional(true), description: "GCP service account credentials JSON", defaultValue: ("null" :: Dagger.JSON!))
             .withArg("access_token", typeDef.withOptional(true).withObject("Secret").withOptional(true), description: "GCP access token (deprecated, use OIDC or credentials)", defaultValue: ("null" :: Dagger.JSON!))
             .withArg("build_command", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Build command (empty string to skip build)", defaultValue: ("\"npm run build\"" :: Dagger.JSON!))
-            .withArg("node_version", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Node.js version", defaultValue: ("\"20\"" :: Dagger.JSON!))
+            .withArg("node_version", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Node.js version", defaultValue: ("\"22\"" :: Dagger.JSON!))
             .withArg("skip_build", typeDef.withKind(TypeDefKind.BOOLEAN_KIND), description: "Skip npm ci and build step (use when source is pre-built)", defaultValue: ("false" :: Dagger.JSON!))
             .withArg("expires", typeDef.withKind(TypeDefKind.STRING_KIND), description: "Channel expiration", defaultValue: ("\"7d\"" :: Dagger.JSON!))
             .withArg("npm_cache", typeDef.withOptional(true).withObject("CacheVolume").withOptional(true), description: "Custom npm cache volume (uses default if not provided)", defaultValue: ("null" :: Dagger.JSON!))
@@ -152,7 +152,7 @@ type ModuleTypes {
         )
         .withFunction(
           function("scripts", typeDef.withObject("FirebaseScripts"))
-            .withDescription("Access script runners for Firebase/Firestore data operations.\n\nProvides methods to run scripts in various languages (Node.js, Python, etc.)\nwith GCP Application Default Credentials configured for Firebase services.\n\nExample (Node.js/TypeScript):\n    await dag.gcp_firebase().scripts().node(\n        credentials=credentials,\n        source=source,\n        script=\"src/seed-data.ts\",\n        working_dir=\"functions\",\n    )\n\nExample (Python):\n    await dag.gcp_firebase().scripts().python(\n        credentials=credentials,\n        source=source,\n        script=\"seed_data.py\",\n        install_command=\"pip install firebase-admin\",\n    )\n\nExample (Other languages):\n    container = dag.gcp_firebase().scripts().container(\n        credentials=credentials,\n        source=source,\n        base_image=\"golang:1.22-alpine\",\n    )\n    await container.with_exec([\"go\", \"run\", \"main.go\"]).stdout()")
+            .withDescription("Access script runners for Firebase/Firestore data operations.\n\nProvides methods to run scripts in various languages (Node.js, Python, etc.)\nwith GCP Application Default Credentials configured for Firebase services.\n\nExample (Node.js/TypeScript):\n    await dag.gcp_firebase().scripts().node(\n        credentials=credentials,\n        source=source,\n        script=\"src/seed-data.ts\",\n        working_dir=\"functions\",\n    )\n\nExample (Python):\n    await dag.gcp_firebase().scripts().python(\n        credentials=credentials,\n        source=source,\n        script=\"seed_data.py\",\n        install_command=\"pip install firebase-admin\",\n    )\n\nExample (Other languages):\n    container = dag.gcp_firebase().scripts().container(\n        credentials=credentials,\n        source=source,\n        base_image=\"golang:1.27-alpine\",\n    )\n    await container.with_exec([\"go\", \"run\", \"main.go\"]).stdout()")
         )
         .withConstructor(
           function("", typeDef.withObject("GcpFirebase"))

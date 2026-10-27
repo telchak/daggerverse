@@ -1059,7 +1059,7 @@ Do not search docs for basic operations you already know how to perform.
         self,
         ws: dagger.Workspace,
         build_command: Annotated[str, Doc("Build command (empty string to skip build for pre-built sources)")] = "npm run build",
-        node_version: Annotated[str, Doc("Node.js version")] = "20",
+        node_version: Annotated[str, Doc("Node.js version")] = "22",
     ) -> str:
         """Deploy the web application in the workspace (with its firebase.json) to Firebase Hosting."""
         await self._ensure_resolved()
@@ -1080,7 +1080,7 @@ Do not search docs for basic operations you already know how to perform.
         ws: dagger.Workspace,
         channel_id: Annotated[str, Doc("Preview channel ID (e.g. pr-123)")],
         build_command: Annotated[str, Doc("Build command (empty string to skip build for pre-built sources)")] = "npm run build",
-        node_version: Annotated[str, Doc("Node.js version")] = "20",
+        node_version: Annotated[str, Doc("Node.js version")] = "22",
         expires: Annotated[str, Doc("Channel expiration (e.g. '7d')")] = "7d",
     ) -> str:
         """Deploy the workspace (with its firebase.json) to a Firebase Hosting preview channel.

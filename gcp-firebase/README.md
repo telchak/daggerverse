@@ -293,7 +293,7 @@ result = await dag.gcp_firebase().scripts().python(
 ```python
 container = dag.gcp_firebase().scripts().container(
     source=source,
-    base_image="golang:1.22-alpine",
+    base_image="golang:1.27-alpine",
     credentials=credentials,
 )
 result = await container.with_exec(["go", "run", "main.go"]).stdout()

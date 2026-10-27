@@ -4,14 +4,14 @@ title: "Goose (GCP operations agent)"
 description: "AI GCP operations agent: deploy, troubleshoot, review, upgrade and assist across Cloud Run, Firebase Hosting, Vertex AI and Artifact Registry, with the gcloud MCP server; on agent-base since the 1.0 port."
 resource: https://github.com/telchak/daggerverse/tree/main/goose
 tags: [agent, llm, gcp]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T13:00:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: main
     resource: https://github.com/telchak/daggerverse/blob/main/goose/src/goose/main.py
     title: "goose/src/goose/main.py"
     author: human:telchak
-    last_modified: 2026-10-24T22:00:00Z
+    last_modified: 2026-10-27T13:00:00Z
   - id: agent-readme
     resource: https://github.com/telchak/daggerverse/blob/main/goose/README.md
     title: "goose/README.md"
@@ -56,7 +56,8 @@ module dependencies: Cloud Run (`deploy_service`, `describe_service`, `get_revis
 `check_iam_policy`, `get_service_logs`, ...), Artifact Registry (`publish_container`,
 `list_images`, and `build_and_publish(ws, repository, image_name, tag, dockerfile)`, which builds
 the bound workspace with its Dockerfile), Firebase (`deploy_firebase_hosting`,
-`deploy_firebase_preview`, `delete_firebase_channel`, taking `ws`), Vertex AI, health checks, and
+`deploy_firebase_preview`, `delete_firebase_channel`, taking `ws`; their `node_version` defaults to
+`"22"`, `"20"` until 2026-10-27), Vertex AI, health checks, and
 Google Developer Knowledge API search (`search_gcp_docs`, `get_gcp_doc`, `batch_get_gcp_docs`,
 via `developerknowledge.googleapis.com/v1alpha`, enabled by `--developer-knowledge-api-key`). The
 docs API is exposed as functions, not MCP, because Dagger only supports stdio MCP servers and that

@@ -59,7 +59,7 @@ class GcpFirebase:
 
     def _firebase_container(
         self,
-        node_version: str = "20",
+        node_version: str = "22",
         # OIDC/WIF auth (recommended)
         oidc_token: dagger.Secret | None = None,
         workload_identity_provider: str | None = None,
@@ -100,7 +100,7 @@ class GcpFirebase:
         self,
         source: Annotated[dagger.Directory, DefaultPath("."), Doc("Source directory")],
         build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = _DEFAULT_BUILD_CMD,
-        node_version: Annotated[str, Doc("Node.js version")] = "20",
+        node_version: Annotated[str, Doc("Node.js version")] = "22",
         npm_cache: Annotated[dagger.CacheVolume | None, Doc("Custom npm cache volume (uses default if not provided)")] = None,
     ) -> dagger.Directory:
         """Build the web application and return the dist directory."""
@@ -131,7 +131,7 @@ class GcpFirebase:
         access_token: Annotated[dagger.Secret | None, Doc("GCP access token (deprecated, use OIDC or credentials)")] = None,
         # Build options
         build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = _DEFAULT_BUILD_CMD,
-        node_version: Annotated[str, Doc("Node.js version")] = "20",
+        node_version: Annotated[str, Doc("Node.js version")] = "22",
         skip_build: Annotated[bool, Doc("Skip npm ci and build step (use when source is pre-built)")] = False,
         deploy_functions: Annotated[bool, Doc("Deploy Cloud Functions")] = True,
         force: Annotated[bool, Doc("Force deployment")] = True,
@@ -185,7 +185,7 @@ class GcpFirebase:
         access_token: Annotated[dagger.Secret | None, Doc("GCP access token (deprecated, use OIDC or credentials)")] = None,
         # Build options
         build_command: Annotated[str, Doc("Build command (empty string to skip build)")] = _DEFAULT_BUILD_CMD,
-        node_version: Annotated[str, Doc("Node.js version")] = "20",
+        node_version: Annotated[str, Doc("Node.js version")] = "22",
         skip_build: Annotated[bool, Doc("Skip npm ci and build step (use when source is pre-built)")] = False,
         expires: Annotated[str, Doc("Channel expiration")] = "7d",
         # Cache
@@ -245,7 +245,7 @@ class GcpFirebase:
         access_token: Annotated[dagger.Secret | None, Doc("GCP access token (deprecated, use OIDC or credentials)")] = None,
         # Options
         site: Annotated[str | None, Doc("Firebase site (defaults to project ID)")] = None,
-        node_version: Annotated[str, Doc("Node.js version")] = "20",
+        node_version: Annotated[str, Doc("Node.js version")] = "22",
         # Cache
         npm_cache: Annotated[dagger.CacheVolume | None, Doc("Custom npm cache volume (uses default if not provided)")] = None,
     ) -> str:
@@ -310,7 +310,7 @@ class GcpFirebase:
             container = dag.gcp_firebase().scripts().container(
                 credentials=credentials,
                 source=source,
-                base_image="golang:1.22-alpine",
+                base_image="golang:1.27-alpine",
             )
             await container.with_exec(["go", "run", "main.go"]).stdout()
         """

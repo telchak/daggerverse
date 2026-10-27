@@ -570,7 +570,7 @@ access_token = dag.gcp_auth().access_token_from_oidc_token(
 # Use with Firebase CLI or any API that accepts Bearer tokens
 container = (
     dag.container()
-    .from_("node:20")
+    .from_("node:22")
     .with_secret_variable("FIREBASE_TOKEN", access_token)
     .with_exec(["npx", "firebase", "deploy", "--token", "$FIREBASE_TOKEN"])
 )

@@ -393,7 +393,7 @@ class Goose(_Type):
         _ctx = self._select("deploy", _args)
         return await _ctx.execute(str)
 
-    async def deploy_firebase_hosting(self, ws: Workspace, *, build_command: str = 'npm run build', node_version: str = '20',) -> str:
+    async def deploy_firebase_hosting(self, ws: Workspace, *, build_command: str = 'npm run build', node_version: str = '22',) -> str:
         """
         Deploy the web application in the workspace (with its firebase.json)
         to Firebase Hosting.
@@ -431,12 +431,12 @@ class Goose(_Type):
         _args = [
             _Arg("ws", ws),
             _Arg("buildCommand", build_command, 'npm run build'),
-            _Arg("nodeVersion", node_version, '20'),
+            _Arg("nodeVersion", node_version, '22'),
         ]
         _ctx = self._select("deployFirebaseHosting", _args)
         return await _ctx.execute(str)
 
-    async def deploy_firebase_preview(self, ws: Workspace, channel_id: str, *, build_command: str = 'npm run build', node_version: str = '20', expires: str = '7d',) -> str:
+    async def deploy_firebase_preview(self, ws: Workspace, channel_id: str, *, build_command: str = 'npm run build', node_version: str = '22', expires: str = '7d',) -> str:
         """
         Deploy the workspace (with its firebase.json) to a Firebase Hosting
         preview channel.
@@ -485,7 +485,7 @@ class Goose(_Type):
             _Arg("ws", ws),
             _Arg("channelId", channel_id),
             _Arg("buildCommand", build_command, 'npm run build'),
-            _Arg("nodeVersion", node_version, '20'),
+            _Arg("nodeVersion", node_version, '22'),
             _Arg("expires", expires, '7d'),
         ]
         _ctx = self._select("deployFirebasePreview", _args)

@@ -42,7 +42,7 @@ _TARGET = _Target(name=NAME, ref=REF, pin=PIN)
 class GcpFirebase(_Type):
     """ Firebase Hosting deployment utilities for Dagger pipelines.  """
 
-    def build(self, *, source: Directory | None = None, build_command: str = 'npm run build', node_version: str = '20', npm_cache: CacheVolume | None = None,) -> Directory:
+    def build(self, *, source: Directory | None = None, build_command: str = 'npm run build', node_version: str = '22', npm_cache: CacheVolume | None = None,) -> Directory:
         """
         Build the web application and return the dist directory.
 
@@ -68,13 +68,13 @@ class GcpFirebase(_Type):
         _args = [
             _Arg("source", source, None),
             _Arg("buildCommand", build_command, 'npm run build'),
-            _Arg("nodeVersion", node_version, '20'),
+            _Arg("nodeVersion", node_version, '22'),
             _Arg("npmCache", npm_cache, None),
         ]
         _ctx = self._select("build", _args)
         return Directory(_ctx)
 
-    async def delete_channel(self, project_id: str, channel_id: str, *, oidc_token: Secret | None = None, workload_identity_provider: str | None = None, service_account_email: str | None = None, credentials: Secret | None = None, access_token: Secret | None = None, site: str | None = None, node_version: str = '20', npm_cache: CacheVolume | None = None,) -> str:
+    async def delete_channel(self, project_id: str, channel_id: str, *, oidc_token: Secret | None = None, workload_identity_provider: str | None = None, service_account_email: str | None = None, credentials: Secret | None = None, access_token: Secret | None = None, site: str | None = None, node_version: str = '22', npm_cache: CacheVolume | None = None,) -> str:
         """
         Delete a Firebase Hosting preview channel.
 
@@ -150,13 +150,13 @@ class GcpFirebase(_Type):
             _Arg("credentials", credentials, None),
             _Arg("accessToken", access_token, None),
             _Arg("site", site, None),
-            _Arg("nodeVersion", node_version, '20'),
+            _Arg("nodeVersion", node_version, '22'),
             _Arg("npmCache", npm_cache, None),
         ]
         _ctx = self._select("deleteChannel", _args)
         return await _ctx.execute(str)
 
-    async def deploy(self, project_id: str, *, source: Directory | None = None, oidc_token: Secret | None = None, workload_identity_provider: str | None = None, service_account_email: str | None = None, credentials: Secret | None = None, access_token: Secret | None = None, build_command: str = 'npm run build', node_version: str = '20', skip_build: bool = False, deploy_functions: bool = True, force: bool = True, npm_cache: CacheVolume | None = None,) -> str:
+    async def deploy(self, project_id: str, *, source: Directory | None = None, oidc_token: Secret | None = None, workload_identity_provider: str | None = None, service_account_email: str | None = None, credentials: Secret | None = None, access_token: Secret | None = None, build_command: str = 'npm run build', node_version: str = '22', skip_build: bool = False, deploy_functions: bool = True, force: bool = True, npm_cache: CacheVolume | None = None,) -> str:
         """
         Build and deploy to Firebase Hosting.
 
@@ -244,7 +244,7 @@ class GcpFirebase(_Type):
             _Arg("credentials", credentials, None),
             _Arg("accessToken", access_token, None),
             _Arg("buildCommand", build_command, 'npm run build'),
-            _Arg("nodeVersion", node_version, '20'),
+            _Arg("nodeVersion", node_version, '22'),
             _Arg("skipBuild", skip_build, False),
             _Arg("deployFunctions", deploy_functions, True),
             _Arg("force", force, True),
@@ -253,7 +253,7 @@ class GcpFirebase(_Type):
         _ctx = self._select("deploy", _args)
         return await _ctx.execute(str)
 
-    async def deploy_preview(self, project_id: str, channel_id: str, *, source: Directory | None = None, oidc_token: Secret | None = None, workload_identity_provider: str | None = None, service_account_email: str | None = None, credentials: Secret | None = None, access_token: Secret | None = None, build_command: str = 'npm run build', node_version: str = '20', skip_build: bool = False, expires: str = '7d', npm_cache: CacheVolume | None = None,) -> str:
+    async def deploy_preview(self, project_id: str, channel_id: str, *, source: Directory | None = None, oidc_token: Secret | None = None, workload_identity_provider: str | None = None, service_account_email: str | None = None, credentials: Secret | None = None, access_token: Secret | None = None, build_command: str = 'npm run build', node_version: str = '22', skip_build: bool = False, expires: str = '7d', npm_cache: CacheVolume | None = None,) -> str:
         """
         Deploy to a Firebase Hosting preview channel. Returns the preview URL.
 
@@ -342,7 +342,7 @@ class GcpFirebase(_Type):
             _Arg("credentials", credentials, None),
             _Arg("accessToken", access_token, None),
             _Arg("buildCommand", build_command, 'npm run build'),
-            _Arg("nodeVersion", node_version, '20'),
+            _Arg("nodeVersion", node_version, '22'),
             _Arg("skipBuild", skip_build, False),
             _Arg("expires", expires, '7d'),
             _Arg("npmCache", npm_cache, None),
@@ -415,7 +415,7 @@ class GcpFirebase(_Type):
             container = dag.gcp_firebase().scripts().container(
                 credentials=credentials,
                 source=source,
-                base_image="golang:1.22-alpine",
+                base_image="golang:1.27-alpine",
             )
             await container.with_exec(["go", "run", "main.go"]).stdout()
         """
@@ -517,7 +517,7 @@ class GcpFirebaseFirebaseScripts(_Type):
         _ctx = self._select("id", _args)
         return await _ctx.execute(str)
 
-    async def node(self, script: str, *, source: Directory | None = None, oidc_token: Secret | None = None, workload_identity_provider: str | None = None, service_account_email: str | None = None, credentials: Secret | None = None, access_token: Secret | None = None, project_id: str | None = None, working_dir: str = '.', node_version: str = '20', install_command: str = 'npm ci', env: list[str] | None = None,) -> str:
+    async def node(self, script: str, *, source: Directory | None = None, oidc_token: Secret | None = None, workload_identity_provider: str | None = None, service_account_email: str | None = None, credentials: Secret | None = None, access_token: Secret | None = None, project_id: str | None = None, working_dir: str = '.', node_version: str = '22', install_command: str = 'npm ci', env: list[str] | None = None,) -> str:
         """
         Run a Node.js or TypeScript script with Firebase credentials.
 
@@ -596,7 +596,7 @@ class GcpFirebaseFirebaseScripts(_Type):
             _Arg("accessToken", access_token, None),
             _Arg("projectId", project_id, None),
             _Arg("workingDir", working_dir, '.'),
-            _Arg("nodeVersion", node_version, '20'),
+            _Arg("nodeVersion", node_version, '22'),
             _Arg("installCommand", install_command, 'npm ci'),
             _Arg("env", env, None),
         ]

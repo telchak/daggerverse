@@ -4,14 +4,14 @@ title: "gcp-firebase"
 description: "Firebase Hosting build/deploy/preview channels, Firestore database management, and script runners with Firebase credentials."
 resource: https://github.com/telchak/daggerverse/tree/main/gcp-firebase
 tags: [module, gcp, firebase]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T13:00:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: main
     resource: https://github.com/telchak/daggerverse/blob/main/gcp-firebase/src/gcp_firebase/main.py
     title: "gcp-firebase/src/gcp_firebase/main.py"
     author: human:telchak
-    last_modified: 2026-02-21T16:38:26+01:00
+    last_modified: 2026-10-27T13:00:00Z
   - id: module-readme
     resource: https://github.com/telchak/daggerverse/blob/main/gcp-firebase/README.md
     title: "gcp-firebase/README.md"
@@ -57,7 +57,8 @@ Hosting, on the main class:[^main]
 
 `<auth>` is one of: `oidc_token` + `workload_identity_provider` (+ `service_account_email`),
 `credentials` (SA JSON key), or `access_token`. An empty `build_command` (or `skip_build`)
-skips `npm ci` and the build.[^skip-build]
+skips `npm ci` and the build.[^skip-build] `node_version` defaults to `"22"`, here and in
+`scripts().node`. It was `"20"` until 2026-10-27; Node 20 reached end of life on 2026-04-30.[^main]
 
 Sub-objects:
 
