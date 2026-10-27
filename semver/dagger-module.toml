@@ -1,0 +1,5 @@
+name = "semver"
+
+[entrypoint]
+  kind = "dang"
+  source = "./sdk/entrypoint"

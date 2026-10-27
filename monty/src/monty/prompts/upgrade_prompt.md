@@ -2,11 +2,13 @@
 
 Upgrade the package specified in **target_package** to the version specified in **target_version**.
 
-## Inputs Available
+## Inputs
+
+Their values follow this prompt, under **Input values**; an optional input that was not provided is left out.
 
 - **target_package**: The package to upgrade (e.g. "django", "fastapi", "all")
 - **target_version**: The target version (e.g. "5.0", "0.115.0", "latest")
-- **source**: Python project source directory
+- **workspace**: the project source, which the workspace tools read and edit
 - **dry_run** (optional): If "true", only analyze and report — do not modify files
 
 ## Approach
@@ -22,7 +24,7 @@ Upgrade the package specified in **target_package** to the version specified in 
 2. Use pypi MCP to check for known breaking changes between current and target version
 3. Categorize impact by severity (critical / warning / info)
 
-**If dry_run is "true"**: Stop here. Write your analysis to `result`. Do NOT modify files, do NOT lint, do NOT read every file. Aim for 5-6 tool calls total.
+**If dry_run is "true"**: Stop here. Give your analysis in your final reply. Do NOT modify files, do NOT lint, do NOT read every file. Aim for 5-6 tool calls total.
 
 ### Phase 3: Apply Changes (skip if dry_run)
 
@@ -42,7 +44,7 @@ Upgrade the package specified in **target_package** to the version specified in 
 
 ## Output
 
-Write a detailed upgrade report to the `result` output:
+End with a detailed upgrade report as your final reply:
 
 ### Current State
 - Current package version and key dependencies

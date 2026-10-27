@@ -15,29 +15,29 @@ Semantic Versioning utilities with [Conventional Commits](https://www.convention
 
 ```bash
 # Analyze commits and calculate next version
-dagger -m semver call next --source=.
+dagger api call semver next --source=.
 
 # For monorepo with prefix
-dagger -m semver call next --source=. --tag-prefix="mymodule/"
+dagger api call semver next --source=. --tag-prefix="mymodule/"
 ```
 
 ### Get Current Version
 
 ```bash
-dagger -m semver call current --source=.
+dagger api call semver current --source=.
 ```
 
 ### Check Bump Type
 
 ```bash
 # Returns: major, minor, patch, or none
-dagger -m semver call bump-type --source=.
+dagger api call semver bump-type --source=.
 ```
 
 ### Create Release Tag
 
 ```bash
-dagger -m semver call release \
+dagger api call semver release \
   --source=. \
   --github-token=env:GITHUB_TOKEN \
   --tag-prefix="mymodule/"
@@ -79,7 +79,7 @@ For monorepos, use `--tag-prefix` to scope versions to specific modules:
 
 ```bash
 # Tags will be: mymodule/v1.0.0, mymodule/v1.1.0, etc.
-dagger -m semver call next --source=. --tag-prefix="mymodule/"
+dagger api call semver next --source=. --tag-prefix="mymodule/"
 ```
 
 ## API Reference
@@ -100,13 +100,13 @@ Use `bump` when you want to specify the exact bump type instead of analyzing com
 
 ```bash
 # Explicit patch bump
-dagger -m semver call bump --source=. --bump-type=patch
+dagger api call semver bump --source=. --bump-type=patch
 
 # Explicit minor bump
-dagger -m semver call bump --source=. --bump-type=minor
+dagger api call semver bump --source=. --bump-type=minor
 
 # For monorepo
-dagger -m semver call bump --source=. --bump-type=minor --tag-prefix="mymodule/"
+dagger api call semver bump --source=. --bump-type=minor --tag-prefix="mymodule/"
 ```
 
 ### Manual Tagging
@@ -115,13 +115,13 @@ Use `tag` to create a tag with a specific version:
 
 ```bash
 # Create and push a specific version tag
-dagger -m semver call tag \
+dagger api call semver tag \
   --source=. \
   --version="v2.0.0" \
   --github-token=env:GITHUB_TOKEN
 
 # For monorepo
-dagger -m semver call tag \
+dagger api call semver tag \
   --source=. \
   --version="v1.5.0" \
   --tag-prefix="mymodule/" \

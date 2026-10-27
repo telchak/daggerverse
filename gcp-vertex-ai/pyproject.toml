@@ -2,11 +2,18 @@
 name = "gcp-vertex-ai"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["dagger-io"]
+dependencies = ["dagger-io", "dagger-clients-core"]
 
 [build-system]
 requires = ["uv_build>=0.8.4,<0.9.0"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
-dagger-io = { path = "sdk", editable = true }
+dagger-io = { workspace = true }
+dagger-clients-core = { workspace = true }
+
+[tool.uv.workspace]
+members = ["sdk", "clients/core"]
+
+[tool.dagger]
+global-client = true

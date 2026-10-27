@@ -1,60 +1,68 @@
 ---
 type: Reference
 title: "Dagger platform overview"
-description: "What Dagger is and the building blocks this repo relies on: engine, GraphQL API, SDKs, modules, functions, types, caching, Dagger Cloud."
+description: "What Dagger is and the building blocks this repo relies on in Dagger 1.0: engine, API, SDKs, workspaces, modules, checks, LLM, Dagger Cloud."
 tags: [dagger, platform]
-generated: { by: claude-code/okf-bootstrap, at: 2026-10-10T23:30:00Z }
-stale_after: 2027-01-10T00:00:00Z
+generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+stale_after: 2027-01-24T00:00:00Z
 sources:
-  - id: overview
-    resource: https://github.com/dagger/dagger/blob/v0.21.10/docs/current_docs/index.mdx
-    title: "Dagger docs: Overview (v0.21.10)"
-    author: team:dagger
-    last_modified: 2026-09-30T13:16:43-03:00
   - id: intro
-    resource: https://docs.dagger.io/getting-started/introduction/
-    title: "Dagger docs: Introduction (docs.dagger.io)"
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/docs/current_docs/getting-started/introduction.mdx
+    title: "Dagger docs: Introduction (v1.0.0-beta.21)"
     author: team:dagger
-  - id: intro-main
-    resource: https://github.com/dagger/dagger/blob/main/docs/current_docs/getting-started/introduction.mdx
-    title: "Dagger docs source: Introduction (main branch)"
+    last_modified: 2026-10-23T09:33:31+02:00
+  - id: glossary
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/docs/current_docs/reference/glossary.mdx
+    title: "Dagger docs: Glossary (v1.0.0-beta.21)"
     author: team:dagger
-    last_modified: 2026-10-10T14:22:01Z
+    last_modified: 2026-10-23T09:33:31+02:00
+  - id: blog
+    resource: https://dagger.io/blog/dagger-10-beta/
+    title: "Dagger blog: Dagger 1.0 beta"
+    author: team:dagger
   - id: changelog
     resource: https://github.com/dagger/dagger/blob/main/CHANGELOG.md
     title: "Dagger CHANGELOG"
     author: team:dagger
+  - id: ci
+    resource: https://github.com/telchak/daggerverse/blob/main/.github/workflows/ci.yml
+    title: "CI workflow"
+    author: human:telchak
+    last_modified: 2026-10-24T22:00:00Z
 ---
 
 # What it is
 
-Dagger is a platform for automating software delivery: a programmable, local-first, repeatable
-and observable alternative to shell scripts and CI YAML. The only host dependency is a container
-runtime; the same pipeline runs on a laptop, an AI sandbox, a CI runner or Dagger Cloud.[^overview]
-The current docs introduction calls it "the missing software stack for CI": pipeline logic is
-decoupled from its environment, run before or after push, cached and traced end to end.[^intro] [^intro-main]
+Dagger is a CI orchestration engine: pipelines written once in real code, run identically
+before and after push, locally or scaled out on Dagger Cloud, cached automatically and traced end
+to end. The only host dependency is a container runtime.[^intro] 1.0 (in beta) organizes a
+repository as a **workspace** that installs modules and runs their checks, generators, services
+and agents.[^blog] [^glossary]
 
 # Building blocks
 
 | Piece | Role here |
 |-------|-----------|
-| **Engine** | Runs every operation in containers; content-addressed cache (since v0.21.0 implemented in DagQL, BuildKit solver removed[^changelog]) |
+| **Engine** | runs every operation in containers; content-addressed cache in DagQL (BuildKit solver removed in v0.21.0[^changelog]); CLI and engine versions match |
 | **API** | GraphQL schema, introspectable; [dagger-mcp](/modules/dagger-mcp.md) exposes it to LLMs |
-| **SDKs** | Go, Python, TypeScript, PHP, Java, .NET, Elixir, Rust (+ Dang); this repo uses **Python** for modules and ships Go/Python/TypeScript **examples** |
-| **Modules** | `dagger.json` + SDK code; loading one extends the API with its functions |
-| **Functions** | typed methods, called with `dagger call` or from other modules as `dag.<module>()` |
-| **Core types** | `Container`, `Directory`, `File`, `Secret`, `Service`, `CacheVolume`, `GitRepository`, `Env`, `LLM`, `Changeset` |
-| **Checks / toolchains** | see [checks and toolchains](/dagger/checks-and-toolchains.md) |
-| **LLM** | see [LLM and MCP](/dagger/llm-and-mcp.md) |
-| **Dagger Cloud** | traces, module catalog, managed checks; CI passes `DAGGER_CLOUD_TOKEN` |
+| **SDKs** | Go, Python, TypeScript, PHP, Java, .NET, Elixir, Rust, Dang; this repo writes modules in **Python** (`github.com/dagger/python-sdk`, itself a module) and ships Go/Python/TypeScript **examples** |
+| **Workspace** | `dagger.toml` + `dagger.lock` at the repository root, see [workspaces](/dagger/dagger-1-0-workspaces.md) |
+| **Modules** | `dagger-module.toml` + SDK code + committed generated code; loading one extends the API with its functions, see [module system](/dagger/module-system.md) |
+| **Functions** | typed methods, called with `dagger api call` or from other modules as `dag.<module>()` |
+| **Checks, generators, services** | `dagger check`, `dagger generate`, `dagger start`; installed modules replace 0.x toolchains, see [checks](/dagger/checks-and-toolchains.md) |
+| **Core types** | `Container`, `Directory`, `File`, `Secret`, `Service`, `CacheVolume`, `GitRepository`, `Workspace`, `Changeset`, `LLM` (`Env` was removed in 1.0) |
+| **LLM** | workspace-bound agents with object tools, `@agent` functions and `dagger agent`, see [LLM and MCP](/dagger/llm-and-mcp.md) |
+| **Dagger Cloud** | traces, Cloud Checks (`dagger cloud checks on`), cloud engines; CI passes `DAGGER_CLOUD_TOKEN` |
 
 # Version in use
 
-Every module pins `engineVersion: v0.21.10` and CI uses CLI 0.21.10 (Renovate-managed). Release
-history relevant to this repo is in [breaking changes](/dagger/breaking-changes.md); the upcoming
-1.0 configuration model is in [Dagger 1.0 workspaces](/dagger/dagger-1-0-workspaces.md).
+CLI and engine **1.0.0-beta.21** (`DAGGER_VERSION` in CI, runner label
+`dagger-v1.0.0-beta.21`, Renovate-managed).[^ci] History is in
+[breaking changes](/dagger/breaking-changes.md); open problems in
+[known issues](/dagger/known-issues-1-0-beta.md).
 
-[^overview]: Dagger docs: Overview (v0.21.10)
-[^intro]: Dagger docs: Introduction (docs.dagger.io)
-[^intro-main]: Dagger docs source: Introduction (main branch)
+[^intro]: Dagger docs: Introduction (v1.0.0-beta.21)
+[^glossary]: Dagger docs: Glossary (v1.0.0-beta.21)
+[^blog]: Dagger blog: Dagger 1.0 beta
 [^changelog]: Dagger CHANGELOG
+[^ci]: CI workflow

@@ -5,7 +5,11 @@ AI-powered GCP deployment, troubleshooting, and operations agent using the Dagge
 ## Installation
 
 ```shell
-dagger install github.com/telchak/daggerverse/goose@<version>
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/goose@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/goose@<version> --sdk=python
 ```
 
 ## Features
@@ -41,7 +45,7 @@ dagger install github.com/telchak/daggerverse/goose@<version>
 ### Option 1: OIDC / Workload Identity Federation (recommended for CI/CD)
 
 ```shell
-dagger call deploy \
+dagger api call goose deploy \
   --oidc-token=env:OIDC_TOKEN \
   --workload-identity-provider="projects/PROJECT_NUM/locations/global/workloadIdentityPools/POOL/providers/PROVIDER" \
   --service-account-email="sa@project.iam.gserviceaccount.com" \
@@ -53,7 +57,7 @@ dagger call deploy \
 ### Option 2: Service Account JSON key
 
 ```shell
-dagger call deploy \
+dagger api call goose deploy \
   --credentials=file:./service-account.json \
   --source=. \
   --assignment="Deploy to Firebase Hosting"
@@ -62,7 +66,7 @@ dagger call deploy \
 ### Option 3: Host gcloud config (local development)
 
 ```shell
-dagger call deploy \
+dagger api call goose deploy \
   --google-cloud-dir ~/.config/gcloud \
   --source=. \
   --assignment="Deploy to Cloud Run, allow unauthenticated access"
@@ -71,7 +75,7 @@ dagger call deploy \
 ### Option 4: Pre-built gcloud container (backward compatible)
 
 ```shell
-dagger call deploy \
+dagger api call goose deploy \
   --gcloud=<authenticated-container> \
   --project-id=my-project \
   --service-name=my-service \
@@ -81,7 +85,7 @@ dagger call deploy \
 ### Operations Assistant
 
 ```shell
-dagger call assist \
+dagger api call goose assist \
   --google-cloud-dir ~/.config/gcloud \
   --source=. \
   --assignment="List all Cloud Run services and their current revision status"
@@ -90,7 +94,7 @@ dagger call assist \
 ### Config Review
 
 ```shell
-dagger call review \
+dagger api call goose review \
   --google-cloud-dir ~/.config/gcloud \
   --source=. \
   --focus="security"
@@ -99,7 +103,7 @@ dagger call review \
 ### Service Upgrade
 
 ```shell
-dagger call upgrade \
+dagger api call goose upgrade \
   --google-cloud-dir ~/.config/gcloud \
   --service-name=my-api \
   --target-version="gcr.io/my-project/my-api:v2.0" \
@@ -109,7 +113,7 @@ dagger call upgrade \
 ### Troubleshooting
 
 ```shell
-dagger call troubleshoot \
+dagger api call goose troubleshoot \
   --google-cloud-dir ~/.config/gcloud \
   --service-name=my-service \
   --issue="Service returns 503 errors intermittently"
@@ -157,7 +161,7 @@ Pass `--self-improve` to let the agent update context files with discoveries as 
 | `commit` | Agent updates context files and creates a git commit |
 
 ```shell
-dagger call assist \
+dagger api call goose assist \
   --google-cloud-dir ~/.config/gcloud \
   --source=. \
   --self-improve=write \
@@ -190,7 +194,7 @@ The `suggest-github-fix` function analyzes CI pipeline failures and posts GitHub
 ### CLI Usage
 
 ```shell
-dagger call suggest-github-fix \
+dagger api call goose suggest-github-fix \
   --github-token=env:GITHUB_TOKEN \
   --pr-number=123 \
   --repo="https://github.com/owner/my-gcp-app" \
@@ -226,10 +230,10 @@ jobs:
 
       - name: Suggest fixes on failure
         if: steps.deploy.outcome == 'failure'
-        uses: dagger/dagger-for-github@v7
+        uses: dagger/dagger-for-github@v8.4.1
         with:
           verb: call
-          version: "latest"
+          version: "1.0.0-beta.21"
           module: github.com/telchak/daggerverse/goose
           args: >-
             suggest-github-fix
@@ -242,7 +246,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
+          # The agent is a remote module that calls an LLM: allow it
+          DAGGER_ALLOW_LLM: all
       - name: Fail if deploy failed
         if: steps.deploy.outcome == 'failure'
         run: exit 1

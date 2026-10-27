@@ -2,7 +2,9 @@
 
 Run the complete spec-driven development pipeline and produce a structured JSON task list.
 
-## Inputs Available
+## Inputs
+
+Their values follow this prompt, under **Input values**; an optional input that was not provided is left out.
 
 - **feature_description**: Natural language description of what to build
 - **agents_registry**: JSON array of available agents (may be empty `[]`)
@@ -12,7 +14,7 @@ Run the complete spec-driven development pipeline and produce a structured JSON 
 - **include_tests**: Whether to generate test tasks (`true` or `false`)
 - **include_review**: Whether to generate review tasks (`true` or `false`)
 - **create_pr**: Whether to generate PR branch names on phases (`true` or `false`)
-- **source**: Project source directory
+- **workspace**: the project source, which the workspace tools read and edit
 
 ## Pipeline Steps
 
@@ -91,7 +93,7 @@ Use the exact model IDs from `model_table` in the `suggested_model` field of eac
 
 ## Output Format
 
-You MUST write a valid JSON object to the `result` output. The JSON must conform exactly to this schema:
+You MUST reply with a valid JSON object and nothing else. The JSON must conform exactly to this schema:
 
 ```json
 {

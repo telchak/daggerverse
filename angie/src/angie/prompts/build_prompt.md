@@ -2,9 +2,11 @@
 
 Build the Angular project using the deterministic build tool.
 
-## Inputs Available
+## Inputs
 
-- **source**: Angular project source directory (in your workspace)
+Their values follow this prompt, under **Input values**; an optional input that was not provided is left out.
+
+- **workspace**: the project source, which the workspace tools read and edit
 - **command** (optional): Specific build configuration override
 
 ## Hard Limits
@@ -14,21 +16,21 @@ Build the Angular project using the deterministic build tool.
 
 ## Approach
 
-1. **Build** (1 call): Call `angular_build(source=<workspace>)` to run the actual `ng build`
+1. **Build** (1 call): Call `angularBuild(source=<workspace>)` to run the actual `ng build`
 2. **Check result**: If the build succeeds, you're done — return the workspace
 3. **Diagnose** (if failed): Read the error output, identify the failing file(s)
-4. **Fix** (1-3 calls): Use `read_file` and `edit_file` to fix the issue
-5. **Retry** (1 call): Call `angular_build` again to verify the fix
+4. **Fix** (1-3 calls): Use `readFile` and `editFile` to fix the issue
+5. **Retry** (1 call): Call `angularBuild` again to verify the fix
 6. Repeat steps 3-5 up to 3 times total
 
 ## Available Tools
 
-- `angular_build(source, configuration, output_path)` — Run `ng build`, returns dist directory
-- `angular_lint(source, fix)` — Run `ng lint`, returns output
-- `angular_test(source)` — Run `ng test`, returns output
-- `angular_install(source)` — Run `npm ci`, returns source with node_modules
-- `read_file(file_path)` — Read a file from the workspace
-- `edit_file(file_path, old_string, new_string)` — Edit a file in the workspace
+- `angularBuild(source, configuration, output_path)` — Run `ng build`, returns dist directory
+- `angularLint(source, fix)` — Run `ng lint`, returns output
+- `angularTest(source)` — Run `ng test`, returns output
+- `angularInstall(source)` — Run `npm ci`, returns source with node_modules
+- `readFile(file_path)` — Read a file from the workspace
+- `editFile(file_path, old_string, new_string)` — Edit a file in the workspace
 - `glob(pattern)` — Find files matching a pattern
 - `grep(pattern)` — Search file contents
 

@@ -7,7 +7,11 @@ Inspired by [spec-kit](https://github.com/github/spec-kit)'s Spec-Driven Develop
 ## Installation
 
 ```shell
-dagger install github.com/telchak/daggerverse/speck@<version>
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/speck@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/speck@<version> --sdk=python
 ```
 
 ## Features
@@ -47,7 +51,7 @@ When enabled, tasks follow the **implement → test → review** pipeline per ph
 ### Generate a Specification
 
 ```shell
-dagger call specify \
+dagger api call speck specify \
   --source=. \
   --prompt="Add user authentication with OAuth2 support for Google and GitHub"
 ```
@@ -55,7 +59,7 @@ dagger call specify \
 ### Generate a Technical Plan
 
 ```shell
-dagger call plan \
+dagger api call speck plan \
   --source=. \
   --spec="$(cat spec.md)" \
   --tech-stack="Python, FastAPI, PostgreSQL"
@@ -64,7 +68,7 @@ dagger call plan \
 ### Full Pipeline (Decompose)
 
 ```shell
-dagger call decompose \
+dagger api call speck decompose \
   --source=. \
   --prompt="Add a commenting system for articles" \
   --tech-stack="Python, FastAPI, PostgreSQL" \
@@ -81,7 +85,7 @@ dagger call decompose \
 ### Full Pipeline with Tests and Review
 
 ```shell
-dagger call decompose \
+dagger api call speck decompose \
   --source=. \
   --prompt="Add a commenting system for articles" \
   --tech-stack="Python, FastAPI, PostgreSQL" \
@@ -100,7 +104,7 @@ dagger call decompose \
 ### Full Pipeline with PR Creation
 
 ```shell
-dagger call decompose \
+dagger api call speck decompose \
   --source=. \
   --prompt="Add a commenting system for articles" \
   --tech-stack="Python, FastAPI, PostgreSQL" \
@@ -113,7 +117,7 @@ dagger call decompose \
 ### From a GitHub Issue
 
 ```shell
-dagger call decompose \
+dagger api call speck decompose \
   --source=. \
   --issue-id=42 \
   --repository="https://github.com/owner/repo" \
@@ -124,7 +128,7 @@ dagger call decompose \
 ### From Pre-Existing Spec and Plan
 
 ```shell
-dagger call decompose-from-spec \
+dagger api call speck decompose-from-spec \
   --source=. \
   --spec="$(cat .specify/specs/my-feature/spec.md)" \
   --plan="$(cat .specify/specs/my-feature/plan.md)" \
@@ -260,7 +264,7 @@ If no registry is provided, tasks are returned with `"suggested_agent": null`.
 Tasks are assigned a suggested model based on complexity. Use `--model-family` to select the provider:
 
 ```shell
-dagger call decompose --source=. --prompt="..." --model-family=gemini
+dagger api call speck decompose --source=. --prompt="..." --model-family=gemini
 ```
 
 | Complexity | Claude (`claude`) | Gemini (`gemini`) | OpenAI (`openai`) |
@@ -276,7 +280,7 @@ Default is `claude`. The exact model IDs are embedded in the JSON output's `sugg
 The JSON output is designed for GitHub Actions matrix strategies. See [`examples/github-actions-workflow.yml`](examples/github-actions-workflow.yml) for a complete workflow that:
 
 1. Triggers when an issue is labeled `speck`
-2. Decomposes the issue into phases with tasks via `dagger call decompose`
+2. Decomposes the issue into phases with tasks via `dagger api call speck decompose`
 3. Posts a summary comment on the issue
 4. Matrices by phase (parallel), chains tasks sequentially within each phase (impl → test → review)
 5. Creates one PR per phase with accumulated changes
@@ -291,7 +295,7 @@ jobs:
       - name: Decompose issue
         id: speck
         run: |
-          RESULT=$(dagger call -m github.com/telchak/daggerverse/speck \
+          RESULT=$(dagger api call -m github.com/telchak/daggerverse/speck \
             --source=. decompose \
             --issue-id=${{ github.event.issue.number }} \
             --repository="https://github.com/${{ github.repository }}" \
@@ -310,7 +314,7 @@ jobs:
         run: |
           # Each agent's output becomes the next agent's input
           for task in $(echo '${{ toJson(matrix.phase.tasks) }}' | jq -r '.[]'); do
-            dagger call -m "$AGENT_SOURCE" --source=. "$ENTRYPOINT" \
+            dagger api call -m "$AGENT_SOURCE" --source=. "$ENTRYPOINT" \
               --assignment="$DESCRIPTION" export --path=.
           done
 

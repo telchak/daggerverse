@@ -5,7 +5,11 @@ Python build, lint, test, and typecheck utilities for Dagger pipelines.
 ## Installation
 
 ```bash
-dagger install github.com/telchak/daggerverse/python-build
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/python-build@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/python-build@<version> --sdk=python
 ```
 
 ## Functions
@@ -17,6 +21,34 @@ dagger install github.com/telchak/daggerverse/python-build
 | `test` | Run tests (pytest, unittest) |
 | `typecheck` | Type-check a Python project (mypy, pyright) |
 | `install` | Install project dependencies |
+
+## Checks
+
+Installed in a workspace, the module checks the workspace's Python project with `dagger check`, with no code of your own. The project is read from the workspace, not passed as an argument.
+
+| Check | Runs |
+|-------|------|
+| `check-lint` | `ruff check .` |
+| `check-test` | `python -m pytest`, after installing the project's dependencies |
+| `check-typecheck` | `python -m mypy .`, after installing the project's dependencies |
+| `check-build` | `python -m build` |
+
+```bash
+dagger module install github.com/telchak/daggerverse/python-build@<version>
+dagger check -l    # list the checks
+dagger check       # run them
+```
+
+The project path and Python version are settings, and checks your project cannot run can be skipped, in `dagger.toml`:
+
+```toml
+[modules.python-build.settings]
+path = "backend"
+pythonVersion = "3.12"
+
+[modules.python-build.check]
+skip = ["check-typecheck"]
+```
 
 ## Caching
 
@@ -33,7 +65,7 @@ output = await dag.python_build().lint(source=source, pip_cache=pip_cache, uv_ca
 
 ```bash
 # CLI: caching is automatic, no extra flags needed
-dagger call build --source=.
+dagger api call python-build build --source=.
 ```
 
 ## Usage
@@ -41,7 +73,7 @@ dagger call build --source=.
 ### Build
 
 ```bash
-dagger call build --source=.
+dagger api call python-build build --source=.
 ```
 
 ### Python Example

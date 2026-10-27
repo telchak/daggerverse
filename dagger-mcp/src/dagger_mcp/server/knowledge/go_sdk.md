@@ -23,11 +23,17 @@
 
 ```
 my-module/
-  dagger.json      # {"name": "my-module", "sdk": {"source": "go"}, "engineVersion": "v0.19.11"}
+  dagger-module.toml   # name, engineVersion, [runtime] source = "go"
   go.mod
   go.sum
-  main.go          # Main module struct and methods
+  main.go              # Main module struct and methods
+  dagger.gen.go        # generated — committed
+  internal/dagger/     # generated typed client — committed
 ```
+
+The workspace's `dagger.toml` registers the module as a Go SDK scope. Run
+`dagger generate -y` after API or dependency changes and commit the result.
+A Dagger 0.x module uses `dagger.json` instead; Dagger 1.0 still loads it.
 
 ## Key Patterns
 
@@ -75,11 +81,27 @@ branch string,
 
 ```go
 func New(
-    // +optional
-    // +default="/"
-    source *dagger.Directory,
+    // The current workspace, auto-populated by Dagger.
+    ws *dagger.Workspace,
 ) *MyModule {
-    return &MyModule{Source: source}
+    return &MyModule{Source: ws.Directory("/")}
+}
+```
+
+## Checks
+
+```go
+// Lint the project. A check returns only an error.
+//
+// +check
+func (m *MyModule) Lint(ctx context.Context) error {
+    _, err := dag.Container().
+        From("golangci/golangci-lint:latest").
+        WithDirectory("/src", m.Source).
+        WithWorkdir("/src").
+        WithExec([]string{"golangci-lint", "run"}).
+        Sync(ctx)
+    return err
 }
 ```
 
