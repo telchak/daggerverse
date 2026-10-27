@@ -90,7 +90,8 @@ class GcpArtifactRegistry:
             token = await (
                 gcloud
                 .with_exec(["sh", "-c", "gcloud auth print-access-token > /tmp/access-token"])
-                .file("/tmp/access-token")
+                # /tmp is safe: nothing else runs in this single-use container (python:S5443)
+                .file("/tmp/access-token")  # NOSONAR
                 .contents()
             )
             token_secret = dag.set_secret("gcp_access_token", token.strip())

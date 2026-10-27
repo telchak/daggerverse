@@ -3,7 +3,7 @@ type: Decision
 title: "Extract shared agent logic into _agent_base"
 description: "Duplicated workspace, LLM, GitHub and routing code was moved into an included Python package so each agent is a thin wrapper."
 tags: [decision, agent, refactoring]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T14:45:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: readme
@@ -37,10 +37,10 @@ sources:
     author: human:telchak
     last_modified: 2026-10-24T22:00:00Z
   - id: sonar
-    resource: https://github.com/telchak/daggerverse/blob/main/sonar-project.properties
-    title: "sonar-project.properties"
+    resource: https://sonarcloud.io/api/settings/values?component=telchak_daggerverse&keys=sonar.cpd.exclusions
+    title: "SonarCloud project settings, sonar.cpd.exclusions"
     author: human:telchak
-    last_modified: 2026-10-24T22:00:00Z
+    last_modified: 2026-10-27T14:30:00Z
 ---
 
 Each coding agent's `main.py` is ~350-550 lines that define only what is unique; the rest lives in
@@ -69,4 +69,4 @@ The migration also moved Goose onto it: Goose now includes `_agent_base` and imp
 [^workspace]: dagger.toml (workspace), agent scopes
 [^goose-manifest]: goose/dagger-module.toml
 [^goose-main]: goose/src/goose/main.py
-[^sonar]: sonar-project.properties
+[^sonar]: SonarCloud project settings, sonar.cpd.exclusions

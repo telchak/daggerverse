@@ -21,7 +21,9 @@ import dagger
 
 ENGINE_MCP = False
 
-_DRIVER_PATH = "/tmp/dagger_agent_mcp_driver.py"
+# /tmp is safe and writable whatever user the server image runs as: the driver runs in the
+# MCP server's own throwaway container (python:S5443).
+_DRIVER_PATH = "/tmp/dagger_agent_mcp_driver.py"  # NOSONAR
 _TIMEOUT_SECONDS = 120
 _MAX_DESCRIPTION_CHARS = 300
 

@@ -107,7 +107,10 @@ sources:
   `.file(path).contents()`, then wrap it with `dag.set_secret()`.[^gcp-auth] `redirect_stdout` is
   no substitute: the engine still logs redirected streams for callers on API views before
   v1.0.0.[^exec-go] gcp-auth, gcp-artifact-registry, oidc-token and the tests printed tokens until
-  2026-10-27.
+  2026-10-27. SonarCloud flags such `/tmp` paths (`python:S5443`). In a single-use container
+  nothing else shares `/tmp`, and it is writable whatever user the image runs as, so the flagged
+  line carries `# NOSONAR` with the reason on the line above; see
+  [SonarCloud](/infrastructure/sonarcloud.md).
 
 # Calling other modules
 

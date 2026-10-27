@@ -79,7 +79,8 @@ curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_URL", request_url)
             .with_env_variable("CACHE_BUSTER", cache_buster)
             .with_exec(["sh", "-c", script])
-            .file("/tmp/oidc-token")
+            # /tmp is safe: nothing else runs in this single-use container (python:S5443)
+            .file("/tmp/oidc-token")  # NOSONAR
             .contents()
         )
         return dag.set_secret("oidc-token", token_value.strip())
