@@ -4,7 +4,7 @@ title: "Vertex AI for the CI LLM"
 description: "Deprecated on 2026-10-27, the day it was tried: Gemini 3 on Vertex AI's OpenAI-compatible endpoint needs thought signatures that Dagger 1.0's OpenAI client drops, and Vertex no longer serves Gemini 2.5. Replaced by a Gemini API key of the test project."
 tags: [decision, ci, llm, gcp, vertex-ai]
 status: deprecated
-generated: { by: claude-code/2.1.310, at: 2026-10-27T10:30:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T11:00:00Z }
 stale_after: 2027-01-27T00:00:00Z
 sources:
   - id: action
@@ -52,8 +52,8 @@ sources:
 # Status
 
 Deprecated on 2026-10-27, the day it was tried. It works up to the model's first tool call, then
-fails. Replaced by a Gemini API key of the test project, billed to it: see
-[Gemini as the CI LLM provider](/decisions/gemini-as-ci-llm.md).
+fails. Replaced by a Gemini API key of the test project, which draws on that project's Gemini API
+Prepay balance: see [Gemini as the CI LLM provider](/decisions/gemini-as-ci-llm.md).
 
 # What was tried
 
@@ -72,8 +72,9 @@ following:
 
 # Why it failed
 
-- Authentication and routing worked. The step succeeded in every job, and the requests reached
-  Vertex.[^run]
+- Authentication, routing and billing worked. The step succeeded in every job, and Vertex
+  answered each agent's first call, outside the Gemini API's Prepay plan that blocks the key
+  route when its balance is empty.[^run]
 - Gemini 3 attaches a thought signature to each function call, and expects it back with the
   history. Through the OpenAI-compatible API it travels as
   `extra_content.google.thought_signature` on the tool call.

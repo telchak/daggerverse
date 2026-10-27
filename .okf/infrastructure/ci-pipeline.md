@@ -3,7 +3,7 @@ type: CI Pipeline
 title: "CI pipeline (ci.yml)"
 description: "The single GitHub Actions workflow: discover modules and agents, validate them, check the committed generated code, test each in a parallel matrix on self-hosted Dagger runners, then release."
 tags: [ci, github-actions]
-generated: { by: claude-code/2.1.310, at: 2026-10-27T10:30:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T11:00:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: ci
@@ -70,11 +70,11 @@ read by the two agent jobs only, switched from Anthropic to Gemini on 2026-02-17
 `ANGIE_TEST_GITHUB_TOKEN`. GCP auth uses GitHub OIDC (`id-token: write`), see the
 [native OIDC decision](/decisions/native-oidc-instead-of-google-github-actions-auth.md).
 
-Since 2026-10-27 `GEMINI_API_KEY` is meant to be a key of the test project, billed to it,
-instead of an AI Studio key on a Prepay balance. See
-[Gemini as the CI LLM provider](/decisions/gemini-as-ci-llm.md), and
-[Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md) (deprecated) for why the jobs
-do not call Vertex AI.
+Since 2026-10-27 `GEMINI_API_KEY` is a key of the test project. Its billing account is on the
+Gemini API Prepay plan, so CI spends a prepaid balance, and every agent job fails with 402 once it
+is empty. See [Gemini as the CI LLM provider](/decisions/gemini-as-ci-llm.md), and
+[Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md) (deprecated) for why the jobs do
+not call Vertex AI.
 
 # History
 
@@ -97,6 +97,12 @@ docker-volume engine caching on 2026-03-10.[^arc] See the
   from them. Until 2026-10-27, `test-modules (gcp-auth)` and `(gcp-firebase)` printed live GCP
   access tokens that way. A credential must never be an exec's stdout; see the
   [Python SDK conventions](/conventions/python-sdk.md).
+- A job can die before any test runs, with `grpc: the client connection is closing`,
+  `no active session attachables ... context deadline exceeded`, or `kubectl ... exec ...
+  buildctl dial-stdio ... exited with exit status 1`. That is the CLI losing its kubectl-exec
+  link to the single shared engine. It happened on 2026-10-27 when node `raphael` briefly went
+  NotReady (13 jobs), then once more with all nodes Ready. Re-run the failed jobs; the same code
+  passed on retry.
 
 [^ci]: .github/workflows/ci.yml
 [^single]: refactor: replace 3 workflows with single ci.yml

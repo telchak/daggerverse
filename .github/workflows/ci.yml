@@ -268,9 +268,9 @@ jobs:
         timeout-minutes: 20
         env:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
-          # A Gemini API key of the test project, billed to it. Not Vertex AI: Gemini 3 there needs
-          # thought signatures that Dagger's OpenAI client drops (dagger/dagger#14877); its google
-          # provider keeps them.
+          # A Gemini API key of the test project, paid from its billing account's Prepay balance
+          # (a 402 means it is empty). Not Vertex AI: Gemini 3 there needs thought signatures that
+          # Dagger's OpenAI client drops (dagger/dagger#14877); its google provider keeps them.
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GCP_DEVELOPER_KNOWLEDGE_API_KEY: ${{ secrets.GCP_DEVELOPER_KNOWLEDGE_API_KEY }}

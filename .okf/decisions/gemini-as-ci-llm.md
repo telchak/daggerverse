@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: "Gemini as the CI LLM provider"
-description: "Agent tests in CI run on Gemini (GEMINI_API_KEY, vars.GEMINI_MODEL, gemini-3.8-flash since 2026-10-25) since 2026-02-17, after starting on Anthropic. Since 2026-10-27 the key belongs to the test project and bills to it; the AI Studio key before drew on a Prepay balance, and a 402 means that balance is empty."
+description: "Agent tests in CI run on Gemini (GEMINI_API_KEY, vars.GEMINI_MODEL, gemini-3.8-flash since 2026-10-25) since 2026-02-17, after starting on Anthropic. Since 2026-10-27 the key belongs to the test project, whose billing account is on the Gemini API Prepay plan: a 402 means that prepaid balance is empty."
 tags: [decision, ci, llm, billing]
-generated: { by: claude-code/2.1.310, at: 2026-10-27T10:30:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T11:00:00Z }
 stale_after: 2027-04-25T00:00:00Z
 sources:
   - id: switch
@@ -41,6 +41,11 @@ sources:
     title: "CI run 40175567184: every agent job failed with HTTP 402 on gemini-3.8-flash"
     author: process:github-actions
     last_modified: 2026-10-25T08:19:06Z
+  - id: run-new-key
+    resource: https://github.com/telchak/daggerverse/actions/runs/40484965303
+    title: "CI run 40484965303: the test project's new key returned the same 402"
+    author: process:github-actions
+    last_modified: 2026-10-27T10:05:00Z
 ---
 
 CI first configured `ANTHROPIC_MODEL` (2026-02-08)[^anthropic] and switched to Gemini on
@@ -61,30 +66,35 @@ history. Dagger's `google` provider has replayed it since 2026-07-16, a change t
 carry and 0.21.x does not.[^signatures] On 0.21.x a Gemini 3 model fails on its second tool call
 with "Function call is missing a thought_signature".[^gemini3-issue]
 
-# Key: the test project, billed to it
+# Key: the test project, on a Prepay balance
 
-Since 2026-10-27 `GEMINI_API_KEY` is meant to be a Gemini API key created in the test project
-(`dagger-tests`). That project is billed to a card, so the key is not tied to a Prepay balance.
-The key must stay on such a project: a Prepay billing account fails as described below.
+Since 2026-10-27 `GEMINI_API_KEY` is a Gemini API key created in the test project
+(`dagger-tests`). The Gemini API's Prepay plan belongs to a billing account, not to a key or a
+project,[^billing] and the account `dagger-tests` bills to is on it: the new key got the same 402
+as the old one in its first run.[^run-new-key] The maintainer chose to top that balance up rather
+than move the project to another billing account. Auto-reload, with a monthly cap, keeps CI's own
+usage from draining it again.
 
-Vertex AI in the same project was tried that day and dropped, because Dagger's OpenAI client does
-not replay thought signatures and Vertex no longer serves Gemini 2.5: see
+Vertex AI usage of the same project is billed outside that plan: the Vertex route's first calls
+went through that day. That route was dropped because Dagger's OpenAI client does not replay
+thought signatures and Vertex no longer serves Gemini 2.5: see
 [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md) (deprecated).
 
 # A 402 is the credit balance, not the model
 
-The earlier AI Studio key drew on a Gemini API Prepay balance. Once the credits are used up,
-every key of every project on that billing account fails with HTTP 402 until credits are added,
-whatever the model. Nothing falls back to the free tier.[^billing] In CI, the agent's first LLM
-call fails with `Error 402, Message: Your prepayment credits are depleted ... Status:
-RESOURCE_EXHAUSTED`, surfacing as an `InvalidResultError` from the agent function.
+Both keys draw on a Gemini API Prepay balance. Once the credits are used up, every key of every
+project on that billing account fails with HTTP 402 until credits are added, whatever the model.
+Nothing falls back to the free tier.[^billing] In CI, the agent's first LLM call fails with
+`Error 402, Message: Your prepayment credits are depleted ... Status: RESOURCE_EXHAUSTED`,
+surfacing as an `InvalidResultError` from the agent function.
 
 The first 402 appeared on 2026-10-22; the last fully green run was on 2026-10-16. From then on
 every agent job failed with it, on `gemini-2.5-flash` and, after the switch, on
 `gemini-3.8-flash`, while the module tests passed.[^run] Changing `GEMINI_MODEL` does not help.
 The fix is to buy credits on the AI Studio Billing page (minimum $5; optionally auto-reload with a
-monthly cap), or to use a key from a project that is not on Prepay, then re-run the failed jobs
-(`gh run rerun <run-id> --failed`).[^billing]
+monthly cap), or to move the project to a billing account that is not on Prepay, then re-run the
+failed jobs (`gh run rerun <run-id> --failed`). A new key on the same billing account does not
+help.[^billing]
 
 [^switch]: ci(github): Switch LLM provider variables from Anthropic to Gemini
 [^anthropic]: fix: Add ANTHROPIC_MODEL variable to the Dagger workflow job
@@ -93,3 +103,4 @@ monthly cap), or to use a key from a project that is not on Prepay, then re-run 
 [^gemini3-issue]: LLM integration crashes with Gemini 3.x: Function call is missing a thought_signature (dagger/dagger#14475, v0.21.8)
 [^billing]: Gemini API billing (Prepay plan)
 [^run]: CI run 40175567184: every agent job failed with HTTP 402 on gemini-3.8-flash
+[^run-new-key]: CI run 40484965303: the test project's new key returned the same 402
