@@ -1,16 +1,16 @@
 ---
 type: Configuration
 title: "Renovate configuration"
-description: "Renovate bumps the Dagger version in CI (DAGGER_VERSION, runner labels), the README badge and the dagger-for-github snippets as one group read from Git tags, skips the generated code, and never bumps uv_build."
+description: "Renovate bumps the Dagger version in CI (DAGGER_VERSION, runner labels), the README badge and the dagger-for-github snippets as one group read from Git tags, refreshes the uv and npm lockfiles every Monday, skips the generated code, and never bumps uv_build."
 tags: [dependencies, renovate]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T13:30:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: renovate
     resource: https://github.com/telchak/daggerverse/blob/main/renovate.json
     title: "renovate.json"
     author: human:telchak
-    last_modified: 2026-10-24T22:00:00Z
+    last_modified: 2026-10-27T13:30:00Z
   - id: agent-manifest
     resource: https://github.com/telchak/daggerverse/blob/main/angie/dagger-module.toml
     title: "angie/dagger-module.toml (agent manifest)"
@@ -57,7 +57,20 @@ badge and the snippets together.[^renovate]
 - CONTRIBUTING's quoted version and the inline example in Daggie's prompt: bump them by hand on
   the same PR.
 - `dagger.lock` (Python SDK and image pins): no custom manager covers it; refresh it with
-  `dagger lock update`.
+  `dagger lock update`, then run `dagger generate -y` in case the refresh changed generated code.
+- The `examples/` lockfiles: the examples stay on 0.x `dagger.json` without their generated SDK,
+  so they cannot be relocked in place (and `ignorePaths` skips them).
+
+# Lockfile maintenance
+
+`lockFileMaintenance` is on, `before 6am on monday`: one PR refreshes every `uv.lock` (`uv lock
+--upgrade` through the pep621 manager) and `package-lock.json` outside the ignored paths.[^renovate]
+Before 2026-10-27 nothing refreshed them. Renovate saw only each module's `python >=3.13`
+constraint, so the uv lockfiles fell months behind, and 10 locked packages had published
+advisories (`urllib3`, `requests`, `certifi`, `protobuf`, `idna`, `anyio`, `pygments`,
+`multidict`, `graphql-core`, `opentelemetry-api`). That day they were relocked by hand with the uv
+the Python SDK runtime pins in `dagger.lock` (0.13.6). `dagger generate` leaves lockfiles
+alone, so a lockfile PR passes `check` without regeneration.
 
 # Rules
 
