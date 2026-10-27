@@ -3,9 +3,19 @@ type: Convention
 title: "Python SDK conventions in this repo"
 description: "How modules are written with the Dagger Python SDK here: Annotated + Doc on every argument, async functions, dag.* calls through generated clients, workspace arguments and checks, secrets, ReturnType.ANY on exec, cache volumes."
 tags: [convention, python, dagger]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T09:30:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
+  - id: gcp-auth
+    resource: https://github.com/telchak/daggerverse/blob/main/gcp-auth/src/gcp_auth/main.py
+    title: "gcp-auth/src/gcp_auth/main.py"
+    author: human:telchak
+    last_modified: 2026-10-27T09:30:00Z
+  - id: exec-go
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/core/container_exec.go
+    title: "Dagger engine: withExec options (core/container_exec.go)"
+    author: team:dagger
+    last_modified: 2026-10-23T09:33:31+02:00
   - id: angie
     resource: https://github.com/telchak/daggerverse/blob/main/angie/src/angie/main.py
     title: "angie/src/angie/main.py"
@@ -90,6 +100,14 @@ sources:
   `dagger.ExecExpect.ANY`, which `_agent_base/workspace.py` and Goose used on 0.x, never existed,
   as the 2026-02-17 commit that switched the build modules said.[^returntype]
 - Lazy evaluation: nothing runs until `.stdout()`, `.sync()`, `.contents()` etc.
+- A credential is never an exec's stdout. Dagger logs every exec's stdout: CI's `plain` progress
+  prints it into this repository's public logs, and traces keep it. GitHub masks the secrets it
+  knows about, not a token minted from them. Write the value to a file in the container
+  (`sh -c "gcloud auth print-access-token > /tmp/access-token"`), read it with
+  `.file(path).contents()`, then wrap it with `dag.set_secret()`.[^gcp-auth] `redirect_stdout` is
+  no substitute: the engine still logs redirected streams for callers on API views before
+  v1.0.0.[^exec-go] gcp-auth, gcp-artifact-registry, oidc-token and the tests printed tokens until
+  2026-10-27.
 
 # Calling other modules
 
@@ -138,3 +156,5 @@ for the opposite problem.
 [^cache]: feat: Add cache volume support to angular, python-build, and gcp-firebase modules
 [^contributing]: Contributing guide, Module Guidelines
 [^no-await]: fix: remove await from all inter-module gcp_auth calls in tests
+[^gcp-auth]: gcp-auth/src/gcp_auth/main.py
+[^exec-go]: Dagger engine: withExec options (core/container_exec.go)

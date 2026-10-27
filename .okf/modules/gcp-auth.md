@@ -4,7 +4,7 @@ title: "gcp-auth"
 description: "GCP authentication for Dagger pipelines: authenticated gcloud containers and access tokens from OIDC/WIF, service account keys or host ADC."
 resource: https://github.com/telchak/daggerverse/tree/main/gcp-auth
 tags: [module, gcp, auth, oidc]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T09:30:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: main
@@ -52,7 +52,7 @@ sources:
 | `gcloud_container_from_oidc_token(oidc_token, workload_identity_provider, project_id, service_account_email?, region, image)` | gcloud container from any CI's OIDC token (WIF) |
 | `gcloud_container_from_github_actions(workload_identity_provider, project_id, oidc_request_token, oidc_request_url, ...)` | same, fetching the token via [oidc-token](/modules/oidc-token.md) |
 | `gcloud_container_from_host(project_id, gcloud_config: Directory, ...)` | from a host `~/.config/gcloud` passed as a Directory |
-| `access_token_from_oidc_token(...)`, `access_token_from_github_actions(...)` | `Secret` bearer token |
+| `access_token_from_oidc_token(...)`, `access_token_from_github_actions(...)` | `Secret` bearer token; `gcloud auth print-access-token` writes it to a file, not stdout, which Dagger logs (CI printed it until 2026-10-27) |
 | `oidc_token_from_github_actions(workload_identity_provider, ...)` | `Secret` JWT with the GCP audience |
 | `with_credentials(container, credentials, ...)`, `with_oidc_token(container, ...)` | add credentials to any container |
 | `verify_credentials(credentials)`, `get_project_id(credentials)` | introspect a key (or WIF config) |

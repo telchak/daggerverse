@@ -4,7 +4,7 @@ title: "oidc-token"
 description: "CI-agnostic OIDC JWT handling: fetch from GitHub Actions, pass through GitLab CI and CircleCI tokens, decode claims."
 resource: https://github.com/telchak/daggerverse/tree/main/oidc-token
 tags: [module, auth, oidc]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T09:30:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: main
@@ -43,7 +43,7 @@ sources:
 
 | Function | Returns | Notes |
 |----------|---------|-------|
-| `github_token(request_token, request_url, audience)` | `Secret` | curls `ACTIONS_ID_TOKEN_REQUEST_URL` with the request token inside an alpine container |
+| `github_token(request_token, request_url, audience)` | `Secret` | curls `ACTIONS_ID_TOKEN_REQUEST_URL` with the request token inside an alpine container, writing the JWT to a file rather than stdout, which Dagger logs (since 2026-10-27) |
 | `gitlab_token(ci_job_jwt)` | `Secret` | pass-through |
 | `circleci_token(oidc_token)` | `Secret` | pass-through |
 | `token_claims(token)` | `str` | base64url-decodes the JWT payload, for debugging |
