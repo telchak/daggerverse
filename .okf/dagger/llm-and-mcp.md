@@ -115,8 +115,8 @@ the client, so `127.0.0.1` works). Remote modules need `--allow-llm` or `DAGGER_
   call and rejects a history without it. The `google` provider replays it. The OpenAI client,
   which serves `openai`, `local` and `openrouter`, keeps only a call's id, name and arguments, so
   Gemini 3 behind an OpenAI-compatible endpoint (Vertex AI's included) fails on the second tool
-  call.[^openai-client] See [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md)
-  (deprecated).
+  call, reported as dagger/dagger#14877.[^openai-client] See
+  [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md) (deprecated).
 
 # As used in this repo
 

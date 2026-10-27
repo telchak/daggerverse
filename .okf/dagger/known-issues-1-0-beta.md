@@ -3,7 +3,7 @@ type: Known Issue
 title: "Dagger 1.0 beta known issues"
 description: "Problems hit while moving this repository to Dagger v1.0.0-beta.21, with causes and workarounds."
 tags: [dagger, known-issue, gotcha, mcp, windows]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T10:30:00Z }
 stale_after: 2027-01-24T00:00:00Z
 sources:
   - id: mcp-go
@@ -35,6 +35,11 @@ sources:
     resource: local migration session on a Windows 11 host, 2026-10-24
     title: "Observations from the Dagger 1.0 migration session"
     author: claude-code/2.1.310
+  - id: openai-client
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/core/llm_openai.go
+    title: "Dagger engine: the openai provider's client (core/llm_openai.go)"
+    author: team:dagger
+    last_modified: 2026-10-23T09:33:31+02:00
 ---
 
 Observed with CLI and engine v1.0.0-beta.21 on 2026-10-24.[^session] Recheck each one when
@@ -51,6 +56,7 @@ bumping the engine and delete it once fixed.
 | `dagger-for-github` with `verb: version` fails | it runs `dagger --progress plain version`; `version` and `api functions` reject `--progress` | install only (no `verb`), and set `DAGGER_PROGRESS=plain` for streaming logs, since non-TTY progress now defaults to a one-shot report[^ci] |
 | `dag.current_node()` fails with "no current function call" in a module behind a static entrypoint | entrypoint code runs outside a function call | agents keep a runtime (`legacyRuntime = true`) |
 | Unknown or snake_case names in `with_tools(..., except_=[...])` are ignored silently | the engine matches camelCase tool names | `llm_helpers.tool_exclusions` converts Python names |
+| Gemini 3 behind an OpenAI-compatible endpoint, Vertex AI's included, fails after its first tool call with 400 "missing a thought_signature" (2026-10-27, [dagger/dagger#14877](https://github.com/dagger/dagger/issues/14877)) | the OpenAI client keeps only a tool call's id, name and arguments and drops `extra_content.google.thought_signature`; the `google` provider keeps signatures but has no Vertex backend[^openai-client] | CI uses a Gemini API key of the test project through the `google` provider ([Vertex decision](/decisions/vertex-ai-for-ci-llm.md), deprecated) |
 
 Local tooling quirks of that session, not of Dagger: `dagger.exe` called from a non-console pipe
 printed nothing (worked through `Start-Process` with redirected output), and a stored ghcr.io
@@ -65,3 +71,4 @@ Not verified: whether daggerverse.dev indexes modules that only have `dagger-mod
 [^checks-go]: Dagger engine: generator staleness check (core/checks.go)
 [^ci]: CI workflow
 [^session]: Observations from the Dagger 1.0 migration session
+[^openai-client]: Dagger engine: the openai provider's client (core/llm_openai.go)

@@ -42,6 +42,11 @@ sources:
     title: "Support the Google Vertex AI APIs (dagger/dagger#11203)"
     author: human:ciarand
     last_modified: 2026-03-25T05:18:11Z
+  - id: upstream
+    resource: https://github.com/dagger/dagger/issues/14877
+    title: "LLM: Gemini 3 behind an OpenAI-compatible endpoint fails after its first tool call (dagger/dagger#14877)"
+    author: human:telchak
+    last_modified: 2026-10-27T10:20:00Z
 ---
 
 # Status
@@ -83,8 +88,8 @@ following:
 # To revive it
 
 Restore the action and its step from 4de9e51 once a Dagger release replays the signature through
-its OpenAI client, or gains a Vertex backend. The routing rule and the streaming choice above
-still apply.
+its OpenAI client (reported as dagger/dagger#14877, with a credential-free repro),[^upstream] or
+gains a Vertex backend. The routing rule and the streaming choice above still apply.
 
 [^action]: .github/actions/vertex-ai-llm/action.yml at 4de9e51
 [^run]: CI run 40479648670: Vertex AI reached, second tool call rejected for a missing thought_signature
@@ -93,3 +98,4 @@ still apply.
 [^signatures]: fix(llm): keep Gemini signatures and call IDs
 [^versions]: Vertex AI: model versions and lifecycle
 [^vertex-issue]: Support the Google Vertex AI APIs (dagger/dagger#11203)
+[^upstream]: LLM: Gemini 3 behind an OpenAI-compatible endpoint fails after its first tool call (dagger/dagger#14877)
