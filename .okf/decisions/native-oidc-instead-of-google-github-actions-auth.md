@@ -3,7 +3,7 @@ type: Decision
 title: "Native OIDC in Dagger instead of google-github-actions/auth"
 description: "GCP authentication in CI is done inside Dagger modules from the GitHub OIDC request token, with no external auth Action."
 tags: [decision, gcp, auth, oidc, ci]
-generated: { by: claude-code/okf-bootstrap, at: 2026-10-10T23:30:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T09:30:00Z }
 stale_after: 2027-04-10T00:00:00Z
 sources:
   - id: native
@@ -32,6 +32,13 @@ CircleCI, with only the token source changing. Generalised on 2026-01-06 with
 
 A short-lived return to the Action for Firebase tests (2026-01-02) was undone once gcp-firebase
 supported OIDC directly.
+
+# Exception: the CI LLM token (2026-10-27)
+
+The agent jobs' Vertex AI token is minted in the workflow's shell, by the local action
+`vertex-ai-llm`, still with no external auth Action. Dagger's LLM reads its key from the CLI's
+environment, and a token minted by a Dagger function passes through an exec's stdout, which
+Dagger logs. See [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md).
 
 [^native]: feat: remove google-github-actions/auth dependency, use native OIDC
 [^agnostic]: refactor(gcp-auth): use oidc-token module for CI-agnostic authentication

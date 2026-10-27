@@ -3,7 +3,7 @@ type: Playbook
 title: "Debug an agent test that times out in CI"
 description: "An agent CI job that dies at exactly 20 minutes with no traceback usually means a hung MCP session, an agent loop or an LLM provider problem; CI's buffered output hides which."
 tags: [playbook, ci, agent, mcp, debugging]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T09:30:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: ci
@@ -43,12 +43,17 @@ though `DAGGER_PROGRESS: plain` streams the logs into it.[^ci]
    in the system prompt's MCP catalog and its calls fail, so look for that line rather than a
    hang.[^mcp-stdio]
 3. **An exploration loop.** See [exploration budget](/patterns/exploration-budget.md).
-4. **LLM provider issue** (quota, model rename in `vars.GEMINI_MODEL`).
+4. **LLM provider issue.** These fail fast rather than time out. On Vertex AI: a 403 on
+   `aiplatform.endpoints.predict` (the service account lacks `roles/aiplatform.user`), a 429
+   (quota), or a 404 (a model renamed in `vars.GEMINI_MODEL`). A refused token exchange fails
+   the earlier "Point the LLM at Vertex AI" step instead, with Google's error body. See
+   [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md).
 
 # Steps
 
 1. Reproduce one test locally with live output:
-   `DAGGER_PROGRESS=plain dagger api call -m ./tests daggie-explain` (needs `GEMINI_API_KEY`).
+   `DAGGER_PROGRESS=plain dagger api call -m ./tests daggie-explain`. It needs an LLM: a
+   `GEMINI_API_KEY`, or CI's Vertex AI route, see [run tests locally](/playbooks/run-tests-locally.md).
    The plain log, the TUI (without `DAGGER_PROGRESS`) or the Dagger Cloud trace
    (`DAGGER_CLOUD_TOKEN`) shows the step that hangs.
 2. Run the MCP server's container alone, e.g. `dagger api call -m ./dagger-mcp container terminal`

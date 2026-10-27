@@ -1,5 +1,10 @@
 # Update Log
 
+## 2026-10-27
+* **Creation**: [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md), `draft` until a
+  CI run on that route is green. The agent jobs moved from an AI Studio key, whose Prepay balance
+  ran out on 2026-10-22, to Gemini on Vertex AI in the test project.
+
 ## 2026-10-24
 * **Regeneration**: The repository moved from Dagger v0.21.10 to v1.0.0-beta.21 (workspace
   `dagger.toml` and `dagger.lock`, `dagger-module.toml` manifests, committed generated code, agents

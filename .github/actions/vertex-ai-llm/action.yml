@@ -1,0 +1,83 @@
+name: Vertex AI LLM
+description: >-
+  Points the Dagger CLI's LLM at Gemini on Vertex AI in a GCP project, which serves and bills
+  it, with a one-hour access token minted from the job's GitHub OIDC token through Workload
+  Identity Federation. The job needs `id-token: write`.
+
+inputs:
+  workload-identity-provider:
+    description: Workload Identity Federation provider, projects/<number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>
+    required: true
+  service-account:
+    description: Service account to impersonate; it needs roles/aiplatform.user on the project
+    required: true
+  project-id:
+    description: GCP project whose Vertex AI serves the model
+    required: true
+  model:
+    description: Gemini model ID, for example gemini-3.8-flash
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Mint a Vertex AI access token
+      shell: bash
+      env:
+        WIF_PROVIDER: ${{ inputs.workload-identity-provider }}
+        SERVICE_ACCOUNT: ${{ inputs.service-account }}
+        PROJECT_ID: ${{ inputs.project-id }}
+        MODEL: ${{ inputs.model }}
+      run: |
+        # Dagger's LLM has no Vertex AI backend (its google provider takes an AI Studio API key
+        # only), so it reaches Vertex through the OpenAI-compatible endpoint, with an access token
+        # as the key. The token is minted here rather than by a Dagger function because Dagger logs
+        # an exec's stdout, and the key has to be in the CLI's environment anyway.
+        set -euo pipefail
+        audience="//iam.googleapis.com/$WIF_PROVIDER"
+
+        # call LABEL CURL_ARGS...: prints the response body. On an HTTP error it reports the body,
+        # which holds no token, on stderr (stdout feeds jq) and fails. jq -e then fails on a
+        # missing field, before a "null" could be masked.
+        call() {
+          local label=$1 body
+          shift
+          if ! body=$(curl -sS --fail-with-body "$@"); then
+            echo "$label failed: $body" >&2
+            return 1
+          fi
+          printf '%s' "$body"
+        }
+
+        oidc=$(call "GitHub OIDC token" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$audience" \
+          -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" | jq -er .value)
+        echo "::add-mask::$oidc"
+
+        exchange=$(jq -n --arg audience "$audience" --arg token "$oidc" '{
+          grantType: "urn:ietf:params:oauth:grant-type:token-exchange",
+          audience: $audience,
+          scope: "https://www.googleapis.com/auth/cloud-platform",
+          requestedTokenType: "urn:ietf:params:oauth:token-type:access_token",
+          subjectTokenType: "urn:ietf:params:oauth:token-type:jwt",
+          subjectToken: $token
+        }')
+        federated=$(call "STS token exchange" https://sts.googleapis.com/v1/token \
+          -H "Content-Type: application/json" -d "$exchange" | jq -er .access_token)
+        echo "::add-mask::$federated"
+
+        token=$(call "Service account impersonation" \
+          "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$SERVICE_ACCOUNT:generateAccessToken" \
+          -H "Authorization: Bearer $federated" -H "Content-Type: application/json" \
+          -d '{"scope": ["https://www.googleapis.com/auth/cloud-platform"]}' | jq -er .accessToken)
+        echo "::add-mask::$token"
+
+        {
+          echo "OPENAI_API_KEY=$token"
+          echo "OPENAI_BASE_URL=https://aiplatform.googleapis.com/v1/projects/$PROJECT_ID/locations/global/endpoints/openapi"
+          # OPENAI_MODEL also makes openai the default provider: without it, Dagger would route a
+          # google/ model name to its google provider, which has no key here.
+          echo "OPENAI_MODEL=google/${MODEL#google/}"
+          # The agents always pass tools, and a complete response carries a turn's tool calls
+          # whole, where the streaming path reassembles them from deltas by index.
+          echo "OPENAI_DISABLE_STREAMING=true"
+        } >> "$GITHUB_ENV"

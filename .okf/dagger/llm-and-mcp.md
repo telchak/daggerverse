@@ -3,12 +3,27 @@ type: Reference
 title: "Dagger LLM, workspace agents and MCP"
 description: "Dagger 1.0's LLM type: a workspace binding, object tools, built-in trace and skill tools, @agent functions, provider configuration, and MCP in both directions."
 tags: [dagger, llm, mcp, agents]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-10-27T09:30:00Z }
 stale_after: 2027-01-24T00:00:00Z
 sources:
   - id: design
     resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/hack/designs/workspace-agents.md
     title: "Dagger design: Workspace Agents (v1.0.0-beta.21)"
+    author: team:dagger
+    last_modified: 2026-10-23T09:33:31+02:00
+  - id: llm-config
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/hack/designs/llm-config-transport.md
+    title: "Dagger design: LLM configuration from the client (v1.0.0-beta.21)"
+    author: team:dagger
+    last_modified: 2026-10-23T09:33:31+02:00
+  - id: router
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/core/llm_router.go
+    title: "Dagger engine: LLM routing (core/llm_router.go)"
+    author: team:dagger
+    last_modified: 2026-10-23T09:33:31+02:00
+  - id: wire
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/internal/cmd/dagger/llmconfig/wire.go
+    title: "Dagger CLI: LLM configuration from the environment (llmconfig/wire.go)"
     author: team:dagger
     last_modified: 2026-10-23T09:33:31+02:00
   - id: llm-type
@@ -72,11 +87,22 @@ of `with_tools` automatically.[^design]
 
 # Providers
 
-Configured from env vars: `GEMINI_API_KEY` / `GEMINI_MODEL` (provider `google`, used by CI),
-`ANTHROPIC_*`, `OPENAI_*`, or an OpenAI-compatible endpoint with `LOCAL_BASE_URL`, `LOCAL_MODEL`,
-`LOCAL_API_COMPAT=openai`, `LOCAL_API_KEY` (reached through the client, so `127.0.0.1` works).
-Remote modules need `--allow-llm` or `DAGGER_ALLOW_LLM`. `llm.tools()` lists the tool set
-without calling a model.[^session]
+The CLI assembles the configuration once per process, from `~/.config/dagger/config.toml`
+`[llm]`, the environment and `./.env` (lowest to highest), and sends it in the client's metadata.
+Keys travel as secret URIs (`env://OPENAI_API_KEY`) that the engine resolves through that
+client.[^llm-config] The env vars are `GEMINI_API_KEY` / `GEMINI_MODEL` (provider `google`),
+`ANTHROPIC_*`, `OPENAI_*` (`OPENAI_BASE_URL` for any OpenAI-compatible endpoint), `OPENROUTER_*`,
+or `LOCAL_BASE_URL`, `LOCAL_MODEL`, `LOCAL_API_COMPAT=openai`, `LOCAL_API_KEY` (reached through
+the client, so `127.0.0.1` works). Remote modules need `--allow-llm` or `DAGGER_ALLOW_LLM`.
+`llm.tools()` lists the tool set without calling a model.[^session]
+
+- **Routing.** The first exported `*_MODEL`, in the order openai, openai-codex, openrouter,
+  anthropic, google, local, becomes the default provider and model.[^wire] Otherwise a model name
+  picks its provider by prefix: `gemini-` and `google/` go to `google`, `gpt-` and `openai/` to
+  `openai`, `claude-` and `anthropic/` to `anthropic`.[^router]
+- **No Vertex AI backend.** The `google` provider takes an AI Studio API key only. CI reaches
+  Vertex AI through `OPENAI_BASE_URL` instead, see
+  [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md).
 
 # As used in this repo
 
@@ -110,3 +136,6 @@ See [agent-base](/agents/agent-base.md), [blocked functions](/patterns/blocked-f
 [^mcp-cmd]: Dagger CLI: dagger mcp (hidden, experimental)
 [^agent-base]: agent_base/llm_helpers.py
 [^session]: Observations from the Dagger 1.0 migration session (scripted mock LLM)
+[^llm-config]: Dagger design: LLM configuration from the client (v1.0.0-beta.21)
+[^router]: Dagger engine: LLM routing (core/llm_router.go)
+[^wire]: Dagger CLI: LLM configuration from the environment (llmconfig/wire.go)
