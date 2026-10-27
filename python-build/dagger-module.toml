@@ -1,0 +1,5 @@
+name = "python-build"
+
+[entrypoint]
+  kind = "dang"
+  source = "./sdk/entrypoint"

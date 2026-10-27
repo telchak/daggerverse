@@ -1,9 +1,10 @@
 # CLAUDE.md
 
-Monorepo of reusable Dagger modules and AI agents (Python SDK), published on daggerverse.dev.
-Every top-level directory with a `dagger.json` is a module, released independently as
-`<module>/vX.Y.Z` from Conventional Commits. Tests live in `tests/` and run through the single
-workflow `.github/workflows/ci.yml`.
+Monorepo of reusable Dagger modules and AI agents (Python SDK), published on daggerverse.dev,
+on Dagger 1.0. The repository root is a Dagger workspace (`dagger.toml`, `dagger.lock`): every
+top-level directory with a `dagger-module.toml` is a module and a Python SDK scope there,
+released independently as `<module>/vX.Y.Z` from Conventional Commits. Tests live in `tests/`
+and run through the single workflow `.github/workflows/ci.yml`.
 
 ## Knowledge base: read `.okf/` first
 
@@ -52,15 +53,29 @@ Vendored skills (`.claude/skills/`, from okf-skills): `/okf` (produce, maintain,
 - Commits: `<type>(<module>): <description>`. `feat` = minor, `fix|perf|refactor` = patch,
   `!`/`BREAKING CHANGE` = major. Bump detection reads all commits since a module's last tag
   (see `.okf/modules/semver.md`).
-- A new module needs `dagger.json` with `description`, `README.md`, `examples/`, a committed
-  `uv.lock`, and a `Tests.<module>` function in `tests/src/tests/main.py`. Keep source files
-  under 600 lines.
-- `dagger develop` strips `description` from `dagger.json`; put it back.
+- A new module (`dagger module init python --name <m> --path <m>`) needs its scope in
+  `dagger.toml`, `README.md`, `examples/`, a `Tests.<module>` function in
+  `tests/src/tests/main.py`, and its module added to the tests scope's `clients`. Keep source
+  files under 600 lines.
+- A module's dependencies are its scope's `clients` in `dagger.toml`, not the manifest.
+- After changing a function signature, a scope's clients or the Dagger version, run
+  `dagger generate -y` and commit `sdk/`, `clients/` and `uv.lock`: the generated entrypoint
+  bakes in the module's types, and `dagger check` (CI) fails when they are stale. Never edit
+  `sdk/` or `clients/` by hand.
 - The daggerverse description comes from `src/<pkg>/__init__.py`'s docstring, starting on the
-  line after the opening quotes.
-- Agents: only block functions that exist on the class; use `get_result_or_last_reply` for
-  string outputs; keep the efficiency budget in system prompts.
-- The Dagger engine version (`engineVersion`, `DAGGER_VERSION`, `runs-on: dagger-v*`, README
-  badges) is bumped together by Renovate; do not change one alone.
+  line after the opening quotes (`dagger-module.toml` has no description).
+- Agents run on the Python SDK runtime (`legacyRuntime = true` in their scope settings),
+  because they bind themselves to their LLM with `dag.current_node()`. Block tools by their
+  Python names through `llm_helpers.tool_exclusions` (the engine wants camelCase and ignores
+  unknown names); read results with `llm_helpers.reply` / `edited_directory`, which run the
+  loop; keep the efficiency budget in system prompts.
+- MCP servers go through `agent_base.mcp_stdio` (a catalog in the system prompt plus the
+  agent's `mcp` tool), not `LLM.with_mcp_server`, which hangs on the second step in
+  v1.0.0-beta.21.
+- The Dagger version (`DAGGER_VERSION`, `runs-on: dagger-v*`, the README badge and the
+  dagger-for-github snippets in READMEs and Daggie's system prompt) is bumped together by
+  Renovate; do not change one alone, and update CONTRIBUTING's version by hand. A bump also needs
+  `dagger generate -y` with the new CLI, pushed onto the Renovate PR.
 
-Tests: `dagger -m tests call <module>`; see `.okf/playbooks/run-tests-locally.md`.
+Tests: `dagger api call -m ./tests <module>`, `dagger check` (generated code is current) and
+`dagger check -m ./tests --generated=false` (credential-free module tests only); see `.okf/playbooks/run-tests-locally.md`.

@@ -4,12 +4,51 @@ import json
 from typing import Annotated
 
 import dagger
-from dagger import DefaultPath, Doc, dag, function, object_type
+from dagger import DefaultPath, Doc, check, dag, function, object_type
+
+# What the checks never read from the workspace: dependencies and build output
+_WORKSPACE_EXCLUDE = ["node_modules/", "dist/", ".angular/", ".git/"]
 
 
 @object_type
 class Angular:
-    """Angular build, lint, test, and serve utilities for Dagger pipelines."""
+    """Angular build, lint, test, and serve utilities for Dagger pipelines.
+
+    Installed in a workspace, its checks build, lint and test the workspace's
+    Angular project with `dagger check`.
+    """
+
+    # Settings of the checks. The checks take the workspace as an argument,
+    # which Dagger injects for `dagger check`: an injected workspace on the
+    # constructor would fail every call from another module, which has to pass
+    # a workspace explicitly.
+    path: Annotated[str, Doc("Path of the Angular project in the workspace, for the checks")] = "."
+    node_version: Annotated[str, Doc("Node.js version for the checks")] = "22"
+
+    def _workspace_project(self, ws: dagger.Workspace) -> dagger.Directory:
+        return ws.directory(self.path, exclude=_WORKSPACE_EXCLUDE)
+
+    @function
+    @check
+    async def check_build(self, ws: dagger.Workspace) -> None:
+        """Check that the workspace's Angular project builds (ng build)."""
+        await self.build(self._workspace_project(ws), node_version=self.node_version)
+
+    @function
+    @check
+    async def check_lint(self, ws: dagger.Workspace) -> None:
+        """Check that the workspace's Angular project passes ng lint (needs @angular-eslint)."""
+        await self._base_container(self._workspace_project(ws), self.node_version).with_exec(["ng", "lint"]).sync()
+
+    @function
+    @check
+    async def check_test(self, ws: dagger.Workspace) -> None:
+        """Check that the workspace's Angular project passes its unit tests (ng test, no watch)."""
+        await (
+            self._base_container(self._workspace_project(ws), self.node_version)
+            .with_exec(["ng", "test", "--watch=false"])
+            .sync()
+        )
 
     def _base_container(
         self,

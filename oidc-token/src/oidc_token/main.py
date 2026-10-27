@@ -60,11 +60,12 @@ class OidcToken:
         # Validate audience to prevent shell injection
         _validate_audience(audience)
 
-        # Script that fetches the token from GitHub's OIDC endpoint
+        # Script that fetches the token from GitHub's OIDC endpoint, into a file rather than
+        # stdout: Dagger logs an exec's stdout, so traces would show the token
         script = f'''
 curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
     "$ACTIONS_ID_TOKEN_REQUEST_URL&audience={audience}" \
-    | jq -r '.value'
+    | jq -r '.value' > /tmp/oidc-token
 '''
 
         # Use UUID to bust Dagger's cache - ensures fresh token even with rapid sequential calls
@@ -78,7 +79,9 @@ curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             .with_secret_variable("ACTIONS_ID_TOKEN_REQUEST_URL", request_url)
             .with_env_variable("CACHE_BUSTER", cache_buster)
             .with_exec(["sh", "-c", script])
-            .stdout()
+            # /tmp is safe: nothing else runs in this single-use container (python:S5443)
+            .file("/tmp/oidc-token")  # NOSONAR
+            .contents()
         )
         return dag.set_secret("oidc-token", token_value.strip())
 

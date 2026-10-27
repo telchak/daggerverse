@@ -2,11 +2,13 @@
 
 Generate a technical implementation plan from the **spec** input.
 
-## Inputs Available
+## Inputs
+
+Their values follow this prompt, under **Input values**; an optional input that was not provided is left out.
 
 - **spec**: Feature specification (markdown, output of the specify step)
 - **tech_stack** (optional): Tech stack preferences from the user
-- **source**: Project source directory (explore it to understand existing architecture)
+- **workspace**: the project source, which the workspace tools read and edit
 
 ## Approach
 
@@ -70,4 +72,4 @@ For each user story, estimate:
 
 ## Output
 
-Write the full plan to the `result` output as markdown.
+Reply with the full plan as markdown.

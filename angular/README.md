@@ -5,7 +5,11 @@ Angular build, lint, test, and serve utilities for Dagger pipelines.
 ## Installation
 
 ```bash
-dagger install github.com/telchak/daggerverse/angular
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/angular@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/angular@<version> --sdk=python
 ```
 
 ## Functions
@@ -17,6 +21,33 @@ dagger install github.com/telchak/daggerverse/angular
 | `test` | Run Angular project tests using ng test |
 | `serve` | Start the Angular development server |
 | `install` | Install Angular project dependencies |
+
+## Checks
+
+Installed in a workspace, the module checks the workspace's Angular project with `dagger check`, with no code of your own. The project is read from the workspace, not passed as an argument.
+
+| Check | Runs |
+|-------|------|
+| `check-build` | `ng build --configuration production` |
+| `check-lint` | `ng lint` (needs `@angular-eslint`) |
+| `check-test` | `ng test --watch=false` in `node:<version>-slim` (no browser: suits the Vitest builder, not Karma) |
+
+```bash
+dagger module install github.com/telchak/daggerverse/angular@<version>
+dagger check -l    # list the checks
+dagger check       # run them
+```
+
+The project path and Node.js version are settings, and checks your project cannot run can be skipped, in `dagger.toml`:
+
+```toml
+[modules.angular.settings]
+path = "frontend"
+nodeVersion = "24"
+
+[modules.angular.check]
+skip = ["check-lint"]
+```
 
 ## Caching
 
@@ -32,7 +63,7 @@ output = await dag.angular().lint(source=source, npm_cache=npm_cache)
 
 ```bash
 # CLI: caching is automatic, no extra flags needed
-dagger call build --source=.
+dagger api call angular build --source=.
 ```
 
 ## Usage
@@ -40,7 +71,7 @@ dagger call build --source=.
 ### Build
 
 ```bash
-dagger call build --source=. --configuration=production
+dagger api call angular build --source=. --configuration=production
 ```
 
 ### Python Example

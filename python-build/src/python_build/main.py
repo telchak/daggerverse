@@ -3,12 +3,64 @@
 from typing import Annotated
 
 import dagger
-from dagger import DefaultPath, Doc, dag, function, object_type
+from dagger import DefaultPath, Doc, check, dag, function, object_type
+
+# What the checks never read from the workspace: environments, caches and build output
+_WORKSPACE_EXCLUDE = [
+    ".venv/", "**/__pycache__/", ".git/", "dist/", "build/",
+    ".mypy_cache/", ".pytest_cache/", ".ruff_cache/",
+]
 
 
 @object_type
 class PythonBuild:
-    """Python build, lint, test, and typecheck utilities for Dagger pipelines."""
+    """Python build, lint, test, and typecheck utilities for Dagger pipelines.
+
+    Installed in a workspace, its checks lint, test, type-check and build the
+    workspace's Python project with `dagger check`.
+    """
+
+    # Settings of the checks. The checks take the workspace as an argument,
+    # which Dagger injects for `dagger check`: an injected workspace on the
+    # constructor would fail every call from another module, which has to pass
+    # a workspace explicitly.
+    path: Annotated[str, Doc("Path of the Python project in the workspace, for the checks")] = "."
+    python_version: Annotated[str, Doc("Python version for the checks")] = "3.13"
+
+    def _workspace_project(self, ws: dagger.Workspace) -> dagger.Directory:
+        return ws.directory(self.path, exclude=_WORKSPACE_EXCLUDE)
+
+    async def _check_container(self, ws: dagger.Workspace) -> dagger.Container:
+        """The workspace's project with its dependencies installed, for the checks."""
+        project = self._workspace_project(ws)
+        return await self._install_deps(self._base_container(project, self.python_version), project)
+
+    @function
+    @check
+    async def check_lint(self, ws: dagger.Workspace) -> None:
+        """Check that the workspace's Python project passes ruff check."""
+        ctr = self._base_container(self._workspace_project(ws), self.python_version)
+        await ctr.with_exec(["sh", "-c", "uv pip install --system ruff && ruff check ."]).sync()
+
+    @function
+    @check
+    async def check_test(self, ws: dagger.Workspace) -> None:
+        """Check that the workspace's Python project passes its tests (pytest)."""
+        ctr = await self._check_container(ws)
+        await ctr.with_exec(["sh", "-c", "python -m pytest --version >/dev/null 2>&1 || uv pip install --system pytest; python -m pytest"]).sync()
+
+    @function
+    @check
+    async def check_typecheck(self, ws: dagger.Workspace) -> None:
+        """Check that the workspace's Python project passes mypy."""
+        ctr = await self._check_container(ws)
+        await ctr.with_exec(["sh", "-c", "uv pip install --system mypy && python -m mypy ."]).sync()
+
+    @function
+    @check
+    async def check_build(self, ws: dagger.Workspace) -> None:
+        """Check that the workspace's Python project builds (python -m build)."""
+        await self.build(self._workspace_project(ws), python_version=self.python_version)
 
     def _base_container(
         self,

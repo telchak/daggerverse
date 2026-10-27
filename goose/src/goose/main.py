@@ -1,26 +1,13 @@
 """Goose — AI-powered GCP deployment, troubleshooting, and operations agent."""
 
-import json
 import re
 from typing import Annotated
 
 import dagger
 from dagger import Doc, dag, field, function, object_type
 
-
-async def _get_result_or_last_reply(work: dagger.LLM, output_name: str = "result") -> str:
-    """Get a string output from the LLM, falling back to last_reply.
-
-    Some LLMs produce text output without calling the output binding tool.
-    This tries the binding first, then falls back to the LLM's last reply.
-    """
-    try:
-        value = await work.env().output(output_name).as_string()
-        if value and value.strip():
-            return value
-    except Exception:
-        pass
-    return await work.last_reply()
+from agent_base import github_tools, llm_helpers, mcp_stdio, routing, workspace
+from agent_base.mcp_stdio import McpServer
 
 # Entrypoints blocked on all LLMs to prevent recursion
 _BLOCKED_ENTRYPOINTS = [
@@ -28,46 +15,33 @@ _BLOCKED_ENTRYPOINTS = [
     "upgrade", "develop_github_issue", "suggest_github_fix",
 ]
 
-
-def _parse_router_response(params_json: str | None) -> tuple[dict, str | None]:
-    """Parse JSON from router LLM output with fallback for malformed responses.
-
-    Returns (params_dict, fallback_function_name). fallback_function_name is
-    "assist" if parsing failed entirely, None if parsing succeeded.
-    """
-    try:
-        return json.loads(params_json), None
-    except (json.JSONDecodeError, TypeError):
-        match = re.search(r"\{[^}]*\}", params_json or "")
-        if match:
-            try:
-                return json.loads(match.group()), None
-            except json.JSONDecodeError:
-                return {}, "assist"
-        return {}, "assist"
-
-# Destructive tools blocked on the read-only sub-agent
+# Destructive tools blocked on read-only LLMs (review, suggest-fix, task sub-agent)
 _BLOCKED_DESTRUCTIVE = [
     "deploy_service", "delete_service",
     "deploy_firebase_hosting", "deploy_firebase_preview", "delete_firebase_channel",
     "deploy_vertex_model",
     "edit_file", "write_file",
-    "publish_container",
-    "suggest_github_pr_code_comment",
+    "publish_container", "build_and_publish",
+]
+
+# Exposed fields are tools too in Dagger 1.0; hide them from the LLM
+_FIELDS = [
+    "gcloud", "oidc_token", "workload_identity_provider", "service_account_email",
+    "credentials", "google_cloud_dir", "project_id", "region", "source",
+    "self_improve", "developer_knowledge_api_key",
 ]
 
 _DAGGER_CONFIG_FILE = "DAGGER.md"
 _GOOSE_CONTEXT_FILE = "GOOSE.md"
-_TRUNCATION_NOTICE = "\n\n[Truncated.]"
 
 _SELF_IMPROVE_PROMPT = """
 
 ## Self-Improvement Instructions
 
 You have self-improvement enabled. As you work, record useful discoveries in
-**two** context files. Use `read_file` to check each file's current contents
-first, then use `edit_file` to append new entries at the end. If a file does
-not exist yet, use `write_file` to create it.
+**two** context files. Use `readFile` to check each file's current contents
+first, then use `editFile` to append new entries at the end. If a file does
+not exist yet, use `writeFile` to create it.
 
 ### Agent-specific file: `{agent_file}`
 
@@ -96,9 +70,6 @@ Record general-purpose knowledge about the repository here:
 
 Do this as a **final step**, after completing your main task successfully.
 """
-_DOC_GCP_PROJECT_ID = "The GCP project ID"
-_DOC_GCP_REGION = "The GCP region"
-_ERROR_NO_SOURCE_DIR = "No source directory available. Pass --source to use workspace tools."
 
 
 @object_type
@@ -153,12 +124,6 @@ class Goose:
         dagger.Secret | None,
         Doc("Google Developer Knowledge API key (optional, enables searching GCP documentation)"),
     ] = field(default=None)
-
-    # Private fields set during suggest_github_fix execution
-    _github_token: dagger.Secret | None = field(default=None, init=False)
-    _pr_repo: str = field(default="", init=False)
-    _pr_number: int = field(default=0, init=False)
-    _pr_commit_sha: str = field(default="", init=False)
 
     # --- DAGGER.md parsing ---
 
@@ -306,23 +271,38 @@ class Goose:
         self.gcloud = await self._resolve_gcloud()
         self.project_id = await self._resolve_project_id(self.gcloud)
         self.region = await self._resolve_region(self.gcloud)
+        self._resolved = True
         return self._dagger_md_config
+
+    async def _ensure_resolved(self) -> None:
+        """Resolve gcloud, project_id, and region for a tool call.
+
+        The LLM's tools run on the object as the agent was constructed, before
+        an entrypoint resolved anything, so each GCP tool resolves from the
+        constructor arguments (and DAGGER.md in the constructor source).
+        """
+        if not getattr(self, "_resolved", False):
+            await self._resolve_all(self.source)
 
     # --- MCP servers ---
 
-    def _gcloud_mcp_service(self, gcloud: dagger.Container) -> dagger.Service:
-        """Create the gcloud-mcp server as a Dagger Service.
+    def _gcloud_mcp(self, gcloud: dagger.Container) -> McpServer:
+        """The gcloud-mcp server.
 
         Built on top of the resolved gcloud container so it inherits
         authentication (OIDC, SA key, host gcloud, or pre-built).
         """
-        return (
-            gcloud
-            .with_exec(["apk", "add", "--no-cache", "nodejs", "npm"])
-            .with_mounted_cache("/root/.npm", dag.cache_volume("node-npm"))
-            .with_exec(["npm", "install", "-g", "@google-cloud/gcloud-mcp"])
-            .with_default_args(["npx", "@google-cloud/gcloud-mcp"])
-            .as_service()
+        return McpServer(
+            name="gcloud",
+            container=(
+                gcloud
+                .with_exec(["apk", "add", "--no-cache", "nodejs", "npm"])
+                .with_mounted_cache("/root/.npm", dag.cache_volume("node-npm"))
+                .with_exec(["npm", "install", "-g", "@google-cloud/gcloud-mcp"])
+            ),
+            command=["npx", "@google-cloud/gcloud-mcp"],
+            # Calls read live cloud state: never reuse a cached answer
+            live=True,
         )
 
     # --- Prompt helpers ---
@@ -331,49 +311,20 @@ class Goose:
         """Load a prompt file from the module source."""
         return dag.current_module().source().file(f"src/goose/prompts/{filename}")
 
-    _MAX_CONTEXT_CHARS = 4000  # ~1000 tokens — keeps total prompt under budget
-
-    # Shared file names — read in order, first match used as shared context
-    _SHARED_CONTEXT_FILES = ("AGENTS.md", "AGENT.md", "CLAUDE.md")
-
-    async def _read_context_section(
-        self, target: dagger.Directory, name: str,
-    ) -> str:
-        """Read a single context file and return a formatted section."""
-        contents = await target.file(name).contents()
-        if len(contents) > self._MAX_CONTEXT_CHARS:
-            contents = contents[:self._MAX_CONTEXT_CHARS] + _TRUNCATION_NOTICE
-        return f"## Project Context (from {name})\n\n{contents}"
-
     async def _read_context_file(self, source: dagger.Directory | None = None) -> str:
         """Read per-repo context from agent-specific, shared, and DAGGER.md files."""
         target = source or self.source
         if not target:
             return ""
-        entries = await target.entries()
-        sections: list[str] = []
-
-        # 1. Agent-specific file
-        if _GOOSE_CONTEXT_FILE in entries:
-            sections.append(await self._read_context_section(target, _GOOSE_CONTEXT_FILE))
-
-        # 2. Shared file (AGENTS.md > AGENT.md > CLAUDE.md)
-        for name in self._SHARED_CONTEXT_FILES:
-            if name in entries:
-                sections.append(await self._read_context_section(target, name))
-                break
-
-        # 3. DAGGER.md (extra context for GCP/Dagger config)
-        if _DAGGER_CONFIG_FILE in entries:
-            sections.append(await self._read_context_section(target, _DAGGER_CONFIG_FILE))
-
-        return "\n\n" + "\n\n".join(sections) if sections else ""
+        return await llm_helpers.read_context_file(
+            target, (_GOOSE_CONTEXT_FILE,), extra_read_files=(_DAGGER_CONFIG_FILE,),
+        )
 
     _DOCS_SEARCH_SECTION = """
 
 ## GCP Documentation Search
 
-You have access to `search_gcp_docs`, `get_gcp_doc`, and `batch_get_gcp_docs` to search Google's official developer documentation in real time. Use these when:
+You have access to `searchGcpDocs`, `getGcpDoc`, and `batchGetGcpDocs` to search Google's official developer documentation in real time. Use these when:
 
 - You encounter an unfamiliar GCP configuration option or error message
 - You need to verify the latest API syntax, flags, or default values
@@ -391,16 +342,21 @@ Do not search docs for basic operations you already know how to perform.
         "upgrade": True,
         "deploy": False,
         "review": False,
+        "suggest_fix": False,
     }
+
+    def _blocked(self, *extra: str) -> list[str]:
+        return [*_BLOCKED_ENTRYPOINTS, *_FIELDS, *extra]
 
     async def _build_llm(
         self,
-        env: dagger.Env,
         prompt_file: str,
         source: dagger.Directory | None = None,
         task: str = "assist",
+        inputs: dict[str, str] | None = None,
+        extra_blocked: tuple[str, ...] | list[str] = (),
     ) -> dagger.LLM:
-        """Build an LLM with the environment, current module tools, and prompts."""
+        """Build an LLM bound to the source as its workspace, with this agent's tools and prompts."""
         context_md = await self._read_context_file(source)
         system_prompt = await self._load_prompt("system_prompt.md").contents()
 
@@ -410,40 +366,31 @@ Do not search docs for basic operations you already know how to perform.
         if self.self_improve != "off":
             system_prompt += _SELF_IMPROVE_PROMPT.format(agent_file=_GOOSE_CONTEXT_FILE)
 
+        mcp_servers = [self._gcloud_mcp(self.gcloud)] if self._TASK_NEEDS_MCP.get(task, True) else []
+
+        # Workspace tools need a workspace even when no source was given
         llm = (
             dag.llm()
-            .with_env(env.with_current_module())
-            .with_system_prompt(system_prompt + context_md)
+            .with_workspace((source or dag.directory()).as_workspace())
+            .with_tools(dag.current_node(), except_=llm_helpers.tool_exclusions(
+                self._blocked(*extra_blocked, *mcp_stdio.blocked_tools(mcp_servers)),
+            ))
+        )
+        llm, mcp_context = await mcp_stdio.attach(llm, mcp_servers)
+        llm = llm.with_system_prompt(system_prompt + context_md + mcp_context)
+
+        prompt = await self._load_prompt(prompt_file).contents()
+        return llm.with_prompt(prompt + llm_helpers.format_inputs(inputs))
+
+    async def _build_suggest_fix_llm(self, source: dagger.Directory | None, inputs: dict[str, str]) -> dagger.LLM:
+        """Build a read-only LLM for suggest-github-fix (no MCP; suggestions come back in the reply)."""
+        return await self._build_llm(
+            "suggest_fix_prompt.md", source, task="suggest_fix", inputs=inputs,
+            extra_blocked=["task", *_BLOCKED_DESTRUCTIVE],
         )
 
-        if self._TASK_NEEDS_MCP.get(task, True):
-            llm = llm.with_mcp_server("gcloud", self._gcloud_mcp_service(self.gcloud))
-
-        for fn in _BLOCKED_ENTRYPOINTS:
-            llm = llm.with_blocked_function("Goose", fn)
-
-        return llm.with_prompt_file(self._load_prompt(prompt_file))
-
-    async def _build_suggest_fix_llm(
-        self,
-        env: dagger.Env,
-        source: dagger.Directory | None = None,
-    ) -> dagger.LLM:
-        """Build an LLM for suggest-github-fix (no MCP servers, workspace + suggestion tool)."""
-        context_md = await self._read_context_file(source)
-        system_prompt = await self._load_prompt("system_prompt.md").contents()
-
-        llm = (
-            dag.llm()
-            .with_env(env.with_current_module())
-            .with_system_prompt(system_prompt + context_md)
-        )
-
-        for fn in _BLOCKED_ENTRYPOINTS + ["task"] + _BLOCKED_DESTRUCTIVE:
-            if fn != "suggest_github_pr_code_comment":
-                llm = llm.with_blocked_function("Goose", fn)
-
-        return llm.with_prompt_file(self._load_prompt("suggest_fix_prompt.md"))
+    def _gcp_inputs(self, **inputs: str) -> dict[str, str]:
+        return {**inputs, "project_id": self.project_id, "region": self.region}
 
     # --- Agent entrypoints ---
 
@@ -460,21 +407,11 @@ Do not search docs for basic operations you already know how to perform.
         read deployment configs (Dockerfiles, firebase.json, cloudbuild.yaml).
         """
         await self._resolve_all(source)
-
-        env = (
-            dag.env()
-            .with_string_input("assignment", assignment, "The operations task to accomplish")
-            .with_string_input("project_id", self.project_id, _DOC_GCP_PROJECT_ID)
-            .with_string_input("region", self.region, _DOC_GCP_REGION)
-            .with_string_output("result", "The assistant's response")
+        work = await self._build_llm(
+            "assist_prompt.md", source, task="assist",
+            inputs=self._gcp_inputs(assignment=assignment),
         )
-
-        if source:
-            self.source = source
-            env = env.with_workspace(source)
-
-        work = await self._build_llm(env, "assist_prompt.md", source)
-        return await _get_result_or_last_reply(work)
+        return await llm_helpers.reply(work)
 
     @function
     async def review(
@@ -489,21 +426,12 @@ Do not search docs for basic operations you already know how to perform.
         structured feedback with issues and recommendations.
         """
         await self._resolve_all(source)
-        self.source = source
-
-        env = (
-            dag.env()
-            .with_workspace(source)
-            .with_string_input("project_id", self.project_id, _DOC_GCP_PROJECT_ID)
-            .with_string_input("region", self.region, _DOC_GCP_REGION)
-            .with_string_output("result", "The review result")
+        work = await self._build_llm(
+            "review_prompt.md", source, task="review",
+            inputs=self._gcp_inputs(focus=focus),
+            extra_blocked=_BLOCKED_DESTRUCTIVE,
         )
-
-        if focus:
-            env = env.with_string_input("focus", focus, "Specific area to focus the review on")
-
-        work = await self._build_llm(env, "review_prompt.md", source, task="review")
-        return await _get_result_or_last_reply(work)
+        return await llm_helpers.reply(work)
 
     @function
     async def deploy(
@@ -525,9 +453,6 @@ Do not search docs for basic operations you already know how to perform.
         if not service_name:
             service_name = dagger_md_config.get("service_name", "")
 
-        if source:
-            self.source = source
-
         # Fast path: if the assignment contains a container image URI and a
         # service name, call deploy_service directly instead of routing through
         # the LLM.  This avoids flaky LLM behavior for straightforward deploys.
@@ -536,24 +461,18 @@ Do not search docs for basic operations you already know how to perform.
             if result is not None:
                 return await result
 
-        env = (
-            dag.env()
-            .with_string_input("assignment", assignment, "The deployment task to accomplish")
-            .with_string_input("project_id", self.project_id, _DOC_GCP_PROJECT_ID)
-            .with_string_input("region", self.region, "The GCP region to deploy to")
+        inputs = self._gcp_inputs(
+            assignment=assignment,
+            service_name=service_name,
+            repository=repository,
         )
-
-        if service_name:
-            env = env.with_string_input("service_name", service_name, "The target service name")
         if source:
-            env = env.with_directory_input("source", source, "Source code directory to build")
-        if repository:
-            env = env.with_string_input("repository", repository, "Artifact Registry repository name")
-
-        env = env.with_string_output("result", "The deployment result including the service URL or error details")
-
-        work = await self._build_llm(env, "deploy_prompt.md", source, task="deploy")
-        return await _get_result_or_last_reply(work)
+            inputs["source"] = (
+                "The source directory to build and deploy is the workspace: the workspace "
+                "tools read it, and the Firebase deploy tools and buildAndPublish deploy it."
+            )
+        work = await self._build_llm("deploy_prompt.md", source, task="deploy", inputs=inputs)
+        return await llm_helpers.reply(work)
 
     def _try_direct_cloud_run_deploy(self, assignment: str, service_name: str):
         """Attempt to parse a simple Cloud Run deploy from the assignment text.
@@ -602,23 +521,11 @@ Do not search docs for basic operations you already know how to perform.
         if not service_name:
             service_name = dagger_md_config.get("service_name", "")
 
-        if source:
-            self.source = source
-
-        env = (
-            dag.env()
-            .with_string_input("issue", issue, "The issue description to diagnose")
-            .with_string_input("project_id", self.project_id, _DOC_GCP_PROJECT_ID)
-            .with_string_input("region", self.region, _DOC_GCP_REGION)
+        work = await self._build_llm(
+            "troubleshoot_prompt.md", source, task="troubleshoot",
+            inputs=self._gcp_inputs(issue=issue, service_name=service_name),
         )
-
-        if service_name:
-            env = env.with_string_input("service_name", service_name, "The service to troubleshoot")
-
-        env = env.with_string_output("result", "Diagnosis and recommended actions")
-
-        work = await self._build_llm(env, "troubleshoot_prompt.md", source, task="troubleshoot")
-        return await _get_result_or_last_reply(work)
+        return await llm_helpers.reply(work)
 
     @function
     async def upgrade(
@@ -636,26 +543,11 @@ Do not search docs for basic operations you already know how to perform.
         """
         await self._resolve_all(source)
 
-        if source:
-            self.source = source
-
-        env = (
-            dag.env()
-            .with_string_input("service_name", service_name, "Service to upgrade")
-            .with_string_input("project_id", self.project_id, _DOC_GCP_PROJECT_ID)
-            .with_string_input("region", self.region, _DOC_GCP_REGION)
-            .with_string_output("result", "Upgrade result")
-        )
-
-        if target_version:
-            env = env.with_string_input("target_version", target_version, "Target version or image tag")
-        if source:
-            env = env.with_workspace(source)
+        inputs = self._gcp_inputs(service_name=service_name, target_version=target_version)
         if dry_run:
-            env = env.with_string_input("dry_run", "true", "Only analyze and report, do not apply changes")
-
-        work = await self._build_llm(env, "upgrade_prompt.md", source, task="upgrade")
-        return await _get_result_or_last_reply(work)
+            inputs["dry_run"] = "true — only analyze and report, do not apply changes"
+        work = await self._build_llm("upgrade_prompt.md", source, task="upgrade", inputs=inputs)
+        return await llm_helpers.reply(work)
 
     # --- GitHub integration ---
 
@@ -675,33 +567,11 @@ Do not search docs for basic operations you already know how to perform.
         "suggested changes" that developers can apply with one click.
         Does not require GCP authentication.
         """
-        # Store PR state for the suggestion tool
-        self._github_token = github_token
-        self._pr_repo = repo
-        self._pr_number = pr_number
-        self._pr_commit_sha = commit_sha
-
-        # Truncate error output (keep tail — most relevant)
-        max_error_chars = 8000
-        if len(error_output) > max_error_chars:
-            error_output = "...(truncated)\n" + error_output[-max_error_chars:]
-
-        env = (
-            dag.env()
-            .with_string_input("error_output", error_output, "The CI error output to analyze")
-            .with_string_input("pr_number", str(pr_number), "The pull request number")
-            .with_string_input("repo", repo, "The GitHub repository URL")
-            .with_string_input("commit_sha", commit_sha, "The HEAD commit SHA of the PR")
-            .with_string_output("result", "Summary of suggestions posted")
-        )
-
-        if source:
-            self.source = source
-            env = env.with_workspace(source)
-
         # Skip _resolve_all — GCP auth not needed for suggesting code fixes
-        work = await self._build_suggest_fix_llm(env, source)
-        return await _get_result_or_last_reply(work)
+        return await github_tools.suggest_github_fix_impl(
+            self._build_suggest_fix_llm, github_token, pr_number, repo,
+            commit_sha, error_output, source or self.source,
+        )
 
     @function
     async def develop_github_issue(
@@ -720,7 +590,7 @@ Do not search docs for basic operations you already know how to perform.
         Comments on the issue with a summary and a link to the PR.
         Returns the PR URL.
         """
-        workspace = source or self.source
+        workspace_dir = source or self.source
         gh = dag.github_issue(token=github_token)
 
         issue = gh.read(repository, issue_id)
@@ -729,28 +599,12 @@ Do not search docs for basic operations you already know how to perform.
         url = await issue.url()
 
         router_prompt = await self._load_prompt("router_prompt.md").contents()
-
-        router_env = (
-            dag.env()
-            .with_string_input("issue_title", title, "The GitHub issue title")
-            .with_string_input("issue_body", body, "The GitHub issue body")
-            .with_string_output("function_name", "The function to call: assist, deploy, troubleshoot, or upgrade")
-            .with_string_output("params_json", "JSON object with function parameters")
-        )
-
         router = (
             dag.llm()
-            .with_env(router_env)
             .with_system_prompt(router_prompt)
             .with_prompt(f"## GitHub Issue: {title}\n\n{body}")
         )
-
-        function_name = await router.env().output("function_name").as_string()
-        params_json = await router.env().output("params_json").as_string()
-
-        params, fallback = _parse_router_response(params_json)
-        if fallback:
-            function_name = fallback
+        function_name, params = routing.parse_router_reply(await llm_helpers.reply(router))
 
         # Filter params to expected keys per function to prevent TypeErrors
         _allowed_keys = {
@@ -762,14 +616,14 @@ Do not search docs for basic operations you already know how to perform.
         params = {k: v for k, v in params.items() if k in allowed}
 
         result = await self._execute_routed_function(
-            function_name, params, body, workspace,
+            function_name, params, body, workspace_dir,
             gh, repository, issue_id, suggest_github_fix_on_failure,
         )
 
         # For functions that return str, create a minimal directory for the PR
         pr_body = f"{body}\n\nCloses {url}\n\nAgent result:\n{result}"
-        if workspace:
-            pr_source = workspace
+        if workspace_dir:
+            pr_source = workspace_dir
         else:
             pr_source = dag.directory()
 
@@ -795,7 +649,7 @@ Do not search docs for basic operations you already know how to perform.
         function_name: str,
         params: dict,
         body: str,
-        workspace: dagger.Directory | None,
+        workspace_dir: dagger.Directory | None,
         gh,
         repository: str,
         issue_id: int,
@@ -804,13 +658,13 @@ Do not search docs for basic operations you already know how to perform.
         """Dispatch to the routed function, posting a comment on failure if requested."""
         try:
             if function_name == "deploy":
-                return await self.deploy(source=workspace, **params)
+                return await self.deploy(source=workspace_dir, **params)
             elif function_name == "troubleshoot":
-                return await self.troubleshoot(source=workspace, **params)
+                return await self.troubleshoot(source=workspace_dir, **params)
             elif function_name == "upgrade":
-                return await self.upgrade(source=workspace, **params)
+                return await self.upgrade(source=workspace_dir, **params)
             else:
-                return await self.assist(assignment=body, source=workspace)
+                return await self.assist(assignment=body, source=workspace_dir)
         except Exception as exc:
             if suggest_on_failure:
                 await gh.write_comment(
@@ -830,6 +684,7 @@ Do not search docs for basic operations you already know how to perform.
     @function
     async def task(
         self,
+        ws: dagger.Workspace,
         description: Annotated[str, Doc("Short description of the sub-task")],
         prompt: Annotated[str, Doc("Detailed prompt for the sub-agent")],
     ) -> str:
@@ -841,152 +696,73 @@ Do not search docs for basic operations you already know how to perform.
         task_system = await self._load_prompt("task_system_prompt.md").contents()
         context_md = await self._read_context_file()
 
-        env = (
-            dag.env()
-            .with_string_input("task_description", description, "The sub-task description")
-            .with_string_input("task_prompt", prompt, "Detailed instructions for the sub-task")
-            .with_string_output("result", "The sub-task result")
-        )
-
-        if self.source:
-            env = env.with_workspace(self.source)
-
+        # Block entrypoints (prevent recursion), destructive tools (read-only
+        # sub-agent) and the MCP tool (the sub-agent gets no MCP server)
         llm = (
             dag.llm()
-            .with_env(env.with_current_module())
+            .with_workspace(ws)
+            .with_tools(dag.current_node(), except_=llm_helpers.tool_exclusions(
+                self._blocked("task", "mcp", *_BLOCKED_DESTRUCTIVE),
+            ))
             .with_system_prompt(task_system + context_md)
+            .with_prompt(f"## Task: {description}\n\n{prompt}")
         )
+        return await llm_helpers.reply(llm)
 
-        # Block entrypoints (prevent recursion) and destructive tools (read-only sub-agent)
-        for fn in _BLOCKED_ENTRYPOINTS + ["task"] + _BLOCKED_DESTRUCTIVE:
-            llm = llm.with_blocked_function("Goose", fn)
-
-        llm = llm.with_prompt(f"## Task: {description}\n\n{prompt}")
-
-        return await _get_result_or_last_reply(llm)
-
-    # --- GitHub suggestion tool (exposed to LLM via with_current_module) ---
-
-    @function
-    async def suggest_github_pr_code_comment(
-        self,
-        path: Annotated[str, Doc("File path relative to repo root")],
-        line: Annotated[int, Doc("Line number to suggest a change on")],
-        suggestion: Annotated[str, Doc("Replacement code (no ```suggestion fences, just the raw code)")],
-        comment: Annotated[str, Doc("Explanation of the fix")] = "",
-    ) -> str:
-        """Post an inline code suggestion on a GitHub pull request.
-
-        The suggestion will appear as a GitHub "suggested change" that
-        developers can apply with one click.
-        """
-        if not self._github_token or not self._pr_repo:
-            raise ValueError("suggest_github_pr_code_comment can only be used during suggest_github_fix")
-
-        body = ""
-        if comment:
-            body += f"{comment}\n\n"
-        body += f"```suggestion\n{suggestion}\n```"
-
-        gh = dag.github_issue(token=self._github_token)
-        await gh.write_pull_request_code_comment(
-            repo=self._pr_repo,
-            issue_id=self._pr_number,
-            commit=self._pr_commit_sha,
-            body=body,
-            path=path,
-            side="RIGHT",
-            line=line,
-        )
-        return f"Posted suggestion on {path}:{line}"
-
-    # --- Workspace tools (exposed to LLM via with_current_module) ---
+    # --- Workspace tools ---
 
     @function
     async def read_file(
         self,
+        ws: dagger.Workspace,
         file_path: Annotated[str, Doc("Path to the file relative to the workspace root")],
         offset: Annotated[int, Doc("Line number to start reading from (1-based)")] = 0,
         limit: Annotated[int, Doc("Maximum number of lines to read")] = 0,
     ) -> str:
         """Read a file from the workspace with line numbers."""
-        if not self.source:
-            raise ValueError(_ERROR_NO_SOURCE_DIR)
-        contents = await self.source.file(file_path).contents()
-        lines = contents.splitlines()
-
-        if offset > 0:
-            lines = lines[offset - 1:]
-        if limit > 0:
-            lines = lines[:limit]
-
-        start = offset if offset > 0 else 1
-        numbered = [f"{start + i:4d}  {line}" for i, line in enumerate(lines)]
-        return "\n".join(numbered)
+        return await workspace.read_file_impl(ws, file_path, offset, limit)
 
     @function
     async def edit_file(
         self,
+        ws: dagger.Workspace,
         file_path: Annotated[str, Doc("Path to the file relative to the workspace root")],
         old_string: Annotated[str, Doc("The exact string to find and replace")],
         new_string: Annotated[str, Doc("The replacement string")],
         replace_all: Annotated[bool, Doc("Replace all occurrences (default: first only)")] = False,
-    ) -> dagger.Changeset:
+    ) -> dagger.Workspace:
         """Edit a file by replacing a string. The old_string must match exactly.
 
-        Returns a changeset showing the diff.
+        Returns the edited workspace.
         """
-        if not self.source:
-            raise ValueError(_ERROR_NO_SOURCE_DIR)
-        before = self.source
-        contents = await before.file(file_path).contents()
-
-        if old_string not in contents:
-            msg = f"old_string not found in {file_path}"
-            raise ValueError(msg)
-
-        if replace_all:
-            new_contents = contents.replace(old_string, new_string)
-        else:
-            new_contents = contents.replace(old_string, new_string, 1)
-
-        after = before.with_new_file(file_path, new_contents)
-        self.source = after
-        return after.changes(before)
+        return await workspace.edit_file_impl(ws, file_path, old_string, new_string, replace_all)
 
     @function
-    async def write_file(
+    def write_file(
         self,
+        ws: dagger.Workspace,
         file_path: Annotated[str, Doc("Path to the file relative to the workspace root")],
         contents: Annotated[str, Doc("The full file contents to write")],
-    ) -> dagger.Changeset:
+    ) -> dagger.Workspace:
         """Create or overwrite a file in the workspace.
 
-        Returns a changeset showing the diff.
+        Returns the edited workspace.
         """
-        if not self.source:
-            raise ValueError(_ERROR_NO_SOURCE_DIR)
-        before = self.source
-        after = before.with_new_file(file_path, contents)
-        self.source = after
-        return after.changes(before)
+        return workspace.write_file_impl(ws, file_path, contents)
 
     @function
     async def glob(
         self,
+        ws: dagger.Workspace,
         pattern: Annotated[str, Doc("Glob pattern (e.g. '**/*.py', '**/*.yaml')")],
     ) -> str:
         """Find files in the workspace matching a glob pattern."""
-        if not self.source:
-            raise ValueError(_ERROR_NO_SOURCE_DIR)
-        entries = await self.source.glob(pattern)
-        if not entries:
-            return "No files matched the pattern."
-        return "\n".join(entries)
+        return await workspace.glob_impl(ws, pattern)
 
     @function
     async def grep(
         self,
+        ws: dagger.Workspace,
         pattern: Annotated[str, Doc("Search pattern (regex supported)")],
         paths: Annotated[str, Doc("Comma-separated paths to search in (optional)")] = "",
         file_glob: Annotated[str, Doc("Glob pattern to filter files (e.g. '*.py')")] = "",
@@ -994,39 +770,22 @@ Do not search docs for basic operations you already know how to perform.
         limit: Annotated[int, Doc("Maximum number of matching lines to return")] = 100,
     ) -> str:
         """Search file contents in the workspace using grep."""
-        if not self.source:
-            raise ValueError(_ERROR_NO_SOURCE_DIR)
-        cmd = ["grep", "-rn"]
-        if insensitive:
-            cmd.append("-i")
+        return await workspace.grep_impl(ws, pattern, paths, file_glob, insensitive, limit)
 
-        if file_glob:
-            cmd.extend(["--include", file_glob])
+    @function
+    async def mcp(
+        self,
+        server: Annotated[str, Doc("MCP server name, as listed in the system prompt (e.g. 'gcloud')")],
+        tool: Annotated[str, Doc("Name of the server's tool to call")],
+        arguments: Annotated[str, Doc("The tool's arguments, as a JSON object")] = "{}",
+    ) -> str:
+        """Call a tool of one of the MCP servers listed in the system prompt."""
+        if server != "gcloud":
+            raise ValueError(f"unknown MCP server {server!r}; the server is 'gcloud'")
+        await self._ensure_resolved()
+        return await mcp_stdio.call(self._gcloud_mcp(self.gcloud), tool, arguments)
 
-        cmd.append(pattern)
-
-        if paths:
-            cmd.extend(paths.split(","))
-        else:
-            cmd.append(".")
-
-        result = await (
-            dag.container()
-            .from_("alpine:latest")
-            .with_mounted_directory("/work", self.source)
-            .with_workdir("/work")
-            .with_exec(cmd, expect=dagger.ExecExpect.ANY)
-            .stdout()
-        )
-
-        lines = result.strip().splitlines()
-        if limit > 0 and len(lines) > limit:
-            lines = lines[:limit]
-            lines.append(f"... (truncated, {limit} of many matches shown)")
-
-        return "\n".join(lines) if lines else "No matches found."
-
-    # --- GCP diagnostic utilities (exposed to LLM via with_current_module) ---
+    # --- GCP diagnostic utilities ---
 
     @function
     async def describe_service(
@@ -1034,6 +793,7 @@ Do not search docs for basic operations you already know how to perform.
         service_name: Annotated[str, Doc("Cloud Run service name")],
     ) -> str:
         """Get the full configuration of a Cloud Run service as JSON."""
+        await self._ensure_resolved()
         return await (
             self.gcloud
             .with_exec([
@@ -1048,6 +808,7 @@ Do not search docs for basic operations you already know how to perform.
     @function
     async def list_services(self) -> str:
         """List all Cloud Run services in the project and region."""
+        await self._ensure_resolved()
         return await (
             self.gcloud
             .with_exec([
@@ -1065,6 +826,7 @@ Do not search docs for basic operations you already know how to perform.
         service_name: Annotated[str, Doc("Cloud Run service name")],
     ) -> str:
         """Get the revision history for a Cloud Run service."""
+        await self._ensure_resolved()
         return await (
             self.gcloud
             .with_exec([
@@ -1083,6 +845,7 @@ Do not search docs for basic operations you already know how to perform.
         service_name: Annotated[str, Doc("Cloud Run service name")],
     ) -> str:
         """Check the IAM policy bindings on a Cloud Run service."""
+        await self._ensure_resolved()
         return await (
             self.gcloud
             .with_exec([
@@ -1110,6 +873,7 @@ Do not search docs for basic operations you already know how to perform.
         env_vars: Annotated[list[str], Doc("Environment variables as KEY=VALUE")] = [],
     ) -> str:
         """Deploy a container image to Cloud Run as a service."""
+        await self._ensure_resolved()
         return await (
             dag.gcp_cloud_run()
             .service()
@@ -1134,6 +898,7 @@ Do not search docs for basic operations you already know how to perform.
         service_name: Annotated[str, Doc("Cloud Run service name to delete")],
     ) -> str:
         """Delete a Cloud Run service."""
+        await self._ensure_resolved()
         return await (
             dag.gcp_cloud_run()
             .service()
@@ -1150,6 +915,7 @@ Do not search docs for basic operations you already know how to perform.
         service_name: Annotated[str, Doc("Cloud Run service name")],
     ) -> str:
         """Get the URL of a deployed Cloud Run service."""
+        await self._ensure_resolved()
         return await (
             dag.gcp_cloud_run()
             .service()
@@ -1166,6 +932,7 @@ Do not search docs for basic operations you already know how to perform.
         service_name: Annotated[str, Doc("Cloud Run service name to check")],
     ) -> bool:
         """Check if a Cloud Run service exists."""
+        await self._ensure_resolved()
         return await (
             dag.gcp_cloud_run()
             .service()
@@ -1184,6 +951,7 @@ Do not search docs for basic operations you already know how to perform.
         log_filter: Annotated[str, Doc("Log filter (e.g. 'severity>=ERROR')")] = "",
     ) -> str:
         """Get logs from a Cloud Run service."""
+        await self._ensure_resolved()
         return await (
             dag.gcp_cloud_run()
             .service()
@@ -1207,6 +975,35 @@ Do not search docs for basic operations you already know how to perform.
         tag: Annotated[str, Doc("Image tag")] = "latest",
     ) -> str:
         """Publish a container image to Artifact Registry."""
+        await self._ensure_resolved()
+        return await (
+            dag.gcp_artifact_registry()
+            .publish(
+                container=container,
+                project_id=self.project_id,
+                repository=repository,
+                image_name=image_name,
+                region=self.region,
+                tag=tag,
+                gcloud=self.gcloud,
+            )
+        )
+
+    @function
+    async def build_and_publish(
+        self,
+        ws: dagger.Workspace,
+        repository: Annotated[str, Doc("Artifact Registry repository name")],
+        image_name: Annotated[str, Doc("Image name in the repository")],
+        tag: Annotated[str, Doc("Image tag")] = "latest",
+        dockerfile: Annotated[str, Doc("Dockerfile path, relative to the workspace")] = "Dockerfile",
+    ) -> str:
+        """Build the workspace with its Dockerfile and publish the image to Artifact Registry.
+
+        Returns the published image reference, ready for deployService.
+        """
+        await self._ensure_resolved()
+        container = ws.directory(".").docker_build(dockerfile=dockerfile)
         return await (
             dag.gcp_artifact_registry()
             .publish(
@@ -1226,6 +1023,7 @@ Do not search docs for basic operations you already know how to perform.
         repository: Annotated[str, Doc("Artifact Registry repository name")],
     ) -> str:
         """List images in an Artifact Registry repository."""
+        await self._ensure_resolved()
         return await (
             dag.gcp_artifact_registry()
             .list_images(
@@ -1259,16 +1057,17 @@ Do not search docs for basic operations you already know how to perform.
     @function
     async def deploy_firebase_hosting(
         self,
-        source: Annotated[dagger.Directory, Doc("Source directory with firebase.json")],
+        ws: dagger.Workspace,
         build_command: Annotated[str, Doc("Build command (empty string to skip build for pre-built sources)")] = "npm run build",
-        node_version: Annotated[str, Doc("Node.js version")] = "20",
+        node_version: Annotated[str, Doc("Node.js version")] = "22",
     ) -> str:
-        """Deploy a web application to Firebase Hosting."""
+        """Deploy the web application in the workspace (with its firebase.json) to Firebase Hosting."""
+        await self._ensure_resolved()
         return await (
             dag.gcp_firebase()
             .deploy(
                 project_id=self.project_id,
-                source=source,
+                source=ws.directory("."),
                 build_command=build_command,
                 node_version=node_version,
                 **self._firebase_auth_kwargs(),
@@ -1278,19 +1077,23 @@ Do not search docs for basic operations you already know how to perform.
     @function
     async def deploy_firebase_preview(
         self,
-        source: Annotated[dagger.Directory, Doc("Source directory with firebase.json")],
+        ws: dagger.Workspace,
         channel_id: Annotated[str, Doc("Preview channel ID (e.g. pr-123)")],
         build_command: Annotated[str, Doc("Build command (empty string to skip build for pre-built sources)")] = "npm run build",
-        node_version: Annotated[str, Doc("Node.js version")] = "20",
+        node_version: Annotated[str, Doc("Node.js version")] = "22",
         expires: Annotated[str, Doc("Channel expiration (e.g. '7d')")] = "7d",
     ) -> str:
-        """Deploy to a Firebase Hosting preview channel. Returns the preview URL."""
+        """Deploy the workspace (with its firebase.json) to a Firebase Hosting preview channel.
+
+        Returns the preview URL.
+        """
+        await self._ensure_resolved()
         return await (
             dag.gcp_firebase()
             .deploy_preview(
                 project_id=self.project_id,
                 channel_id=channel_id,
-                source=source,
+                source=ws.directory("."),
                 build_command=build_command,
                 node_version=node_version,
                 expires=expires,
@@ -1304,6 +1107,7 @@ Do not search docs for basic operations you already know how to perform.
         channel_id: Annotated[str, Doc("Preview channel ID to delete")],
     ) -> str:
         """Delete a Firebase Hosting preview channel."""
+        await self._ensure_resolved()
         return await (
             dag.gcp_firebase()
             .delete_channel(
@@ -1328,6 +1132,7 @@ Do not search docs for basic operations you already know how to perform.
         max_replicas: Annotated[int, Doc("Maximum replicas")] = 3,
     ) -> str:
         """Deploy a containerized ML model to Vertex AI."""
+        await self._ensure_resolved()
         return await (
             dag.gcp_vertex_ai()
             .deploy_model(
@@ -1347,6 +1152,7 @@ Do not search docs for basic operations you already know how to perform.
     @function
     async def list_vertex_models(self) -> str:
         """List all Vertex AI models in the project."""
+        await self._ensure_resolved()
         return await (
             dag.gcp_vertex_ai()
             .list_models(
@@ -1358,6 +1164,7 @@ Do not search docs for basic operations you already know how to perform.
     @function
     async def list_vertex_endpoints(self) -> str:
         """List all Vertex AI endpoints in the project."""
+        await self._ensure_resolved()
         return await (
             dag.gcp_vertex_ai()
             .list_endpoints(
@@ -1433,7 +1240,7 @@ Do not search docs for basic operations you already know how to perform.
         """Search Google's official developer documentation for GCP, Firebase, Android, and more.
 
         Returns relevant documentation chunks with page references.
-        Use get_gcp_doc with a parent value from results to retrieve full page content.
+        Use getGcpDoc with a parent value from results to retrieve full page content.
         """
         return await (
             self._dk_curl_container()
@@ -1455,7 +1262,7 @@ Do not search docs for basic operations you already know how to perform.
     ) -> str:
         """Retrieve the full content of a Google developer documentation page.
 
-        Use the 'parent' field from search_gcp_docs results as the document_name.
+        Use the 'parent' field from searchGcpDocs results as the document name.
         Returns the full page as Markdown.
         """
         return await (
@@ -1475,7 +1282,7 @@ Do not search docs for basic operations you already know how to perform.
     ) -> str:
         """Retrieve multiple Google developer documentation pages at once.
 
-        Use the 'parent' fields from search_gcp_docs results as document names.
+        Use the 'parent' fields from searchGcpDocs results as document names.
         Returns all pages as Markdown.
         """
         results = []

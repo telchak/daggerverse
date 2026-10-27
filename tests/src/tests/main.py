@@ -10,7 +10,7 @@ import time
 from typing import Annotated
 
 import dagger
-from dagger import Doc, dag, function, object_type
+from dagger import Doc, check, dag, function, object_type
 
 from .calver import test_calver
 from .gcp_artifact_registry import test_gcp_artifact_registry
@@ -28,6 +28,7 @@ from .angular_agent import (
 from .angular_module import (
     _fixture_source as _angular_fixture_source,
     test_angular_build,
+    test_angular_check_build,
     test_angular_install,
 )
 from .python_agent import (
@@ -129,6 +130,8 @@ class Tests:
         results.append(await test_angular_build(source=source))
         results.append("\n=== Angular Install ===")
         results.append(await test_angular_install(source=source))
+        results.append("\n=== Angular check-build ===")
+        results.append(await test_angular_check_build(source=source))
         return "\n".join(results)
 
     @function
@@ -281,7 +284,7 @@ class Tests:
     @function
     async def dagger_mcp(self) -> str:
         """Run dagger-mcp module test."""
-        return test_dagger_mcp_server()
+        return await test_dagger_mcp_server()
 
     # ========== DAGGIE (DAGGER CI AGENT) TESTS ==========
 
@@ -295,7 +298,7 @@ class Tests:
         results = []
 
         results.append("=== MCP Server ===")
-        results.append(test_dagger_mcp_server())
+        results.append(await test_dagger_mcp_server())
 
         results.append("\n=== Assist ===")
         results.append(await test_daggie_assist())
@@ -535,6 +538,47 @@ class Tests:
         results.append(f"=== health-check ===\n{await test_health_check()}")
         results.append(f"=== oidc-token ===\n{await test_oidc_token()}")
         return "\n\n".join(results)
+
+    # ========== CHECKS (dagger check -m ./tests) ==========
+    #
+    # The module tests that need no credentials, as checks: a check takes no
+    # arguments and returns None, so each prints its report and raises on failure.
+
+    @function
+    @check
+    async def check_calver(self) -> None:
+        """Check the calver module."""
+        print(await self.calver())
+
+    @function
+    @check
+    async def check_health_check(self) -> None:
+        """Check the health-check module."""
+        print(await self.health_check())
+
+    @function
+    @check
+    async def check_oidc_token(self) -> None:
+        """Check the oidc-token module."""
+        print(await self.oidc_token())
+
+    @function
+    @check
+    async def check_angular(self) -> None:
+        """Check the angular module against the bundled Angular fixture."""
+        print(await self.angular())
+
+    @function
+    @check
+    async def check_python_build(self) -> None:
+        """Check the python-build module against the FastAPI RealWorld app."""
+        print(await self.python_build())
+
+    @function
+    @check
+    async def check_dagger_mcp(self) -> None:
+        """Check the dagger-mcp module."""
+        print(await self.dagger_mcp())
 
     # ========== GCP MODULE TESTS (MULTI-AUTH) ==========
 

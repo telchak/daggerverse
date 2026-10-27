@@ -42,3 +42,15 @@ async def test_angular_install(source: dagger.Directory) -> str:
         raise RuntimeError(f"angular install did not create node_modules. Entries: {entries}")
 
     return "PASS: angular install (node_modules present)"
+
+
+async def test_angular_check_build(source: dagger.Directory) -> str:
+    """Test the check-build check on a workspace made from the fixture.
+
+    `dagger check` injects the workspace; a module calling another passes one
+    explicitly, as here. Reading `pass` runs the check.
+    """
+    check = dag.angular().check_build(ws=source.as_workspace())
+    if not await check.pass_():
+        raise RuntimeError(f"angular check-build failed: {await check.error().message()}")
+    return "PASS: angular check-build (workspace from the fixture)"

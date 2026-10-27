@@ -7,7 +7,11 @@ Firebase Hosting and Firestore database management utilities for Dagger pipeline
 ## Installation
 
 ```bash
-dagger install github.com/telchak/daggerverse/gcp-firebase
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/gcp-firebase@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/gcp-firebase@<version> --sdk=python
 ```
 
 ## Features
@@ -44,7 +48,7 @@ await dag.gcp_firebase().deploy(
 
 ```bash
 # CLI usage
-dagger call deploy \
+dagger api call gcp-firebase deploy \
   --project-id=my-project \
   --source=. \
   --credentials=env:GOOGLE_CREDENTIALS \
@@ -127,7 +131,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Deploy to Firebase
         run: |
-          dagger call deploy \
+          dagger api call gcp-firebase deploy \
             --project-id=${{ secrets.PROJECT_ID }} \
             --source=. \
             --oidc-token=env:OIDC_TOKEN \
@@ -172,7 +176,7 @@ dist = await dag.gcp_firebase().build(source=source, npm_cache=npm_cache)
 
 ```bash
 # CLI: caching is automatic, no extra flags needed
-dagger call build --source=.
+dagger api call gcp-firebase build --source=.
 ```
 
 ---
@@ -229,17 +233,17 @@ await dag.gcp_firebase().delete_channel(
 
 ```bash
 # Build only
-dagger call build --source=. --build-command="npm run build"
+dagger api call gcp-firebase build --source=. --build-command="npm run build"
 
 # Deploy to production
-dagger call deploy \
+dagger api call gcp-firebase deploy \
   --project-id=my-project \
   --source=. \
   --credentials=env:GOOGLE_CREDENTIALS \
   --build-command="npm run build"
 
 # Deploy preview channel
-dagger call deploy-preview \
+dagger api call gcp-firebase deploy-preview \
   --project-id=my-project \
   --channel-id=pr-123 \
   --source=. \
@@ -289,7 +293,7 @@ result = await dag.gcp_firebase().scripts().python(
 ```python
 container = dag.gcp_firebase().scripts().container(
     source=source,
-    base_image="golang:1.22-alpine",
+    base_image="golang:1.27-alpine",
     credentials=credentials,
 )
 result = await container.with_exec(["go", "run", "main.go"]).stdout()
@@ -299,14 +303,14 @@ result = await container.with_exec(["go", "run", "main.go"]).stdout()
 
 ```bash
 # Run TypeScript script
-dagger call scripts node \
+dagger api call gcp-firebase scripts node \
   --source=. \
   --script="src/seed-data.ts" \
   --credentials=env:GOOGLE_CREDENTIALS \
   --working-dir="functions"
 
 # Run Python script
-dagger call scripts python \
+dagger api call gcp-firebase scripts python \
   --source=. \
   --script="seed_data.py" \
   --credentials=env:GOOGLE_CREDENTIALS \

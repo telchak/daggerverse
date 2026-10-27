@@ -1,11 +1,19 @@
-"""LLM builder helpers shared across coding agents."""
+"""LLM builder helpers shared across coding agents.
 
-from collections.abc import Callable
+Dagger 1.0 has no `Env`: an LLM is bound to a workspace (`LLM.with_workspace`)
+and acts through the methods of the objects bound to it
+(`LLM.with_tools(dag.current_node(), except_=...)`). Values an agent used to
+pass as Env inputs are written into the prompt, results come from the final
+reply or from the edited workspace, and nothing runs until `LLM.loop()`.
+"""
+
+from collections.abc import Callable, Iterable
 
 import dagger
 from dagger import dag
 
-from . import constants
+from . import mcp_stdio
+from .mcp_stdio import McpServer
 
 MAX_CONTEXT_CHARS = 4000  # ~1000 tokens — keeps total prompt under budget
 _TRUNCATION_NOTICE = "\n\n[Truncated.]"
@@ -19,9 +27,9 @@ _SELF_IMPROVE_PROMPT = """
 ## Self-Improvement Instructions
 
 You have self-improvement enabled. As you work, record useful discoveries in
-**two** context files. Use `read_file` to check each file's current contents
-first, then use `edit_file` to append new entries at the end. If a file does
-not exist yet, use `write_file` to create it.
+**two** context files. Use `readFile` to check each file's current contents
+first, then use `editFile` to append new entries at the end. If a file does
+not exist yet, use `writeFile` to create it.
 
 ### Agent-specific file: `{agent_file}`
 
@@ -50,6 +58,34 @@ Record general-purpose knowledge about the repository here:
 
 Do this as a **final step**, after completing your main task successfully.
 """
+
+
+def tool_name(name: str) -> str:
+    """The GraphQL name of a Python function: the name its tool has.
+
+    `LLM.with_tools(except_=...)` compares these names as they are and ignores
+    names it does not know, so a snake_case name would hide nothing.
+    """
+    head, *rest = name.split("_")
+    return head + "".join(part[:1].upper() + part[1:] for part in rest)
+
+
+def tool_exclusions(names: Iterable[str]) -> list[str]:
+    """GraphQL names to pass to `LLM.with_tools(except_=...)`."""
+    return sorted({tool_name(name) for name in names})
+
+
+def format_inputs(inputs: dict[str, str] | None) -> str:
+    """Render the task inputs into the prompt, skipping empty values.
+
+    Prompts describe their inputs under "## Inputs"; the values follow them,
+    under "## Input values".
+    """
+    present = [(name, value) for name, value in (inputs or {}).items() if value]
+    if not present:
+        return ""
+    sections = [f"### {name}\n\n{value}" for name, value in present]
+    return "\n\n## Input values\n\n" + "\n\n".join(sections)
 
 
 async def _read_and_format_section(
@@ -121,117 +157,111 @@ async def commit_context_file(
 
 
 async def build_llm(
-    env: dagger.Env,
+    source: dagger.Directory,
     system_prompt_file: str,
     prompt_file: str,
     load_prompt_fn: Callable[[str], dagger.File],
     context_file_names: tuple[str, ...],
-    mcp_servers: dict[str, dagger.Service],
-    class_name: str,
-    blocked_entrypoints: list[str],
-    source: dagger.Directory,
-    extra_blocked: list[str] | None = None,
+    mcp_servers: list[McpServer],
+    blocked: Iterable[str],
+    inputs: dict[str, str] | None = None,
     self_improve: str = "off",
+    extra_read_files: tuple[str, ...] = (),
+    extra_context: str = "",
+    retry_note: str = "",
 ) -> dagger.LLM:
-    """Build an LLM with environment, workspace tools, MCP servers, and prompts."""
-    context_md = await read_context_file(source, context_file_names)
+    """Build an LLM that works on `source`, with this agent's tools, MCP servers and prompts.
+
+    Call it from an agent function: it binds the object that received the call.
+    """
+    context_md = await read_context_file(source, context_file_names, extra_read_files)
     system_prompt = await load_prompt_fn(system_prompt_file).contents()
 
     if self_improve != "off":
-        agent_file = context_file_names[0]
-        system_prompt += _SELF_IMPROVE_PROMPT.format(agent_file=agent_file)
+        system_prompt += _SELF_IMPROVE_PROMPT.format(agent_file=context_file_names[0])
 
     llm = (
         dag.llm()
-        .with_env(env.with_current_module())
-        .with_system_prompt(system_prompt + context_md)
+        .with_workspace(source.as_workspace())
+        .with_tools(dag.current_node(), except_=tool_exclusions([*blocked, *mcp_stdio.blocked_tools(mcp_servers)]))
     )
+    llm, mcp_context = await mcp_stdio.attach(llm, mcp_servers)
+    llm = llm.with_system_prompt(system_prompt + context_md + extra_context + mcp_context)
 
-    for name, service in mcp_servers.items():
-        llm = llm.with_mcp_server(name, service)
-
-    for fn in blocked_entrypoints + (extra_blocked or []):
-        llm = llm.with_blocked_function(class_name, fn)
-
-    return llm.with_prompt_file(load_prompt_fn(prompt_file))
+    prompt = await load_prompt_fn(prompt_file).contents()
+    if retry_note:
+        prompt += f"\n\n{retry_note}"
+    return llm.with_prompt(prompt + format_inputs(inputs))
 
 
 async def build_suggest_fix_llm(
-    env: dagger.Env,
+    source: dagger.Directory,
     load_prompt_fn: Callable[[str], dagger.File],
     context_file_names: tuple[str, ...],
-    class_name: str,
-    blocked_entrypoints: list[str],
-    blocked_destructive: list[str],
-    source: dagger.Directory,
+    blocked: Iterable[str],
+    inputs: dict[str, str],
+    extra_read_files: tuple[str, ...] = (),
+    extra_context: str = "",
 ) -> dagger.LLM:
-    """Build an LLM for suggest-github-fix (no MCP, workspace + suggestion tool)."""
-    context_md = await read_context_file(source, context_file_names)
-    system_prompt = await load_prompt_fn("system_prompt.md").contents()
-
-    llm = (
-        dag.llm()
-        .with_env(env.with_current_module())
-        .with_system_prompt(system_prompt + context_md)
+    """Build a read-only LLM for suggest-github-fix (no MCP; suggestions come back in the reply)."""
+    return await build_llm(
+        source, "system_prompt.md", "suggest_fix_prompt.md", load_prompt_fn,
+        context_file_names, [], blocked, inputs=inputs,
+        extra_read_files=extra_read_files, extra_context=extra_context,
     )
-
-    for fn in blocked_entrypoints + ["task"] + blocked_destructive:
-        if fn != "suggest_github_pr_code_comment":
-            llm = llm.with_blocked_function(class_name, fn)
-
-    return llm.with_prompt_file(load_prompt_fn("suggest_fix_prompt.md"))
 
 
 async def build_task_llm(
-    source: dagger.Directory,
+    ws: dagger.Workspace,
     load_prompt_fn: Callable[[str], dagger.File],
     context_file_names: tuple[str, ...],
-    mcp_servers: dict[str, dagger.Service],
-    class_name: str,
-    blocked_entrypoints: list[str],
-    blocked_destructive: list[str],
+    mcp_servers: list[McpServer],
+    blocked: Iterable[str],
     description: str,
     prompt: str,
 ) -> dagger.LLM:
-    """Build an LLM for the task sub-agent (read-only workspace + MCP)."""
+    """Build an LLM for the task sub-agent: the caller's workspace, read-only tools and MCP."""
     task_system = await load_prompt_fn("task_system_prompt.md").contents()
-    context_md = await read_context_file(source, context_file_names)
-
-    env = (
-        dag.env()
-        .with_workspace(source)
-        .with_string_input("task_description", description, "The sub-task description")
-        .with_string_input("task_prompt", prompt, "Detailed instructions for the sub-task")
-        .with_string_output("result", "The sub-task result")
-    )
+    context_md = await read_context_file(ws.directory("."), context_file_names)
 
     llm = (
         dag.llm()
-        .with_env(env.with_current_module())
-        .with_system_prompt(task_system + context_md)
+        .with_workspace(ws)
+        .with_tools(dag.current_node(), except_=tool_exclusions([*blocked, *mcp_stdio.blocked_tools(mcp_servers)]))
     )
-
-    for name, service in mcp_servers.items():
-        llm = llm.with_mcp_server(name, service)
-
-    for fn in blocked_entrypoints + ["task"] + blocked_destructive:
-        llm = llm.with_blocked_function(class_name, fn)
-
+    llm, mcp_context = await mcp_stdio.attach(llm, mcp_servers)
+    llm = llm.with_system_prompt(task_system + context_md + mcp_context)
     return llm.with_prompt(f"## Task: {description}\n\n{prompt}")
 
 
-async def get_result_or_last_reply(work: dagger.LLM, output_name: str = "result") -> str:
-    """Get a string output from the LLM, falling back to last_reply.
+async def build_agent(
+    base: dagger.LLM,
+    ws: dagger.Workspace,
+    load_prompt_fn: Callable[[str], dagger.File],
+    context_file_names: tuple[str, ...],
+    mcp_servers: list[McpServer],
+    blocked: Iterable[str],
+    extra_read_files: tuple[str, ...] = (),
+) -> dagger.LLM:
+    """Fold this agent's tools, MCP servers and system prompt onto a base LLM (for `@agent`).
 
-    Some LLMs (notably Gemini) sometimes produce text output without
-    calling the output binding tool.  This helper tries the binding first,
-    then falls back to the LLM's last reply so the work isn't lost.
+    `dagger agent` passes a base LLM bound to the user's workspace, so the
+    tools edit that workspace and the session's Changes panel shows the edits.
     """
-    try:
-        value = await work.env().output(output_name).as_string()
-        if value and value.strip():
-            return value
-    except Exception:
-        pass
-    # Fallback: the LLM generated text but didn't bind it
-    return await work.last_reply()
+    context_md = await read_context_file(ws.directory("."), context_file_names, extra_read_files)
+    system_prompt = await load_prompt_fn("system_prompt.md").contents()
+    llm = base.with_tools(
+        dag.current_node(), except_=tool_exclusions([*blocked, *mcp_stdio.blocked_tools(mcp_servers)]),
+    )
+    llm, mcp_context = await mcp_stdio.attach(llm, mcp_servers)
+    return llm.with_system_prompt(system_prompt + context_md + mcp_context)
+
+
+async def reply(llm: dagger.LLM) -> str:
+    """Run the agent loop and return the model's final reply."""
+    return await llm.loop().last_reply()
+
+
+def edited_directory(llm: dagger.LLM) -> dagger.Directory:
+    """Run the agent loop and return the workspace it edited, as a directory."""
+    return llm.loop().workspace().directory("/")

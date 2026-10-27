@@ -60,7 +60,7 @@ This Dagger module provides utilities for authenticating with Google Cloud Platf
 From your Dagger module:
 
 ```bash
-dagger install ../daggerverse/gcp-auth --name=gcp-auth
+dagger module client add ../daggerverse/gcp-auth --sdk=python
 ```
 
 ### Basic Usage
@@ -151,7 +151,7 @@ jobs:
 
       - name: Deploy with Dagger
         run: |
-          dagger call gcloud-container-from-github-actions \
+          dagger api call gcp-auth gcloud-container-from-github-actions \
             --workload-identity-provider="projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider" \
             --project-id="my-project" \
             --oidc-request-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
@@ -176,7 +176,7 @@ For maximum flexibility across CI providers, use the `oidc-token` module to get 
 ```yaml
 - name: Deploy with Dagger
   run: |
-    dagger call gcloud-container-from-github-actions \
+    dagger api call gcp-auth gcloud-container-from-github-actions \
       --workload-identity-provider="projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider" \
       --project-id="my-project" \
       --oidc-request-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
@@ -192,8 +192,8 @@ deploy:
     GITLAB_OIDC_TOKEN:
       aud: //iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider
   script:
-    - dagger call -m oidc-token gitlab-token --ci-job-jwt=env:GITLAB_OIDC_TOKEN > /tmp/token
-    - dagger call gcloud-container-from-oidc-token \
+    - dagger api call oidc-token gitlab-token --ci-job-jwt=env:GITLAB_OIDC_TOKEN > /tmp/token
+    - dagger api call gcp-auth gcloud-container-from-oidc-token \
         --oidc-token=file:/tmp/token \
         --workload-identity-provider="projects/123456789/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider" \
         --project-id="my-project" \
@@ -209,7 +209,7 @@ jobs:
       - run:
           name: Deploy with Dagger
           command: |
-            dagger call gcloud-container-from-oidc-token \
+            dagger api call gcp-auth gcloud-container-from-oidc-token \
               --oidc-token=env:CIRCLE_OIDC_TOKEN \
               --workload-identity-provider="projects/123456789/locations/global/workloadIdentityPools/circleci-pool/providers/circleci-provider" \
               --project-id="my-project" \
@@ -570,7 +570,7 @@ access_token = dag.gcp_auth().access_token_from_oidc_token(
 # Use with Firebase CLI or any API that accepts Bearer tokens
 container = (
     dag.container()
-    .from_("node:20")
+    .from_("node:22")
     .with_secret_variable("FIREBASE_TOKEN", access_token)
     .with_exec(["npx", "firebase", "deploy", "--token", "$FIREBASE_TOKEN"])
 )
@@ -617,13 +617,13 @@ This module includes runnable examples in Python, Go, and TypeScript. See the `e
 
 ```bash
 # Python examples
-cd examples/python && dagger functions
+dagger api functions -m ./examples/python
 
 # Go examples
-cd examples/go && dagger functions
+dagger api functions -m ./examples/go
 
 # TypeScript examples
-cd examples/typescript && dagger functions
+dagger api functions -m ./examples/typescript
 ```
 
 Each examples module demonstrates:
@@ -668,9 +668,21 @@ This example demonstrates a complete CI/CD workflow using multiple daggerverse m
 **Install the modules:**
 
 ```bash
-dagger install github.com/telchak/daggerverse/gcp-auth
-dagger install github.com/telchak/daggerverse/gcp-artifact-registry
-dagger install github.com/telchak/daggerverse/gcp-cloud-run
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/gcp-auth@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/gcp-auth@<version> --sdk=python
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/gcp-artifact-registry@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/gcp-artifact-registry@<version> --sdk=python
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/gcp-cloud-run@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/gcp-cloud-run@<version> --sdk=python
 ```
 
 **Pipeline code:**
@@ -756,7 +768,7 @@ jobs:
 
       - name: Deploy with Dagger
         run: |
-          dagger call deploy-cloud-run-oidc \
+          dagger api call gcp-auth deploy-cloud-run-oidc \
             --source=. \
             --service-name=my-service \
             --project-id=my-project \

@@ -5,7 +5,11 @@ AI-powered Dagger CI specialist agent for creating, explaining, and debugging Da
 ## Installation
 
 ```shell
-dagger install github.com/telchak/daggerverse/daggie@<version>
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/daggie@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/daggie@<version> --sdk=python
 ```
 
 ## Features
@@ -36,7 +40,7 @@ dagger install github.com/telchak/daggerverse/daggie@<version>
 ### Coding Assistant
 
 ```shell
-dagger call assist \
+dagger api call daggie assist \
   --source=. \
   --assignment="Create a Dagger module for building and testing this Python project"
 ```
@@ -54,7 +58,7 @@ The `--module-urls` flag accepts Git URLs in the format:
 # Daggie will clone these modules, read their source code, and follow
 # the same patterns (caching, multi-stage builds, service bindings)
 # when creating your module.
-dagger call assist \
+dagger api call daggie assist \
   --source=. \
   --module-urls="https://github.com/kpenfound/dagger-modules.git#main:golang,https://github.com/kpenfound/dagger-modules.git#main:nginx" \
   --assignment="Create a Dagger module (Go SDK) for building and serving my Go web app with Nginx as a reverse proxy. Follow the patterns from the reference modules."
@@ -65,7 +69,7 @@ You can also mix references from different repositories:
 ```shell
 # Combine a reference from kpenfound's repo (Postgres service module)
 # with one from our own daggerverse (Python build patterns)
-dagger call assist \
+dagger api call daggie assist \
   --source=. \
   --module-urls="https://github.com/kpenfound/dagger-modules.git#main:postgres,https://github.com/telchak/daggerverse.git#main:daggerverse/python-build" \
   --assignment="Create a Dagger module that builds my Python API and runs integration tests against a Postgres service"
@@ -74,31 +78,31 @@ dagger call assist \
 ### Explain a Concept
 
 ```shell
-dagger call explain \
-  --question="What is a Dagger module and how does dagger.json configure it?"
+dagger api call daggie explain \
+  --question="What is a Dagger module and how do dagger.toml and dagger-module.toml configure it?"
 ```
 
 ### Debug a Pipeline Error
 
 ```shell
-dagger call debug \
+dagger api call daggie debug \
   --source=. \
-  --error-output="$(dagger call build 2>&1)"
+  --error-output="$(dagger api call daggie build 2>&1)"
 ```
 
 ### Code Review
 
 ```shell
 # Review the entire module
-dagger call review --source=.
+dagger api call daggie review --source=.
 
 # Review with a specific focus
-dagger call review \
+dagger api call daggie review \
   --source=. \
   --focus="caching strategy and container optimization"
 
 # Review a diff
-dagger call review \
+dagger api call daggie review \
   --source=. \
   --diff="$(git diff main..feature-branch)"
 ```
@@ -120,7 +124,7 @@ The `develop-github-issue` function enables a full issue-to-PR workflow: read a 
 ### CLI Usage
 
 ```shell
-dagger call develop-github-issue \
+dagger api call daggie develop-github-issue \
   --github-token=env:GITHUB_TOKEN \
   --issue-id=42 \
   --repository="https://github.com/owner/my-dagger-project" \
@@ -150,10 +154,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Dagger
-        uses: dagger/dagger-for-github@v7
+        uses: dagger/dagger-for-github@v8.4.1
         with:
           verb: call
-          version: "latest"
+          version: "1.0.0-beta.21"
           module: github.com/telchak/daggerverse/daggie
           args: >-
             develop-github-issue
@@ -164,6 +168,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # The agent is a remote module that calls an LLM: allow it
+          DAGGER_ALLOW_LLM: all
 ```
 
 ## Suggest Fix on CI Failure
@@ -184,7 +190,7 @@ The `suggest-github-fix` function analyzes CI pipeline failures and posts GitHub
 ### CLI Usage
 
 ```shell
-dagger call suggest-github-fix \
+dagger api call daggie suggest-github-fix \
   --github-token=env:GITHUB_TOKEN \
   --pr-number=123 \
   --repo="https://github.com/owner/my-dagger-project" \
@@ -219,15 +225,15 @@ jobs:
         continue-on-error: true    # Don't fail the job yet — let Daggie analyze first
         run: |
           # Run your CI pipeline and capture the output
-          dagger call build --source=. 2>&1 | tee ci-output.log
+          dagger api call daggie build --source=. 2>&1 | tee ci-output.log
 
       # If CI failed, ask Daggie to analyze the error and suggest fixes
       - name: Suggest fix with Daggie
         if: steps.ci.outcome == 'failure'
-        uses: dagger/dagger-for-github@v7
+        uses: dagger/dagger-for-github@v8.4.1
         with:
           verb: call
-          version: "latest"
+          version: "1.0.0-beta.21"
           module: github.com/telchak/daggerverse/daggie
           args: >-
             suggest-github-fix
@@ -240,7 +246,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
+          # The agent is a remote module that calls an LLM: allow it
+          DAGGER_ALLOW_LLM: all
       # Fail the job if CI failed (after Daggie has posted suggestions)
       - name: Fail if CI failed
         if: steps.ci.outcome == 'failure'
@@ -271,7 +278,7 @@ Pass `--self-improve` to let the agent update context files with discoveries as 
 | `commit` | Agent updates context files and creates a git commit in the returned directory |
 
 ```shell
-dagger call assist \
+dagger api call daggie assist \
   --source=. \
   --self-improve=write \
   --assignment="Create a Dagger pipeline for building and testing this Python project"
@@ -292,7 +299,7 @@ Create a `DAGGIE.md` file in your project root to give the agent project-specifi
 
 ## Module Structure
 - Python SDK module with async functions
-- Uses dagger.json dependencies for shared modules
+- Uses module clients (dependencies) registered in dagger.toml for shared modules
 
 ## Conventions
 - Cache pip dependencies with dag.cache_volume("pip-cache")
@@ -300,8 +307,8 @@ Create a `DAGGIE.md` file in your project root to give the agent project-specifi
 - Always pin base image versions
 
 ## Build
-- Entry point: `dagger call build --source=.`
-- Test: `dagger call test --source=.`
+- Entry point: `dagger api call daggie build --source=.`
+- Test: `dagger api call daggie test --source=.`
 ```
 
 The agent also reads `AGENTS.md` for shared project context (falls back to `AGENT.md` and `CLAUDE.md` for legacy repos), plus `DAGGER.md` for Dagger-specific configuration.
@@ -323,12 +330,12 @@ Tests are located in `daggerverse/tests/` and run all agent entrypoints.
 
 ```shell
 # Run all Daggie tests
-dagger call -m ./daggerverse/tests daggie
+dagger api call -m ./daggerverse/tests daggie
 
 # Run individual tests
-dagger call -m ./daggerverse/tests daggie-assist
-dagger call -m ./daggerverse/tests daggie-explain
-dagger call -m ./daggerverse/tests daggie-debug
+dagger api call -m ./daggerverse/tests daggie-assist
+dagger api call -m ./daggerverse/tests daggie-explain
+dagger api call -m ./daggerverse/tests daggie-debug
 ```
 
 The test suite covers:

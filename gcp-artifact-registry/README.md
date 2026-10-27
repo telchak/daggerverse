@@ -5,7 +5,11 @@ Google Cloud Artifact Registry operations for publishing and managing container 
 ## Installation
 
 ```bash
-dagger install github.com/telchak/daggerverse/gcp-artifact-registry
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/gcp-artifact-registry@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/gcp-artifact-registry@<version> --sdk=python
 ```
 
 ## Functions
@@ -26,12 +30,12 @@ This module accepts a pre-authenticated `gcloud` container. Use `gcp-auth` to ge
 
 ```bash
 # Get gcloud container from gcp-auth, then use it
-dagger call -m gcp-auth gcloud-container \
+dagger api call gcp-auth gcloud-container \
   --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
   --project-id=my-project
 
 # Publish with authenticated gcloud container
-dagger call publish \
+dagger api call gcp-artifact-registry publish \
   --container=FROM_BUILD \
   --project-id=my-project \
   --repository=my-repo \
@@ -74,7 +78,7 @@ images = await dag.gcp_artifact_registry().list_images(
 If you've already configured Docker with `gcloud auth configure-docker`, you can pass your local Docker config directly instead of providing a `gcloud` container:
 
 ```bash
-dagger call publish \
+dagger api call gcp-artifact-registry publish \
   --container=FROM_BUILD \
   --project-id=my-project \
   --repository=my-repo \

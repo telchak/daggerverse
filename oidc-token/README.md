@@ -21,7 +21,7 @@ This module provides functions to obtain OIDC JWT tokens from various CI/CD prov
 Fetch OIDC JWT token from GitHub Actions.
 
 ```bash
-dagger call github-token \
+dagger api call oidc-token github-token \
   --request-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
   --request-url=env:ACTIONS_ID_TOKEN_REQUEST_URL \
   --audience="//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/github"
@@ -35,7 +35,7 @@ dagger call github-token \
 Pass through GitLab CI OIDC JWT token.
 
 ```bash
-dagger call gitlab-token \
+dagger api call oidc-token gitlab-token \
   --ci-job-jwt=env:CI_JOB_JWT_V2
 ```
 
@@ -47,7 +47,7 @@ dagger call gitlab-token \
 Pass through CircleCI OIDC JWT token.
 
 ```bash
-dagger call circleci-token \
+dagger api call oidc-token circleci-token \
   --oidc-token=env:CIRCLE_OIDC_TOKEN
 ```
 
@@ -59,7 +59,7 @@ dagger call circleci-token \
 Decode and display the claims from an OIDC JWT token (for debugging).
 
 ```bash
-dagger call token-claims --token=env:MY_TOKEN
+dagger api call oidc-token token-claims --token=env:MY_TOKEN
 ```
 
 ## Usage with Cloud Providers
@@ -78,13 +78,13 @@ jobs:
       - name: Deploy
         run: |
           # Get OIDC token and use with gcp-auth
-          dagger call -m oidc-token github-token \
+          dagger api call oidc-token github-token \
             --request-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
             --request-url=env:ACTIONS_ID_TOKEN_REQUEST_URL \
             --audience="//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/github" \
             --output=token.txt
 
-          dagger call -m gcp-auth gcloud-container-from-oidc-token \
+          dagger api call gcp-auth gcloud-container-from-oidc-token \
             --oidc-token=file:token.txt \
             --workload-identity-provider="projects/123/locations/global/workloadIdentityPools/pool/providers/github" \
             --project-id="my-project" \
@@ -100,7 +100,7 @@ deploy:
     GITLAB_OIDC_TOKEN:
       aud: https://iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/gitlab
   script:
-    - dagger call -m gcp-auth gcloud-container-from-oidc-token \
+    - dagger api call gcp-auth gcloud-container-from-oidc-token \
         --oidc-token=env:GITLAB_OIDC_TOKEN \
         --workload-identity-provider="projects/123/locations/global/workloadIdentityPools/pool/providers/gitlab" \
         --project-id="my-project" \
