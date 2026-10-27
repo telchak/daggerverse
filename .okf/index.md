@@ -90,7 +90,7 @@ as "check before relying on this" and confirm against the code. History of the b
   * [Use relative paths for in-repo module dependencies](decisions/relative-paths-for-monorepo-dependencies.md)
   * [Self-hosted ARC runners labelled by Dagger version](decisions/self-hosted-dagger-runners.md)
   * [Extract shared agent logic into _agent_base](decisions/shared-agent-base-package.md)
-  * [Vertex AI for the CI LLM](decisions/vertex-ai-for-ci-llm.md) *(draft)*
+  * [Vertex AI for the CI LLM](decisions/vertex-ai-for-ci-llm.md) *(deprecated)*
 
 # Dagger platform
 

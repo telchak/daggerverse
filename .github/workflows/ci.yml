@@ -263,20 +263,15 @@ jobs:
           version: "${{ env.DAGGER_VERSION }}"
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
-      # The LLM is Gemini on Vertex AI in the test project, billed to it, not an AI Studio key.
-      - name: Point the LLM at Vertex AI
-        uses: ./.github/actions/vertex-ai-llm
-        with:
-          workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-          project-id: ${{ secrets.GCP_PROJECT_ID }}
-          model: ${{ vars.GEMINI_MODEL }}
-
       - name: Test ${{ matrix.test }}
         id: test
         timeout-minutes: 20
         env:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+          # A Gemini API key of the test project, billed to it. Not Vertex AI: Gemini 3 there needs
+          # thought signatures that Dagger's OpenAI client drops; its google provider keeps them.
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GCP_DEVELOPER_KNOWLEDGE_API_KEY: ${{ secrets.GCP_DEVELOPER_KNOWLEDGE_API_KEY }}
         run: |
           # Convert agent-test-name to dagger function name (e.g. angie-assist)
@@ -327,7 +322,6 @@ jobs:
     runs-on: dagger-v1.0.0-beta.21
     permissions:
       contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v7
 
@@ -337,18 +331,12 @@ jobs:
           version: "${{ env.DAGGER_VERSION }}"
           cloud-token: ${{ secrets.DAGGER_CLOUD_TOKEN }}
 
-      - name: Point the LLM at Vertex AI
-        uses: ./.github/actions/vertex-ai-llm
-        with:
-          workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-          project-id: ${{ secrets.GCP_PROJECT_ID }}
-          model: ${{ vars.GEMINI_MODEL }}
-
       - name: Test angie develop-github-issue
         id: test
         env:
           DAGGER_CLOUD_TOKEN: ${{ secrets.DAGGER_CLOUD_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           ANGIE_TEST_GITHUB_TOKEN: ${{ secrets.ANGIE_TEST_GITHUB_TOKEN }}
         run: |
           OUTPUT=$(dagger api call -m ./tests angie-develop-github-issue \

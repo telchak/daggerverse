@@ -1,9 +1,12 @@
 # Update Log
 
 ## 2026-10-27
-* **Creation**: [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md), `draft` until a
-  CI run on that route is green. The agent jobs moved from an AI Studio key, whose Prepay balance
-  ran out on 2026-10-22, to Gemini on Vertex AI in the test project.
+* **Creation and deprecation**: [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md)
+  was created as `draft` and deprecated the same day. The agent jobs were moved from an AI Studio
+  key, whose Prepay balance ran out on 2026-10-22, to Gemini on Vertex AI in the test project.
+  The first run there failed on the second tool call: Dagger's OpenAI client drops Gemini 3's
+  thought signatures. Replaced by a Gemini API key of the test project, see
+  [Gemini as the CI LLM provider](/decisions/gemini-as-ci-llm.md).
 
 ## 2026-10-24
 * **Regeneration**: The repository moved from Dagger v0.21.10 to v1.0.0-beta.21 (workspace

@@ -43,17 +43,15 @@ though `DAGGER_PROGRESS: plain` streams the logs into it.[^ci]
    in the system prompt's MCP catalog and its calls fail, so look for that line rather than a
    hang.[^mcp-stdio]
 3. **An exploration loop.** See [exploration budget](/patterns/exploration-budget.md).
-4. **LLM provider issue.** These fail fast rather than time out. On Vertex AI: a 403 on
-   `aiplatform.endpoints.predict` (the service account lacks `roles/aiplatform.user`), a 429
-   (quota), or a 404 (a model renamed in `vars.GEMINI_MODEL`). A refused token exchange fails
-   the earlier "Point the LLM at Vertex AI" step instead, with Google's error body. See
-   [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md).
+4. **LLM provider issue.** These fail fast rather than time out: a 402 (the key's Prepay balance is
+   empty), a 429 (quota), a 404 (a model renamed in `vars.GEMINI_MODEL`), or a 400 "missing a
+   thought_signature" on the second tool call (Gemini 3 through an OpenAI-compatible endpoint).
+   See [Gemini as the CI LLM provider](/decisions/gemini-as-ci-llm.md).
 
 # Steps
 
 1. Reproduce one test locally with live output:
-   `DAGGER_PROGRESS=plain dagger api call -m ./tests daggie-explain`. It needs an LLM: a
-   `GEMINI_API_KEY`, or CI's Vertex AI route, see [run tests locally](/playbooks/run-tests-locally.md).
+   `DAGGER_PROGRESS=plain dagger api call -m ./tests daggie-explain` (needs `GEMINI_API_KEY`).
    The plain log, the TUI (without `DAGGER_PROGRESS`) or the Dagger Cloud trace
    (`DAGGER_CLOUD_TOKEN`) shows the step that hangs.
 2. Run the MCP server's container alone, e.g. `dagger api call -m ./dagger-mcp container terminal`

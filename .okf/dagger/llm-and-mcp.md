@@ -26,6 +26,16 @@ sources:
     title: "Dagger CLI: LLM configuration from the environment (llmconfig/wire.go)"
     author: team:dagger
     last_modified: 2026-10-23T09:33:31+02:00
+  - id: google-client
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/core/llm_google.go
+    title: "Dagger engine: the google provider's client (core/llm_google.go)"
+    author: team:dagger
+    last_modified: 2026-10-23T09:33:31+02:00
+  - id: openai-client
+    resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/core/llm_openai.go
+    title: "Dagger engine: the openai provider's client (core/llm_openai.go)"
+    author: team:dagger
+    last_modified: 2026-10-23T09:33:31+02:00
   - id: llm-type
     resource: https://github.com/dagger/dagger/blob/v1.0.0-beta.21/docs/current_docs/partials/types/_llm.mdx
     title: "Dagger docs: LLM type (v1.0.0-beta.21)"
@@ -100,9 +110,13 @@ the client, so `127.0.0.1` works). Remote modules need `--allow-llm` or `DAGGER_
   anthropic, google, local, becomes the default provider and model.[^wire] Otherwise a model name
   picks its provider by prefix: `gemini-` and `google/` go to `google`, `gpt-` and `openai/` to
   `openai`, `claude-` and `anthropic/` to `anthropic`.[^router]
-- **No Vertex AI backend.** The `google` provider takes an AI Studio API key only. CI reaches
-  Vertex AI through `OPENAI_BASE_URL` instead, see
-  [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md).
+- **No Vertex AI backend.** The `google` provider takes a Gemini API key only.[^google-client]
+- **Gemini 3 needs the `google` provider.** Gemini 3 attaches a thought signature to each tool
+  call and rejects a history without it. The `google` provider replays it. The OpenAI client,
+  which serves `openai`, `local` and `openrouter`, keeps only a call's id, name and arguments, so
+  Gemini 3 behind an OpenAI-compatible endpoint (Vertex AI's included) fails on the second tool
+  call.[^openai-client] See [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md)
+  (deprecated).
 
 # As used in this repo
 
@@ -139,3 +153,5 @@ See [agent-base](/agents/agent-base.md), [blocked functions](/patterns/blocked-f
 [^llm-config]: Dagger design: LLM configuration from the client (v1.0.0-beta.21)
 [^router]: Dagger engine: LLM routing (core/llm_router.go)
 [^wire]: Dagger CLI: LLM configuration from the environment (llmconfig/wire.go)
+[^google-client]: Dagger engine: the google provider's client (core/llm_google.go)
+[^openai-client]: Dagger engine: the openai provider's client (core/llm_openai.go)
