@@ -3,7 +3,7 @@ type: CI Pipeline
 title: "CI pipeline (ci.yml)"
 description: "The single GitHub Actions workflow: discover modules and agents, validate them, check the committed generated code, test each in a parallel matrix on self-hosted Dagger runners, then release."
 tags: [ci, github-actions]
-generated: { by: claude-code/2.1.310, at: 2026-10-27T11:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-11-01T19:00:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: ci
@@ -37,10 +37,10 @@ sources:
 
 Push to `main`, pull requests to `main`, and `workflow_dispatch` (input `dry_run`).[^ci]
 
-- `DAGGER_VERSION: "1.0.0-beta.21"` pins the CLI, which starts an engine of its own version.
+- `DAGGER_VERSION: "1.0.0-beta.23"` pins the CLI, which starts an engine of its own version.
 - `DAGGER_PROGRESS: plain`: outside a TTY the 1.0 CLI defaults to the one-shot `report`
   progress; `plain` streams logs.
-- Every job except `discover` runs on the self-hosted runner label `dagger-v1.0.0-beta.21`; the
+- Every job except `discover` runs on the self-hosted runner label `dagger-v1.0.0-beta.23`; the
   ARC runner scale set with that label must exist, or the jobs queue forever.
 - `dagger/dagger-for-github` (v8.4.1, pinned to its commit SHA with a `# v8.4.1` comment, as
   SonarCloud asks of third-party actions) only installs the CLI (`version`, `cloud-token`). It is

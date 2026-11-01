@@ -71,7 +71,7 @@ Vendored skills (`.claude/skills/`, from okf-skills): `/okf` (produce, maintain,
   loop; keep the efficiency budget in system prompts.
 - MCP servers go through `agent_base.mcp_stdio` (a catalog in the system prompt plus the
   agent's `mcp` tool), not `LLM.with_mcp_server`, which hangs on the second step in
-  v1.0.0-beta.21.
+  v1.0.0-beta.23.
 - The Dagger version (`DAGGER_VERSION`, `runs-on: dagger-v*`, the README badge and the
   dagger-for-github snippets in READMEs and Daggie's system prompt) is bumped together by
   Renovate; do not change one alone, and update CONTRIBUTING's version by hand. A bump also needs

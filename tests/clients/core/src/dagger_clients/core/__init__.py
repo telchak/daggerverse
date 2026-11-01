@@ -5,10 +5,9 @@ import warnings as _warnings  # noqa: F401
 from collections.abc import Callable as _Callable
 from dataclasses import dataclass as _dataclass
 from typing import Protocol as _Protocol
+from typing import Self as _Self
 from typing import overload as _overload
 from typing import runtime_checkable as _runtime_checkable
-
-from typing_extensions import Self as _Self
 
 from dagger.client import Session as _Session
 from dagger.client import client_root as _client_root
@@ -2256,57 +2255,10 @@ class ArtifactPath(_Type):
         return await _ctx.execute(str)
 
 
-class ArtifactResult(_Type):
-
-    def artifact(self) -> Artifact:
-        """The artifact that was evaluated."""
-        _args: list[_Arg] = []
-        _ctx = self._select("artifact", _args)
-        return Artifact(_ctx)
-
-    def error(self) -> "Error":
-        """The evaluation failure, if any."""
-        _args: list[_Arg] = []
-        _ctx = self._select("error", _args)
-        return Error(_ctx)
-
-    async def id(self) -> str:
-        """A unique identifier for this ArtifactResult.
-
-        Note
-        ----
-        This is lazily evaluated, no operation is actually run.
-
-        Returns
-        -------
-        str
-            The `ID` scalar type represents a unique identifier, often used to
-            refetch an object or as key for a cache. The ID type appears in a
-            JSON response as a String; however, it is not intended to be
-            human-readable. When expected as an input type, any string (such
-            as `"4"`) or integer (such as `4`) input value will be accepted as
-            an ID.
-
-        Raises
-        ------
-        ExecuteTimeoutError
-            If the time to execute the query exceeds the configured timeout.
-        QueryError
-            If the API returns an error.
-        """
-        _args: list[_Arg] = []
-        _ctx = self._select("id", _args)
-        return await _ctx.execute(str)
-
-    def value(self) -> Node:
-        """The evaluated value, or null when evaluation failed."""
-        _args: list[_Arg] = []
-        _ctx = self._select("value", _args)
-        return _NodeClient(_ctx)
-
-
 class Artifacts(_Type):
-    """An immutable selection of workspace artifacts. Listed types,
+    """A selection of workspace artifacts and their immutable collection
+    view. Collection key filters replace collection references with
+    subsets. Static filters change only membership. Listed types,
     dimensions, and keys use OR; chained filters use AND. Empty
     alternatives match nothing; unknown names match nothing but module
     load failures. Filters never change addresses or dimension
@@ -2434,7 +2386,10 @@ class Artifacts(_Type):
         return await _ctx.execute(list[str])
 
     def filter_dimension_keys(self, dimension: str, keys: list[str]) -> _Self:
-        """Keep artifacts with any listed key in this dimension."""
+        """Keep artifacts with any listed key in this dimension. Replace
+        collection references with matching subsets. Skip absent keys and
+        leave the source view unchanged.
+        """
         if not (isinstance(dimension, str)):
             raise _type_error("Artifacts.filter_dimension_keys", "dimension", dimension, "str")
         if not (isinstance(keys, list) and all(isinstance(_v0, str) for _v0 in keys)):
@@ -2614,7 +2569,9 @@ class Artifacts(_Type):
         return await _ctx.execute(str)
 
     async def items(self) -> list[Artifact]:
-        """Enumerate complete artifacts without evaluating their values."""
+        """List artifact descriptions with their collection view. Discover
+        collection keys without evaluating leaf values.
+        """
         _args: list[_Arg] = []
         _ctx = self._select("items", _args)
         return await _ctx.execute_object_list(Artifact)
@@ -2694,48 +2651,10 @@ class Artifacts(_Type):
         _ctx = self._select("uri", _args)
         return await _ctx.execute(str)
 
-    async def values(self, *, fail_fast: bool | None = False, arguments: JSON | None = '{}', max_concurrency: int | None = 0,) -> list[ArtifactResult]:
-        """Evaluate the selection in parallel, retaining each result and error.
-
-        Parameters
-        ----------
-        fail_fast:
-            Cancel remaining work after the first failure.
-        arguments:
-            Field arguments applied to each artifact, as a JSON object.
-        max_concurrency:
-            Evaluate at most this many artifacts at once on this engine; the
-            rest wait. Checks that scale out to cloud engines are not counted.
-            0 means no limit.
-        """
-        if not (fail_fast is None or isinstance(fail_fast, bool)):
-            raise _type_error("Artifacts.values", "fail_fast", fail_fast, "bool | None")
-        if not (arguments is None or isinstance(arguments, JSON)):
-            raise _type_error("Artifacts.values", "arguments", arguments, "JSON | None")
-        if not (max_concurrency is None or isinstance(max_concurrency, int)):
-            raise _type_error("Artifacts.values", "max_concurrency", max_concurrency, "int | None")
-        _args = [
-            _Arg("failFast", fail_fast, False),
-            _Arg("arguments", arguments, '{}'),
-            _Arg("maxConcurrency", max_concurrency, 0),
-        ]
-        _ctx = self._select("values", _args)
-        return await _ctx.execute_object_list(ArtifactResult)
-
-    def with_artifacts(self, artifacts: _Self) -> _Self:
-        """Combine two selections, keeping each workspace address once. Different
-        addresses remain distinct even if they return the same object.
-        """
-        if not (isinstance(artifacts, Artifacts)):
-            raise _type_error("Artifacts.with_artifacts", "artifacts", artifacts, "Artifacts")
-        _args = [
-            _Arg("artifacts", artifacts),
-        ]
-        _ctx = self._select("withArtifacts", _args)
-        return Artifacts(_ctx)
-
     def without_uri(self, uri: str) -> _Self:
-        """Remove artifacts selected by a DAG address."""
+        """Remove artifacts selected by a DAG address. Retain the collection
+        view.
+        """
         if not (isinstance(uri, str)):
             raise _type_error("Artifacts.without_uri", "uri", uri, "str")
         _args = [
@@ -3323,12 +3242,6 @@ class CollectionDelta(_Type):
 
 
 class CollectionTypeDef(_Type):
-
-    def batch_type(self) -> "TypeDef":
-        """The type of batch operations, or null when there are none."""
-        _args: list[_Arg] = []
-        _ctx = self._select("batchType", _args)
-        return TypeDef(_ctx)
 
     async def id(self) -> str:
         """A unique identifier for this CollectionTypeDef.
@@ -5319,6 +5232,39 @@ class Container(_Type):
             _Arg("readOnly", read_only, False),
         ]
         _ctx = self._select("withMountedFile", _args)
+        return Container(_ctx)
+
+    def with_mounted_files(self, path: str, sources: list["File"], *, expand: bool | None = False,) -> _Self:
+        """Retrieves this container plus the given files mounted read-only in a
+        directory at the given path.
+
+        Each file appears under the base name of its path. The directory holds
+        nothing else, and nothing can be written to it.
+
+        Parameters
+        ----------
+        path:
+            Location of the directory holding the files (e.g., "/work/lib").
+        sources:
+            Identifiers of the files to mount. Two files with the same base
+            name are an error.
+        expand:
+            Replace "${VAR}" or "$VAR" in the value of path according to the
+            current environment variables defined in the container (e.g.
+            "/$VAR/lib").
+        """
+        if not (isinstance(path, str)):
+            raise _type_error("Container.with_mounted_files", "path", path, "str")
+        if not (isinstance(sources, list) and all(isinstance(_v0, File) for _v0 in sources)):
+            raise _type_error("Container.with_mounted_files", "sources", sources, "list[File]")
+        if not (expand is None or isinstance(expand, bool)):
+            raise _type_error("Container.with_mounted_files", "expand", expand, "bool | None")
+        _args = [
+            _Arg("path", path),
+            _Arg("sources", sources),
+            _Arg("expand", expand, False),
+        ]
+        _ctx = self._select("withMountedFiles", _args)
         return Container(_ctx)
 
     def with_mounted_secret(self, path: str, source: "Secret", *, owner: str | None = '', inherit_owner: bool | None = False, mode: int | None = 256, expand: bool | None = False,) -> _Self:
@@ -8995,6 +8941,29 @@ class File(_Type):
         ]
         _ctx = self._select("export", _args)
         return await _ctx.execute(str)
+
+    def extract(self, *, strip_components: int | None = 0,) -> Directory:
+        """Extracts this archive file into a directory.
+
+        The format is detected from the file's contents: zip, or tar, either
+        uncompressed or compressed with gzip, bzip2, xz or zstd.
+
+        An entry whose path would leave the directory is an error.
+
+        Parameters
+        ----------
+        strip_components:
+            Remove this many leading elements from each entry's path, as tar
+            --strip-components does.
+            Entries with no more elements than this are skipped.
+        """
+        if not (strip_components is None or isinstance(strip_components, int)):
+            raise _type_error("File.extract", "strip_components", strip_components, "int | None")
+        _args = [
+            _Arg("stripComponents", strip_components, 0),
+        ]
+        _ctx = self._select("extract", _args)
+        return Directory(_ctx)
 
     async def id(self) -> str:
         """A unique identifier for this File.
@@ -17032,7 +17001,7 @@ class Query(_Root):
         _ctx = self._select("sourceMap", _args)
         return SourceMap(_ctx)
 
-    def sshfs_volume(self, endpoint: str, private_key: "Secret", *, known_hosts: "Secret | None" = None, cache_key: str | None = None, insecure_skip_host_key_check: bool | None = False, experimental_service_host: "Service | None" = None,) -> "Volume":
+    def sshfs_volume(self, endpoint: str, private_key: "Secret", *, known_hosts: "Secret | None" = None, cache_key: str | None = None, insecure_skip_host_key_check: bool | None = False, experimental_service_host: "Service | None" = None, follow_symlinks: bool | None = False,) -> "Volume":
         """Constructs an SSHFS volume.
 
         Parameters
@@ -17055,6 +17024,11 @@ class Query(_Root):
         experimental_service_host:
             Service to use as the SSHFS network endpoint while verifying the
             original host key.
+        follow_symlinks:
+            Resolve symlinks on the remote host, so they appear as the files
+            and directories they point to. Without it, absolute symlinks and
+            symlinks containing ".." can't be read. With it, creating a
+            symlink in the volume fails.
         """
         if not (isinstance(endpoint, str)):
             raise _type_error("Query.sshfs_volume", "endpoint", endpoint, "str")
@@ -17068,6 +17042,8 @@ class Query(_Root):
             raise _type_error("Query.sshfs_volume", "insecure_skip_host_key_check", insecure_skip_host_key_check, "bool | None")
         if not (experimental_service_host is None or isinstance(experimental_service_host, Service)):
             raise _type_error("Query.sshfs_volume", "experimental_service_host", experimental_service_host, "Service | None")
+        if not (follow_symlinks is None or isinstance(follow_symlinks, bool)):
+            raise _type_error("Query.sshfs_volume", "follow_symlinks", follow_symlinks, "bool | None")
         _args = [
             _Arg("endpoint", endpoint),
             _Arg("privateKey", private_key),
@@ -17075,6 +17051,7 @@ class Query(_Root):
             _Arg("cacheKey", cache_key, None),
             _Arg("insecureSkipHostKeyCheck", insecure_skip_host_key_check, False),
             _Arg("experimentalServiceHost", experimental_service_host, None),
+            _Arg("followSymlinks", follow_symlinks, False),
         ]
         _ctx = self._select("sshfsVolume", _args)
         return Volume(_ctx)
@@ -21362,7 +21339,7 @@ def core(*, session: _Session | None = None) -> Query:
     return _client_root(Query, None, None, [], session=session)
 
 
-CORE_DIGEST = "sha256:bed28fa58a5987620cdc3d20ea0e63bc8cded176fbe1d7b31c9b42cce4c29757"
+CORE_DIGEST = "sha256:0572617b0dbaa0ae70095a9b6a1ac99ca1e5558e08443132e3dc9a1995d36908"
 """Digest of the core schema that this package was generated from."""
 
 
@@ -21378,7 +21355,6 @@ __all__ = [
     "ArtifactDimensionKey",
     "ArtifactDimensionKind",
     "ArtifactPath",
-    "ArtifactResult",
     "Artifacts",
     "BuildArg",
     "Bytes",

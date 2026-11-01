@@ -3,7 +3,7 @@ type: Known Issue
 title: "Dagger 1.0 beta known issues"
 description: "Problems hit while moving this repository to Dagger v1.0.0-beta.21, with causes and workarounds."
 tags: [dagger, known-issue, gotcha, mcp, windows]
-generated: { by: claude-code/2.1.310, at: 2026-10-27T10:30:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-11-01T19:00:00Z }
 stale_after: 2027-01-24T00:00:00Z
 sources:
   - id: mcp-go
@@ -45,9 +45,12 @@ sources:
 Observed with CLI and engine v1.0.0-beta.21 on 2026-10-24.[^session] Recheck each one when
 bumping the engine and delete it once fixed.
 
+v1.0.0-beta.23 (2026-10-30) fixes #14856 and #14877 upstream. Their workarounds stay until each is
+re-verified here and removed; the rows say so.
+
 | Issue | Cause | Workaround here |
 |-------|-------|-----------------|
-| An LLM with `LLM.with_mcp_server` hangs on its second step ([dagger/dagger#14856](https://github.com/dagger/dagger/issues/14856)) | `syncMCPSessions` stores sessions on a transient clone, so each step dials the server again; `startWithKey` finds the service already running under the same key and returns it without attaching the new stdio streams, so `initialize` is never answered[^mcp-go] [^services-go] | Agents list MCP tools in the system prompt and call them through an `mcp` tool that runs a one-shot stdio driver ([decision](/decisions/mcp-exec-driver.md)); `mcp_stdio.ENGINE_MCP = True` switches back[^mcp-stdio] |
+| An LLM with `LLM.with_mcp_server` hangs on its second step ([dagger/dagger#14856](https://github.com/dagger/dagger/issues/14856)) | `syncMCPSessions` stores sessions on a transient clone, so each step dials the server again; `startWithKey` finds the service already running under the same key and returns it without attaching the new stdio streams, so `initialize` is never answered[^mcp-go] [^services-go] | **Fixed upstream in v1.0.0-beta.23** (dagger/dagger#14932, sessions kept across loop steps); not yet re-verified here. Until then agents list MCP tools in the system prompt and call them through an `mcp` tool that runs a one-shot stdio driver ([decision](/decisions/mcp-exec-driver.md)); `mcp_stdio.ENGINE_MCP = True` switches back[^mcp-stdio] |
 | `dagger check` always fails the Python SDK staleness check on a Windows host | host files upload with mode 0755, generators write 0644, and the staleness check compares metadata: 1031 files "changed" with zero line changes[^checks-go] | none locally; trust `dagger generate --no-apply` showing no line changes, and the Linux CI `check` job |
 | python-build's `check-lint` fails on a Windows host with ruff `EXE002` ("executable but no shebang") | the same 0755 upload modes | run it on Linux (CI) |
 | A `Workspace` argument is empty when Dagger runs outside a Git repository with no `dagger.toml` (e.g. `dagger check -m <module>` in a bare folder) | nothing marks a workspace root there | run inside a Git repository or a directory with a `dagger.toml` |
@@ -56,7 +59,7 @@ bumping the engine and delete it once fixed.
 | `dagger-for-github` with `verb: version` fails | it runs `dagger --progress plain version`; `version` and `api functions` reject `--progress` | install only (no `verb`), and set `DAGGER_PROGRESS=plain` for streaming logs, since non-TTY progress now defaults to a one-shot report[^ci] |
 | `dag.current_node()` fails with "no current function call" in a module behind a static entrypoint | entrypoint code runs outside a function call | agents keep a runtime (`legacyRuntime = true`) |
 | Unknown or snake_case names in `with_tools(..., except_=[...])` are ignored silently | the engine matches camelCase tool names | `llm_helpers.tool_exclusions` converts Python names |
-| Gemini 3 behind an OpenAI-compatible endpoint, Vertex AI's included, fails after its first tool call with 400 "missing a thought_signature" (2026-10-27, [dagger/dagger#14877](https://github.com/dagger/dagger/issues/14877)) | the OpenAI client keeps only a tool call's id, name and arguments and drops `extra_content.google.thought_signature`; the `google` provider keeps signatures but has no Vertex backend[^openai-client] | CI uses a Gemini API key of the test project through the `google` provider ([Vertex decision](/decisions/vertex-ai-for-ci-llm.md), deprecated) |
+| Gemini 3 behind an OpenAI-compatible endpoint, Vertex AI's included, fails after its first tool call with 400 "missing a thought_signature" (2026-10-27, [dagger/dagger#14877](https://github.com/dagger/dagger/issues/14877)) | the OpenAI client keeps only a tool call's id, name and arguments and drops `extra_content.google.thought_signature`; the `google` provider keeps signatures but has no Vertex backend[^openai-client] | **Fixed upstream in v1.0.0-beta.23** (dagger/dagger#14929, signatures returned through OpenAI-compatible APIs); not yet re-verified here. CI still uses a Gemini API key of the test project through the `google` provider ([Vertex decision](/decisions/vertex-ai-for-ci-llm.md), deprecated, and can come back) |
 
 Local tooling quirks of that session, not of Dagger: `dagger.exe` called from a non-console pipe
 printed nothing (worked through `Start-Process` with redirected output), and a stored ghcr.io

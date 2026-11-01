@@ -23,7 +23,7 @@ This project follows the [Contributor Covenant Code of Conduct](https://www.cont
 ## Getting Started
 
 1. **Fork** the repository and clone your fork
-2. Install [Dagger](https://docs.dagger.io/install) v1.0.0-beta.21, the version CI uses
+2. Install [Dagger](https://docs.dagger.io/install) v1.0.0-beta.23, the version CI uses
 3. Pick an [open issue](https://github.com/telchak/daggerverse/issues) or propose a new one
 4. Create a feature branch from `main`
 5. Make your changes, add tests, and open a pull request
@@ -32,7 +32,7 @@ This project follows the [Contributor Covenant Code of Conduct](https://www.cont
 
 ### Prerequisites
 
-- [Dagger CLI](https://docs.dagger.io/install) v1.0.0-beta.21. The CLI starts an engine of its own version; keep it on the version in `DAGGER_VERSION` of `.github/workflows/ci.yml`
+- [Dagger CLI](https://docs.dagger.io/install) v1.0.0-beta.23. The CLI starts an engine of its own version; keep it on the version in `DAGGER_VERSION` of `.github/workflows/ci.yml`
 - Python 3.13+ (modules use the Dagger Python SDK)
 - A container runtime (Docker Desktop, Podman, OrbStack, etc.)
 
@@ -40,7 +40,7 @@ This project follows the [Contributor Covenant Code of Conduct](https://www.cont
 
 ```bash
 dagger version
-# dagger v1.0.0-beta.21 ...
+# dagger v1.0.0-beta.23 ...
 ```
 
 ### Repository structure

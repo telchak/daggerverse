@@ -3,7 +3,7 @@ type: Reference
 title: "Running Dagger in GitHub Actions"
 description: "How this repo and Daggie-generated workflows call Dagger 1.0 from GitHub Actions: dagger-for-github inputs, version pinning, progress output, LLM access, OIDC env passthrough."
 tags: [dagger, ci, github-actions]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-11-01T19:00:00Z }
 stale_after: 2027-01-24T00:00:00Z
 sources:
   - id: ci
@@ -26,7 +26,7 @@ sources:
 - Use `dagger/dagger-for-github` (here `@v8.4.1`), never a curl install. Its inputs include
   `version`, `verb`, `args`, `module`, `workdir`, `cloud-token`, `dagger-flags`.[^daggie]
 - `version` pins the CLI, which starts an engine of the same version: for a 1.0 workspace use the
-  version the generated code was made with (`"1.0.0-beta.21"`, no `v`). Self-hosted runners must
+  version the generated code was made with (`"1.0.0-beta.23"`, no `v`). Self-hosted runners must
   serve the same engine version.
 - Do not use `verb: version`: the action runs `dagger --progress plain version`, which 1.0
   rejects. With no `verb` the action only installs the CLI; `verb: check` runs `dagger check`.[^daggie]

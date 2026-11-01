@@ -94,7 +94,7 @@ as "check before relying on this" and confirm against the code. History of the b
 
 # Dagger platform
 
-* [Dagger platform](dagger/) - Upstream Dagger knowledge this repo depends on, pinned to v1.0.0-beta.21.
+* [Dagger platform](dagger/) - Upstream Dagger knowledge this repo depends on, pinned to v1.0.0-beta.23.
   * [Dagger releases and breaking changes relevant here](dagger/breaking-changes.md)
   * [Checks, generators and installed modules (0.x toolchains)](dagger/checks-and-toolchains.md)
   * [Dagger 1.0 workspaces (dagger.toml, dagger.lock, dagger-module.toml)](dagger/dagger-1-0-workspaces.md)

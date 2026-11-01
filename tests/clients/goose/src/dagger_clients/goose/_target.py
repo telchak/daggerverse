@@ -3,4 +3,4 @@
 NAME = "goose"
 REF = "/goose"
 PIN = None
-CORE_DIGEST = "sha256:bed28fa58a5987620cdc3d20ea0e63bc8cded176fbe1d7b31c9b42cce4c29757"
+CORE_DIGEST = "sha256:0572617b0dbaa0ae70095a9b6a1ac99ca1e5558e08443132e3dc9a1995d36908"

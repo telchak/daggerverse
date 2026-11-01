@@ -1,9 +1,9 @@
 ---
 type: Reference
 title: "Dagger releases and breaking changes relevant here"
-description: "Engine changes from v0.19 to v1.0.0-beta.21 that affected or constrain this repository's modules, including the 0.x to 1.0 migration."
+description: "Engine changes from v0.19 to v1.0.0-beta.23 that affected or constrain this repository's modules, including the 0.x to 1.0 migration."
 tags: [dagger, versions, gotcha, migration]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-11-01T19:00:00Z }
 stale_after: 2027-01-24T00:00:00Z
 sources:
   - id: v020
@@ -48,7 +48,8 @@ sources:
 | v0.20.3 / v0.20.5 | 2026-03 / 04 | Speck and runner labels moved here |
 | v0.21.0 | 2026-05-22 | caching moved to DagQL (BuildKit solver removed); `generate` functions auto-expose checks; opt-in workspace lockfiles; Python SDK AST analyzer fixes[^v021] |
 | v0.21.10 | 2026-10 | last 0.x pin (`main` before the migration) |
-| v1.0.0-beta.21 | 2026-10-23 | current pin; see [the migration](/decisions/migrate-to-dagger-1-0.md) |
+| v1.0.0-beta.21 | 2026-10-23 | first 1.0 pin; see [the migration](/decisions/migrate-to-dagger-1-0.md) |
+| v1.0.0-beta.23 | 2026-10-30 | current pin. Fixes three issues filed from this repository: `LLM.withMCPServer` hanging on its second step (dagger/dagger#14856, fixed by #14932), Gemini 3 thought signatures dropped by the OpenAI client (#14877, fixed by #14929), and `Workspace.search` from Windows clients (#14842, fixed by #14843). A check's result is now cached across sessions like any other function, and `cmd://` settings moved to `--global`. No change was needed in the modules beyond `dagger generate` |
 
 # 0.x to 1.0: what changed for these modules
 

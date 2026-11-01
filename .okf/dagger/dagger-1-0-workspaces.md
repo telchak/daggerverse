@@ -3,7 +3,7 @@ type: Reference
 title: "Dagger 1.0 workspaces (dagger.toml, dagger.lock, dagger-module.toml)"
 description: "How Dagger 1.0 splits dagger.json into a workspace config, a lockfile and a module manifest, and how this repository uses them."
 tags: [dagger, workspace, migration, configuration]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-11-01T19:00:00Z }
 stale_after: 2027-01-24T00:00:00Z
 sources:
   - id: migrate
@@ -37,8 +37,8 @@ sources:
     last_modified: 2026-10-24T22:00:00Z
 ---
 
-Dagger 1.0 is in beta (`v1.0.0-beta.1` to `beta.21` are Git tags, not GitHub releases); this
-repository runs on **1.0.0-beta.21**. In 0.x, `dagger.json` was both a module manifest and a
+Dagger 1.0 is in beta (`v1.0.0-beta.1` to `beta.23` are Git tags, not GitHub releases); this
+repository runs on **1.0.0-beta.23**. In 0.x, `dagger.json` was both a module manifest and a
 workspace configuration. 1.0 splits it:[^migrate]
 
 | Role | 0.x | 1.0 |

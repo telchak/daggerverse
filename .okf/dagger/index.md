@@ -1,6 +1,6 @@
 # Dagger platform
 
-Upstream Dagger knowledge this repo depends on, pinned to v1.0.0-beta.21.
+Upstream Dagger knowledge this repo depends on, pinned to v1.0.0-beta.23.
 
 * [Dagger releases and breaking changes relevant here](breaking-changes.md) - Engine changes from v0.19 to v1.0.0-beta.21 that affected or constrain this repository's modules, including the 0.x to 1.0 migration.
 * [Checks, generators and installed modules (0.x toolchains)](checks-and-toolchains.md) - Dagger 1.0 checks, generators, services and installed modules, which replace 0.x toolchains, and how this repository's modules expose them.

@@ -3,7 +3,7 @@ type: Decision
 title: "Call MCP servers through a one-shot stdio driver (temporary)"
 description: "Because LLM.with_mcp_server hangs on the second LLM step in Dagger v1.0.0-beta.21, agents list MCP tools in the system prompt and call them through their own mcp tool, one exec per request."
 tags: [decision, mcp, agents, temporary, workaround]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-11-01T19:00:00Z }
 stale_after: 2027-01-24T00:00:00Z
 sources:
   - id: mcp-stdio
@@ -67,7 +67,8 @@ Keep MCP out of the engine's LLM loop until it is fixed. `_agent_base/mcp_stdio.
 
 When an engine release keeps MCP sessions across steps: set `mcp_stdio.ENGINE_MCP = True` (MCP
 servers go back to `LLM.with_mcp_server` and the `mcp` tool is hidden), run the agent CI, then
-remove the driver. Reported upstream as dagger/dagger#14856, with a keyless repro that
+remove the driver. That fix shipped in v1.0.0-beta.23 (dagger/dagger#14932, 2026-10-29); the driver
+stays until an agent run confirms `ENGINE_MCP = True` works. Reported upstream as dagger/dagger#14856, with a keyless repro that
 replays a transcript through the engine's `recording/` model.[^upstream] See
 [known issues](/dagger/known-issues-1-0-beta.md) and [task-scoped MCP](/patterns/task-scoped-mcp.md).
 

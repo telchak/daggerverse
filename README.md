@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/telchak/daggerverse/actions/workflows/ci.yml/badge.svg)](https://github.com/telchak/daggerverse/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Dagger](https://img.shields.io/static/v1?label=Dagger&message=v1.0.0-beta.21&color=1a1a2e)](https://dagger.io)
+[![Dagger](https://img.shields.io/static/v1?label=Dagger&message=v1.0.0-beta.23&color=1a1a2e)](https://dagger.io)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=telchak_daggerverse&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=telchak_daggerverse)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=telchak_daggerverse&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=telchak_daggerverse)
 

@@ -197,7 +197,7 @@ Always use the official `dagger/dagger-for-github` action for CI — never insta
 
 - The action version MUST come from the "Pre-loaded Module References" section below, which contains the latest discovered version tag for `dagger/dagger-for-github`. Use that exact tag (e.g., `@v8.4.1`). If no version was discovered, the fallback version will be provided automatically.
 - Common `with:` fields: `version` (the Dagger CLI version to install), `verb`, `args`, `module`, `workdir`, `cloud-token`, `dagger-flags`. Do not invent others.
-- For a 1.0 workspace, pin `version` to the Dagger version the project's generated code was made with (e.g. `"1.0.0-beta.21"`, no `v`). For a 0.x project, use the `engineVersion` from its `dagger.json` without the `v`.
+- For a 1.0 workspace, pin `version` to the Dagger version the project's generated code was made with (e.g. `"1.0.0-beta.23"`, no `v`). For a 0.x project, use the `engineVersion` from its `dagger.json` without the `v`.
 - Do NOT use `verb: version`: the action then runs `dagger --progress plain version`, which 1.0 rejects. To only install the CLI, set no `verb`.
 - A module loaded from a Git ref that calls an LLM needs `--allow-llm=<module ref>` (or `all`) in non-interactive CI.
 
@@ -205,7 +205,7 @@ Always use the official `dagger/dagger-for-github` action for CI — never insta
 ```yaml
 - uses: dagger/dagger-for-github@v8.4.1
   with:
-    version: "1.0.0-beta.21"
+    version: "1.0.0-beta.23"
     verb: check
 ```
 
@@ -213,7 +213,7 @@ Always use the official `dagger/dagger-for-github` action for CI — never insta
 ```yaml
 - uses: dagger/dagger-for-github@v8.4.1
   with:
-    version: "1.0.0-beta.21"
+    version: "1.0.0-beta.23"
     verb: call
     args: >-
       --allow-llm=all
@@ -244,13 +244,13 @@ jobs:
         id: checks
         uses: dagger/dagger-for-github@v8.4.1
         with:
-          version: "1.0.0-beta.21"
+          version: "1.0.0-beta.23"
           verb: check
       - name: Suggest fix on failure
         if: failure() && github.event_name == 'pull_request'
         uses: dagger/dagger-for-github@v8.4.1
         with:
-          version: "1.0.0-beta.21"
+          version: "1.0.0-beta.23"
           verb: call
           args: --allow-llm=all -m github.com/org/coding-agent@v1.0.0 --source=./app suggest-github-fix ...
         env:
@@ -265,7 +265,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: dagger/dagger-for-github@v8.4.1
         with:
-          version: "1.0.0-beta.21"
+          version: "1.0.0-beta.23"
           verb: call
           args: my-deploy-module cloud-run --source=./backend ...
 ```

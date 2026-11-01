@@ -1,9 +1,9 @@
 ---
 type: Repository
 title: "telchak/daggerverse"
-description: "A monorepo of small, independent, reusable Dagger modules and AI agents for CI/CD, published on the Daggerverse; a Dagger 1.0 workspace pinned to v1.0.0-beta.21."
+description: "A monorepo of small, independent, reusable Dagger modules and AI agents for CI/CD, published on the Daggerverse; a Dagger 1.0 workspace pinned to v1.0.0-beta.23."
 tags: [overview, monorepo, dagger]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-11-01T19:00:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: readme
@@ -39,7 +39,7 @@ sources:
 AI agents, built with the Dagger Python SDK and published on daggerverse.dev.[^readme] It
 started on 2025-12-23[^first-commit] and is maintained by Sami Chibani (GitHub `telchak`).
 
-It is a Dagger 1.0 workspace pinned to **v1.0.0-beta.21** (`DAGGER_VERSION` in CI).[^ci] The
+It is a Dagger 1.0 workspace pinned to **v1.0.0-beta.23** (`DAGGER_VERSION` in CI).[^ci] The
 CLI starts an engine of its own version, so contributors use that same CLI
 version.[^contributing] The root `dagger.toml` registers every module as a Python SDK scope whose
 `clients` are its dependencies, and `dagger.lock` pins the Git refs and images they

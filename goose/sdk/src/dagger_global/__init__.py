@@ -193,8 +193,8 @@ class Client(_Session):
     def source_map(self, filename: str, line: int, column: int,) -> SourceMap:
         return _core.core(session=self).source_map(filename, line, column)
 
-    def sshfs_volume(self, endpoint: str, private_key: Secret, *, known_hosts: Secret | None = None, cache_key: str | None = None, insecure_skip_host_key_check: bool | None = False, experimental_service_host: Service | None = None,) -> Volume:
-        return _core.core(session=self).sshfs_volume(endpoint, private_key, known_hosts=known_hosts, cache_key=cache_key, insecure_skip_host_key_check=insecure_skip_host_key_check, experimental_service_host=experimental_service_host)
+    def sshfs_volume(self, endpoint: str, private_key: Secret, *, known_hosts: Secret | None = None, cache_key: str | None = None, insecure_skip_host_key_check: bool | None = False, experimental_service_host: Service | None = None, follow_symlinks: bool | None = False,) -> Volume:
+        return _core.core(session=self).sshfs_volume(endpoint, private_key, known_hosts=known_hosts, cache_key=cache_key, insecure_skip_host_key_check=insecure_skip_host_key_check, experimental_service_host=experimental_service_host, follow_symlinks=follow_symlinks)
 
     def type_def(self) -> TypeDef:
         return _core.core(session=self).type_def()
@@ -219,7 +219,6 @@ __all__ = [
     "ArtifactDimensionKey",
     "ArtifactDimensionKind",
     "ArtifactPath",
-    "ArtifactResult",
     "Artifacts",
     "BuildArg",
     "Bytes",

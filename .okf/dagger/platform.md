@@ -3,7 +3,7 @@ type: Reference
 title: "Dagger platform overview"
 description: "What Dagger is and the building blocks this repo relies on in Dagger 1.0: engine, API, SDKs, workspaces, modules, checks, LLM, Dagger Cloud."
 tags: [dagger, platform]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-11-01T19:00:00Z }
 stale_after: 2027-01-24T00:00:00Z
 sources:
   - id: intro
@@ -56,8 +56,8 @@ and agents.[^blog] [^glossary]
 
 # Version in use
 
-CLI and engine **1.0.0-beta.21** (`DAGGER_VERSION` in CI, runner label
-`dagger-v1.0.0-beta.21`, Renovate-managed).[^ci] History is in
+CLI and engine **1.0.0-beta.23** (`DAGGER_VERSION` in CI, runner label
+`dagger-v1.0.0-beta.23`, Renovate-managed).[^ci] History is in
 [breaking changes](/dagger/breaking-changes.md); open problems in
 [known issues](/dagger/known-issues-1-0-beta.md).
 

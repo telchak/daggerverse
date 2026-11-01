@@ -1,5 +1,12 @@
 # Update Log
 
+## 2026-11-01
+* **Regeneration**: The repository moved from Dagger v1.0.0-beta.21 to v1.0.0-beta.23 (`DAGGER_VERSION`,
+  runner label, `dagger.lock`, regenerated SDK code). beta.23 fixes the three upstream issues filed
+  from here: dagger/dagger#14856 and #14877 are marked fixed upstream in
+  [known issues](/dagger/known-issues-1-0-beta.md), whose workarounds stay until re-verified, and
+  [breaking changes](/dagger/breaking-changes.md) records the release.
+
 ## 2026-10-27
 * **Creation and deprecation**: [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md)
   was created as `draft` and deprecated the same day. The agent jobs were moved from an AI Studio

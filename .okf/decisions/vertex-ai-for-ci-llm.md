@@ -4,7 +4,7 @@ title: "Vertex AI for the CI LLM"
 description: "Deprecated on 2026-10-27, the day it was tried: Gemini 3 on Vertex AI's OpenAI-compatible endpoint needs thought signatures that Dagger 1.0's OpenAI client drops, and Vertex no longer serves Gemini 2.5. Replaced by a Gemini API key of the test project."
 tags: [decision, ci, llm, gcp, vertex-ai]
 status: deprecated
-generated: { by: claude-code/2.1.310, at: 2026-10-27T11:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-11-01T19:00:00Z }
 stale_after: 2027-01-27T00:00:00Z
 sources:
   - id: action
@@ -89,7 +89,8 @@ following:
 # To revive it
 
 Restore the action and its step from 4de9e51 once a Dagger release replays the signature through
-its OpenAI client (reported as dagger/dagger#14877, with a credential-free repro),[^upstream] or
+its OpenAI client (reported as dagger/dagger#14877, with a credential-free repro, and fixed in
+v1.0.0-beta.23 by dagger/dagger#14929),[^upstream] or
 gains a Vertex backend. The routing rule and the streaming choice above still apply.
 
 [^action]: .github/actions/vertex-ai-llm/action.yml at 4de9e51

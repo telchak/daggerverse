@@ -3,7 +3,7 @@ type: Playbook
 title: "Run tests locally"
 description: "Commands to run the workspace check and the tests module locally on Dagger 1.0, with and without GCP or LLM credentials."
 tags: [playbook, testing]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-11-01T19:00:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: readme
@@ -42,7 +42,7 @@ plus provider, service account, project, region); a service account key can be p
 hidden aliases of the `dagger api` verbs.
 
 Requirements: a container runtime and the Dagger CLI at the `DAGGER_VERSION` of `ci.yml`
-(1.0.0-beta.21); the CLI starts an engine of its own version.[^contributing]
+(1.0.0-beta.23); the CLI starts an engine of its own version.[^contributing]
 
 On a Windows host the root `dagger check` always fails: uploaded files get mode 0755 while the
 generators write 0644, so every generated file looks changed. There, `dagger generate --no-apply`

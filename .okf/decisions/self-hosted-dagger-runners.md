@@ -3,7 +3,7 @@ type: Decision
 title: "Self-hosted ARC runners labelled by Dagger version"
 description: "CI jobs run on self-hosted Actions Runner Controller runners labelled dagger-v<version> instead of ubuntu-latest with engine-cache restore."
 tags: [decision, ci, runners, caching]
-generated: { by: claude-code/2.1.310, at: 2026-10-24T22:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-11-01T19:00:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: arc
@@ -51,7 +51,7 @@ sources:
 The runner label embeds the engine version, so it is bumped by [Renovate](/infrastructure/renovate.md)
 together with `DAGGER_VERSION`, and a runner for the new version must exist before the PR can run.
 
-With Dagger 1.0 every Dagger job runs on `dagger-v1.0.0-beta.21` (`DAGGER_VERSION: "1.0.0-beta.21"`),
+With Dagger 1.0 every Dagger job runs on `dagger-v1.0.0-beta.23` (`DAGGER_VERSION: "1.0.0-beta.23"`),
 so an ARC runner scale set with that label must exist before the migration merges.[^ci] The CLI
 starts an engine of its own version, so CLI and engine must match on the runners too.[^contributing] Renovate's
 label regex accepts prerelease suffixes, and the 1.0 betas are read as Git tags (`github-tags`
