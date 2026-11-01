@@ -39,7 +39,7 @@ dagger api call semver bump-type --source=.
 ```bash
 dagger api call semver release \
   --source=. \
-  --github-token=env:GITHUB_TOKEN \
+  --github-token=env://GITHUB_TOKEN \
   --tag-prefix="mymodule/"
 ```
 
@@ -118,12 +118,12 @@ Use `tag` to create a tag with a specific version:
 dagger api call semver tag \
   --source=. \
   --version="v2.0.0" \
-  --github-token=env:GITHUB_TOKEN
+  --github-token=env://GITHUB_TOKEN
 
 # For monorepo
 dagger api call semver tag \
   --source=. \
   --version="v1.5.0" \
   --tag-prefix="mymodule/" \
-  --github-token=env:GITHUB_TOKEN
+  --github-token=env://GITHUB_TOKEN
 ```

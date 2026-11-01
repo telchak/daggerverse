@@ -46,7 +46,7 @@ dagger module client add github.com/telchak/daggerverse/goose@<version> --sdk=py
 
 ```shell
 dagger api call goose deploy \
-  --oidc-token=env:OIDC_TOKEN \
+  --oidc-token=env://OIDC_TOKEN \
   --workload-identity-provider="projects/PROJECT_NUM/locations/global/workloadIdentityPools/POOL/providers/PROVIDER" \
   --service-account-email="sa@project.iam.gserviceaccount.com" \
   --project-id=my-project \
@@ -58,7 +58,7 @@ dagger api call goose deploy \
 
 ```shell
 dagger api call goose deploy \
-  --credentials=file:./service-account.json \
+  --credentials=file://./service-account.json \
   --source=. \
   --assignment="Deploy to Firebase Hosting"
 ```
@@ -195,7 +195,7 @@ The `suggest-github-fix` function analyzes CI pipeline failures and posts GitHub
 
 ```shell
 dagger api call goose suggest-github-fix \
-  --github-token=env:GITHUB_TOKEN \
+  --github-token=env://GITHUB_TOKEN \
   --pr-number=123 \
   --repo="https://github.com/owner/my-gcp-app" \
   --commit-sha="abc123" \
@@ -237,7 +237,7 @@ jobs:
           module: github.com/telchak/daggerverse/goose
           args: >-
             suggest-github-fix
-            --github-token=env:GITHUB_TOKEN
+            --github-token=env://GITHUB_TOKEN
             --pr-number=${{ github.event.pull_request.number }}
             --repo="${{ github.server_url }}/${{ github.repository }}"
             --commit-sha=${{ github.event.pull_request.head.sha }}

@@ -220,7 +220,7 @@ Always use the official `dagger/dagger-for-github` action for CI — never insta
       -m github.com/org/agent-module@v1.0.0
       --source=./app
       suggest-github-fix
-      --github-token=env:GITHUB_TOKEN
+      --github-token=env://GITHUB_TOKEN
       --pr-number=${{ github.event.pull_request.number }}
       --repo=${{ github.repository }}
       --commit-sha=${{ github.event.pull_request.head.sha }}
@@ -276,8 +276,8 @@ jobs:
 ```yaml
 args: >-
   my-deploy-module cloud-run
-  --oidc-request-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
-  --oidc-request-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
+  --oidc-request-token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN
+  --oidc-request-url=env://ACTIONS_ID_TOKEN_REQUEST_URL
 ```
 
 ### CLI Commands (Dagger 1.0)

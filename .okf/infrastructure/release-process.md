@@ -40,7 +40,7 @@ For every module and agent:[^ci]
 1. `LATEST_TAG=$(git tag -l "<module>/v*" --sort=-v:refname | head -n1)`.
 2. If a tag exists and `git diff --quiet $LATEST_TAG HEAD -- <module>/`, skip.[^only-changed]
 3. Otherwise `dagger api call -m ./semver release --source=. --tag-prefix="<module>/"
-   --initial-version="v0.1.0" --github-token=env:GITHUB_TOKEN`.
+   --initial-version="v0.1.0" --github-token=env://GITHUB_TOKEN`.
 
 The release job needs `check`, `test-modules`, `test-agents` and `test-angie-github-issue` to
 pass, and `workflow_dispatch` with `dry_run=true` skips tagging. The Dagger 1.0 migration changed

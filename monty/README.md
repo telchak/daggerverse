@@ -128,7 +128,7 @@ The `develop-github-issue` function enables a full issue-to-PR workflow: read a 
 
 ```shell
 dagger api call monty develop-github-issue \
-  --github-token=env:GITHUB_TOKEN \
+  --github-token=env://GITHUB_TOKEN \
   --issue-id=42 \
   --repository="https://github.com/owner/my-python-app" \
   --source=.
@@ -164,7 +164,7 @@ jobs:
           module: github.com/telchak/daggerverse/monty
           args: >-
             develop-github-issue
-            --github-token=env:GITHUB_TOKEN
+            --github-token=env://GITHUB_TOKEN
             --issue-id=${{ github.event.issue.number }}
             --repository="${{ github.server_url }}/${{ github.repository }}"
             --source=.
@@ -201,7 +201,7 @@ The `suggest-github-fix` function analyzes CI pipeline failures and posts GitHub
 
 ```shell
 dagger api call monty suggest-github-fix \
-  --github-token=env:GITHUB_TOKEN \
+  --github-token=env://GITHUB_TOKEN \
   --pr-number=123 \
   --repo="https://github.com/owner/my-python-app" \
   --commit-sha="abc123" \
@@ -243,7 +243,7 @@ jobs:
           module: github.com/telchak/daggerverse/monty
           args: >-
             suggest-github-fix
-            --github-token=env:GITHUB_TOKEN
+            --github-token=env://GITHUB_TOKEN
             --pr-number=${{ github.event.pull_request.number }}
             --repo="${{ github.server_url }}/${{ github.repository }}"
             --commit-sha=${{ github.event.pull_request.head.sha }}

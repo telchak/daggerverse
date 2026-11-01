@@ -204,12 +204,12 @@ jobs:
             ARGS="--workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
             ARGS="$ARGS --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}"
             ARGS="$ARGS --project-id=${{ secrets.GCP_PROJECT_ID }}"
-            ARGS="$ARGS --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN"
-            ARGS="$ARGS --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL"
+            ARGS="$ARGS --oidc-token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+            ARGS="$ARGS --oidc-url=env://ACTIONS_ID_TOKEN_REQUEST_URL"
             ARGS="$ARGS --region=europe-west9"
             # Add service account key for multi-auth testing
             if [[ -n "$GCP_SA_KEY" ]]; then
-              ARGS="$ARGS --credentials=env:GCP_SA_KEY"
+              ARGS="$ARGS --credentials=env://GCP_SA_KEY"
             fi
           fi
 
@@ -285,11 +285,11 @@ jobs:
               ARGS="--workload-identity-provider=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
               ARGS="$ARGS --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}"
               ARGS="$ARGS --project-id=${{ secrets.GCP_PROJECT_ID }}"
-              ARGS="$ARGS --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN"
-              ARGS="$ARGS --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL"
+              ARGS="$ARGS --oidc-token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+              ARGS="$ARGS --oidc-url=env://ACTIONS_ID_TOKEN_REQUEST_URL"
               ARGS="$ARGS --region=europe-west9"
               if [[ -n "$GCP_DEVELOPER_KNOWLEDGE_API_KEY" ]]; then
-                ARGS="$ARGS --developer-knowledge-api-key=env:GCP_DEVELOPER_KNOWLEDGE_API_KEY"
+                ARGS="$ARGS --developer-knowledge-api-key=env://GCP_DEVELOPER_KNOWLEDGE_API_KEY"
               fi
               break
             fi
@@ -341,7 +341,7 @@ jobs:
           ANGIE_TEST_GITHUB_TOKEN: ${{ secrets.ANGIE_TEST_GITHUB_TOKEN }}
         run: |
           OUTPUT=$(dagger api call -m ./tests angie-develop-github-issue \
-            --github-token=env:ANGIE_TEST_GITHUB_TOKEN \
+            --github-token=env://ANGIE_TEST_GITHUB_TOKEN \
             2>&1) || { echo "$OUTPUT"; exit 1; }
           echo "$OUTPUT"
 
@@ -407,7 +407,7 @@ jobs:
               echo "No changes in $module since $LATEST_TAG"
               continue
             fi
-            TAG=$(dagger api call -m ./semver release --source=. --tag-prefix="${module}/" --initial-version="v0.1.0" --github-token=env:GITHUB_TOKEN)
+            TAG=$(dagger api call -m ./semver release --source=. --tag-prefix="${module}/" --initial-version="v0.1.0" --github-token=env://GITHUB_TOKEN)
             echo "$module: $TAG"
             TAGGED="$TAGGED\n| $module | $TAG |"
           done

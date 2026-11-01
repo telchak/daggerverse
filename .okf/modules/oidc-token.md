@@ -49,7 +49,7 @@ sources:
 | `token_claims(token)` | `str` | base64url-decodes the JWT payload, for debugging |
 
 The caller passes the CI's token variables as secrets, e.g.
-`dagger api call oidc-token gitlab-token --ci-job-jwt=env:CI_JOB_JWT_V2` (GitHub Actions:
+`dagger api call oidc-token gitlab-token --ci-job-jwt=env://CI_JOB_JWT_V2` (GitHub Actions:
 `ACTIONS_ID_TOKEN_REQUEST_TOKEN` and `ACTIONS_ID_TOKEN_REQUEST_URL`; CircleCI:
 `CIRCLE_OIDC_TOKEN`).[^module-readme]
 

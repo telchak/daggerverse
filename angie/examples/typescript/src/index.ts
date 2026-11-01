@@ -62,7 +62,7 @@ export class AngieExamples {
    * In GitHub Actions (triggered by labeling an issue):
    *   dagger call -m github.com/telchak/daggerverse/angie \
    *     develop-github-issue \
-   *     --github-token=env:GITHUB_TOKEN \
+   *     --github-token=env://GITHUB_TOKEN \
    *     --issue-id=42 \
    *     --repository="https://github.com/owner/repo" \
    *     --source=.

@@ -213,8 +213,8 @@ dagger api call -m ./tests gcp-auth \
   --workload-identity-provider="..." \
   --service-account="..." \
   --project-id="..." \
-  --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
-  --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
+  --oidc-token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+  --oidc-url=env://ACTIONS_ID_TOKEN_REQUEST_URL
 ```
 
 ### CI pipeline

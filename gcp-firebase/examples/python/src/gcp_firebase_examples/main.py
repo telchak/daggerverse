@@ -40,7 +40,7 @@ class GcpFirebaseExamples:
         Example:
             dagger call deploy-with-service-account \
                 --source=. \
-                --credentials=env:GOOGLE_CREDENTIALS \
+                --credentials=env://GOOGLE_CREDENTIALS \
                 --project-id=my-project
         """
         return await dag.gcp_firebase().deploy(
@@ -63,7 +63,7 @@ class GcpFirebaseExamples:
         Example:
             dagger call run-script-with-service-account \
                 --source=. \
-                --credentials=env:GOOGLE_CREDENTIALS \
+                --credentials=env://GOOGLE_CREDENTIALS \
                 --script="src/seed-data.ts"
         """
         return await dag.gcp_firebase().scripts().node(
@@ -101,7 +101,7 @@ class GcpFirebaseExamples:
         Example (with pre-fetched token):
             dagger call deploy-with-oidc-token \
                 --source=. \
-                --oidc-token=env:OIDC_TOKEN \
+                --oidc-token=env://OIDC_TOKEN \
                 --workload-identity-provider="projects/123/locations/global/..." \
                 --project-id=my-project
         """
@@ -142,8 +142,8 @@ class GcpFirebaseExamples:
                   --source=. \
                   --workload-identity-provider="${{ secrets.WIF_PROVIDER }}" \
                   --project-id="${{ secrets.PROJECT_ID }}" \
-                  --oidc-request-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
-                  --oidc-request-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
+                  --oidc-request-token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+                  --oidc-request-url=env://ACTIONS_ID_TOKEN_REQUEST_URL
               env:
                 ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
                 ACTIONS_ID_TOKEN_REQUEST_URL: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_URL }}

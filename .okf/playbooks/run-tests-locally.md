@@ -35,9 +35,9 @@ GEMINI_API_KEY=... dagger api call -m ./tests monty-review   # one agent entrypo
 ```
 
 GCP tests need Workload Identity Federation inputs that only exist inside GitHub Actions
-(`--oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL`,
+(`--oidc-token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN --oidc-url=env://ACTIONS_ID_TOKEN_REQUEST_URL`,
 plus provider, service account, project, region); a service account key can be passed with
-`--credentials=env:GCP_SA_KEY`.[^readme] The function list is in `Tests`, or
+`--credentials=env://GCP_SA_KEY`.[^readme] The function list is in `Tests`, or
 `dagger api functions -m ./tests`.[^main] `dagger call` and `dagger functions` still work as
 hidden aliases of the `dagger api` verbs.
 

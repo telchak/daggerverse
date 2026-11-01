@@ -88,7 +88,7 @@ sources:
 - Names: modules `kebab-case`, functions and params `snake_case` (CLI shows kebab-case).
 - Optional objects: `dagger.Directory | None = None`; source dirs use `DefaultPath("/")` on agents.
 - Secrets are `dagger.Secret`, mounted with `with_secret_variable`; produce new ones with
-  `dag.set_secret(name, value)`. Pass them on the CLI as `env:VAR`.
+  `dag.set_secret(name, value)`. Pass them on the CLI as `env://VAR`.
 - Prompt and fixture files are read with `dag.current_module().source().file(...)` (not
   `dag.host()`).
 

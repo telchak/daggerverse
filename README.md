@@ -159,7 +159,7 @@ dagger api call calver generate --source=. --format="v.YYYY.MM.MICRO"
 ```bash
 # Verify credentials
 dagger api call gcp-auth verify-credentials \
-  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS
+  --credentials=env://GOOGLE_APPLICATION_CREDENTIALS
 ```
 
 ### Health Check - Verify containers
@@ -310,8 +310,8 @@ dagger api call -m ./tests all-gcp \
   --service-account="..." \
   --project-id="..." \
   --repository="..." \
-  --oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
-  --oidc-url=env:ACTIONS_ID_TOKEN_REQUEST_URL
+  --oidc-token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+  --oidc-url=env://ACTIONS_ID_TOKEN_REQUEST_URL
 ```
 
 ### CI

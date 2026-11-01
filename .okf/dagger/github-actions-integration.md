@@ -34,7 +34,7 @@ sources:
   so a step that times out still shows where it was.[^ci]
 - This repo installs the CLI with the action, then runs `dagger check` and
   `dagger api call -m ./tests ...` in shell steps to post-process output.[^ci]
-- Secrets go in as `env:VAR` arguments (`--oidc-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN`); GCP
+- Secrets go in as `env://VAR` arguments (`--oidc-token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN`); GCP
   OIDC needs `permissions: id-token: write`.
 - A module loaded from a Git ref that calls an LLM needs `--allow-llm=<ref>` (or `all`), or
   `DAGGER_ALLOW_LLM`, in non-interactive CI. Calling a published agent from another repo:

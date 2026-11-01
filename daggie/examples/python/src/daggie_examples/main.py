@@ -106,7 +106,7 @@ class DaggieExamples:
         In GitHub Actions (triggered by labeling an issue):
           dagger call -m github.com/telchak/daggerverse/daggie \\
             develop-github-issue \\
-            --github-token=env:GITHUB_TOKEN \\
+            --github-token=env://GITHUB_TOKEN \\
             --issue-id=42 \\
             --repository="https://github.com/owner/repo" \\
             --source=.
@@ -152,7 +152,7 @@ class DaggieExamples:
         In GitHub Actions (on build failure):
           dagger call -m github.com/telchak/daggerverse/daggie \\
             suggest-github-fix \\
-            --github-token=env:GITHUB_TOKEN \\
+            --github-token=env://GITHUB_TOKEN \\
             --pr-number=123 \\
             --repo="https://github.com/owner/repo" \\
             --commit-sha=abc123 \\

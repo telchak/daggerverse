@@ -51,7 +51,7 @@ await dag.gcp_firebase().deploy(
 dagger api call gcp-firebase deploy \
   --project-id=my-project \
   --source=. \
-  --credentials=env:GOOGLE_CREDENTIALS \
+  --credentials=env://GOOGLE_CREDENTIALS \
   --build-command="npm run build"
 ```
 
@@ -134,7 +134,7 @@ jobs:
           dagger api call gcp-firebase deploy \
             --project-id=${{ secrets.PROJECT_ID }} \
             --source=. \
-            --oidc-token=env:OIDC_TOKEN \
+            --oidc-token=env://OIDC_TOKEN \
             --workload-identity-provider=${{ secrets.WIF_PROVIDER }}
         env:
           ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
@@ -239,7 +239,7 @@ dagger api call gcp-firebase build --source=. --build-command="npm run build"
 dagger api call gcp-firebase deploy \
   --project-id=my-project \
   --source=. \
-  --credentials=env:GOOGLE_CREDENTIALS \
+  --credentials=env://GOOGLE_CREDENTIALS \
   --build-command="npm run build"
 
 # Deploy preview channel
@@ -247,7 +247,7 @@ dagger api call gcp-firebase deploy-preview \
   --project-id=my-project \
   --channel-id=pr-123 \
   --source=. \
-  --credentials=env:GOOGLE_CREDENTIALS \
+  --credentials=env://GOOGLE_CREDENTIALS \
   --expires=7d
 ```
 
@@ -306,14 +306,14 @@ result = await container.with_exec(["go", "run", "main.go"]).stdout()
 dagger api call gcp-firebase scripts node \
   --source=. \
   --script="src/seed-data.ts" \
-  --credentials=env:GOOGLE_CREDENTIALS \
+  --credentials=env://GOOGLE_CREDENTIALS \
   --working-dir="functions"
 
 # Run Python script
 dagger api call gcp-firebase scripts python \
   --source=. \
   --script="seed_data.py" \
-  --credentials=env:GOOGLE_CREDENTIALS \
+  --credentials=env://GOOGLE_CREDENTIALS \
   --install-command="pip install firebase-admin"
 ```
 

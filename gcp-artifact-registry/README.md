@@ -31,7 +31,7 @@ This module accepts a pre-authenticated `gcloud` container. Use `gcp-auth` to ge
 ```bash
 # Get gcloud container from gcp-auth, then use it
 dagger api call gcp-auth gcloud-container \
-  --credentials=env:GOOGLE_APPLICATION_CREDENTIALS \
+  --credentials=env://GOOGLE_APPLICATION_CREDENTIALS \
   --project-id=my-project
 
 # Publish with authenticated gcloud container

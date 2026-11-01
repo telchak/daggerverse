@@ -73,7 +73,7 @@ maintainer).
 # Used by CI
 
 The [release job](/infrastructure/release-process.md) runs
-`dagger api call -m ./semver release --source=. --tag-prefix="<module>/" --initial-version="v0.1.0" --github-token=env:GITHUB_TOKEN`
+`dagger api call -m ./semver release --source=. --tag-prefix="<module>/" --initial-version="v0.1.0" --github-token=env://GITHUB_TOKEN`
 for every module whose directory changed since its last tag.[^ci] Because the repo releases itself
 with its own module, a broken `semver` breaks releases for every module.
 

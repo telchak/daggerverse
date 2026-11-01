@@ -121,7 +121,7 @@ dagger api call speck decompose \
   --source=. \
   --issue-id=42 \
   --repository="https://github.com/owner/repo" \
-  --github-token=env:GITHUB_TOKEN \
+  --github-token=env://GITHUB_TOKEN \
   --agents='[...]'
 ```
 
@@ -299,7 +299,7 @@ jobs:
             --source=. decompose \
             --issue-id=${{ github.event.issue.number }} \
             --repository="https://github.com/${{ github.repository }}" \
-            --github-token=env:GITHUB_TOKEN \
+            --github-token=env://GITHUB_TOKEN \
             --create-pr --include-tests --include-review \
             --agents='[...]')
           echo "result=$(echo "$RESULT" | jq -c '.')" >> $GITHUB_OUTPUT

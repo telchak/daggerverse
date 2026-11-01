@@ -5,7 +5,8 @@
   runner label, `dagger.lock`, regenerated SDK code). beta.23 fixes the three upstream issues filed
   from here: dagger/dagger#14856 and #14877 are marked fixed upstream in
   [known issues](/dagger/known-issues-1-0-beta.md), whose workarounds stay until re-verified, and
-  [breaking changes](/dagger/breaking-changes.md) records the release.
+  [breaking changes](/dagger/breaking-changes.md) records the release, including its one breaking
+  change for this repository: secret addresses need `env://` (dagger/dagger#14893).
 
 ## 2026-10-27
 * **Creation and deprecation**: [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md)
