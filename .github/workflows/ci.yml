@@ -25,10 +25,15 @@ jobs:
       modules: ${{ steps.find.outputs.modules }}
       agents: ${{ steps.find.outputs.agents }}
       agent_tests: ${{ steps.find.outputs.agent_tests }}
+      skip_agents: ${{ steps.find.outputs.skip_agents }}
     steps:
       - uses: actions/checkout@v7
       - name: Find modules and agents
         id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           # Find all modules with dagger-module.toml (excluding tests/)
           ALL=$(find . -maxdepth 2 -name "dagger-module.toml" -not -path "./tests/*" | \
@@ -68,7 +73,39 @@ jobs:
             done
           done
           AGENT_TESTS_JSON=$(printf '%s\n' "${AGENT_TESTS[@]}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+
+          # The agent tests call Gemini, which bills per token. On a Renovate PR
+          # that changes nothing an agent runs, skip them: no agent, no module an
+          # agent uses (its scope's local clients in dagger.toml, transitively), no shared
+          # agent code, engine, workspace lock, workflow or agent test.
+          SKIP_AGENTS=false
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "$PR_AUTHOR" = "renovate[bot]" ]; then
+            AGENT_DEPS=$(python3 - "${AGENTS[@]}" <<'PY'
+          import sys, tomllib
+          scopes = tomllib.load(open("dagger.toml", "rb")).get("sdks", {}).get("python", {}).get("scopes", {})
+          # The agents and every local module they reach, transitively
+          # (goose -> gcp-auth -> oidc-token).
+          deps, todo = set(), list(sys.argv[1:])
+          while todo:
+              mod = todo.pop()
+              if mod not in deps:
+                  deps.add(mod)
+                  todo += [c[2:] for c in scopes.get(mod, {}).get("clients", []) if c.startswith("./")]
+          print("\n".join(sorted(deps)))
+          PY
+            ) || AGENT_DEPS=""
+            RELEVANT='^(_agent_base/|\.github/|dagger\.(toml|lock)$|tests/(pyproject\.toml|uv\.lock|src/tests/(main|[a-z_]+_agent)\.py)$)'
+            for dep in $AGENT_DEPS; do RELEVANT="$RELEVANT|^$dep/"; done
+            CHANGED=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER/files" --paginate --jq '.[].filename') || CHANGED=""
+            # Skip only when both lists are known: an empty one means a lookup
+            # failed, and the agent tests then run as usual.
+            if [ -n "$AGENT_DEPS" ] && [ -n "$CHANGED" ] && ! echo "$CHANGED" | grep -qE "$RELEVANT"; then
+              SKIP_AGENTS=true
+              AGENT_TESTS_JSON='[]'
+            fi
+          fi
           echo "agent_tests=$AGENT_TESTS_JSON" >> $GITHUB_OUTPUT
+          echo "skip_agents=$SKIP_AGENTS" >> "$GITHUB_OUTPUT"
 
           # Format discovered modules for step summary
           {
@@ -79,6 +116,10 @@ jobs:
             echo "| Modules | $(echo "$MODULES_JSON" | jq -r 'map("`" + . + "`") | join(", ")') |"
             echo "| Agents | $(echo "$AGENTS_JSON" | jq -r 'map("`" + . + "`") | join(", ")') |"
             echo "| Agent tests | $(echo "$AGENT_TESTS_JSON" | jq -r 'map("`" + . + "`") | join(", ")') |"
+            if [ "$SKIP_AGENTS" = true ]; then
+              echo ""
+              echo "Agent tests skipped: a Renovate PR that touches no agent, no module an agent uses and no shared CI input."
+            fi
           } >> $GITHUB_STEP_SUMMARY
 
   validate:
@@ -319,7 +360,8 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   test-angie-github-issue:
-    needs: [validate]
+    needs: [discover, validate]
+    if: needs.discover.outputs.skip_agents != 'true'
     runs-on: dagger-v1.0.0-beta.23
     permissions:
       contents: read

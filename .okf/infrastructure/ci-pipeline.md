@@ -3,7 +3,7 @@ type: CI Pipeline
 title: "CI pipeline (ci.yml)"
 description: "The single GitHub Actions workflow: discover modules and agents, validate them, check the committed generated code, test each in a parallel matrix on self-hosted Dagger runners, then release."
 tags: [ci, github-actions]
-generated: { by: claude-code/2.1.310, at: 2026-11-01T19:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-11-03T11:00:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: ci
@@ -51,12 +51,12 @@ Push to `main`, pull requests to `main`, and `workflow_dispatch` (input `dry_run
 
 | Job | Needs | Runs on | Does |
 |-----|-------|---------|------|
-| `discover` | | ubuntu-latest | `find . -maxdepth 2 -name dagger-module.toml` (excluding `tests/`); a module with `src/*/prompts/` is an **agent**; builds `agent_tests` as `<agent>-<suffix>` from `.agent-tests` or the default `assist review write-tests build upgrade` |
+| `discover` | | ubuntu-latest | `find . -maxdepth 2 -name dagger-module.toml` (excluding `tests/`); a module with `src/*/prompts/` is an **agent**; builds `agent_tests` as `<agent>-<suffix>` from `.agent-tests` or the default `assist review write-tests build upgrade`; empties it and sets `skip_agents` on a Renovate PR that touches nothing an agent runs (below) |
 | `validate` | discover | dagger runner | per module and agent, errors: no `dagger-module.toml`; an empty description (the first docstring line of `src/*/__init__.py`, read with awk); no `README.md` or `examples/`; `dagger api functions -m ./<module>` fails (a module that does not load is now an error). `.py/.ts/.go` files over **600 lines** produce a warning in the summary |
 | `check` | discover | dagger runner | `dagger check` at the root: the Python SDK staleness checks, so every module's committed `sdk/`, `clients/` and entrypoint types must match what `dagger generate` writes |
 | `test-modules` | discover, validate | dagger runner, matrix | `dagger api call -m ./tests <module> $ARGS`; `gcp-*` modules get OIDC/WIF args, `--region=europe-west9`, and `--credentials=env://GCP_SA_KEY` when set; `gcp-artifact-registry` gets `--repository`, `semver` gets `--source=.` |
 | `test-agents` | discover, validate | dagger runner, matrix, 20 min timeout | `dagger api call -m ./tests <agent>-<test>`; agents with `.agent-gcp` get GCP args (+ `--developer-knowledge-api-key`) |
-| `test-angie-github-issue` | validate | dagger runner | real issue-to-PR run (`angie-develop-github-issue`), then closes the PR |
+| `test-angie-github-issue` | discover, validate; skipped when `skip_agents` | dagger runner | real issue-to-PR run (`angie-develop-github-issue`), then closes the PR |
 | `release` | discover, check, test-modules, test-agents, test-angie-github-issue | dagger runner, `main` only, not PRs | `dagger api call -m ./semver release ...` per changed module, see [release process](/infrastructure/release-process.md) |
 
 Test output lines matching `[OK]`, `[!!]`, `[--]` (or legacy `PASS:`/`FAIL:`) are copied into
@@ -77,6 +77,22 @@ Gemini API Prepay plan, so CI spends a prepaid balance, and every agent job fail
 is empty. See [Gemini as the CI LLM provider](/decisions/gemini-as-ci-llm.md), and
 [Vertex AI for the CI LLM](/decisions/vertex-ai-for-ci-llm.md) (deprecated) for why the jobs do
 not call Vertex AI.
+
+# Agent tests skipped on unrelated Renovate PRs
+
+Since 2026-11-03, on a pull request opened by `renovate[bot]`, `discover` lists the PR's files
+(`gh api .../pulls/<n>/files`) and skips the agent jobs (`test-agents`, `test-angie-github-issue`)
+when none of them is:
+
+- an agent directory, or a local module an agent reaches through its scope's clients in
+  `dagger.toml`, transitively (Goose reaches `oidc-token` through `gcp-auth`);
+- `_agent_base/`, `.github/`, `dagger.toml` or `dagger.lock` (the engine, the SDK, the workflow);
+- the tests module's `pyproject.toml`, `uv.lock`, `main.py` or a `*_agent.py`.
+
+A fixture lockfile or an unrelated module's `uv.lock` then runs without one Gemini call. If either
+list cannot be built (a failed API call, no `tomllib`), the agent tests run. Human PRs and pushes
+to `main` always run them. Renovate also batches its updates into one PR twice a month, see
+[Renovate](/infrastructure/renovate.md).
 
 # History
 
