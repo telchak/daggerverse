@@ -1,9 +1,14 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "description": "Every update in one PR, at most twice a month: each push to a PR runs CI, and CI's agent tests spend Gemini tokens",
+  "extends": ["config:recommended", "group:all"],
+  "timezone": "Europe/Paris",
+  "schedule": ["* 0-5 1,15 * *"],
+  "updateNotScheduled": false,
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["before 6am on monday"]
+    "description": "Renovate keeps lock file maintenance in a branch of its own whatever the group, so once a month, in the window of the 1st's grouped PR",
+    "schedule": ["* 0-5 1 * *"]
   },
   "ignorePaths": [
     "**/node_modules/**",
@@ -59,9 +64,8 @@
   ],
   "packageRules": [
     {
-      "description": "Dagger 1.0 betas are git tags, not GitHub releases; github-tags with semver versioning sees them",
-      "matchDepNames": ["dagger/dagger"],
-      "groupName": "dagger engine"
+      "description": "Dagger 1.0 betas are git tags, not GitHub releases; github-tags with semver versioning sees them. No groupName of its own: the engine bump joins the grouped PR, where its four pins still move together",
+      "matchDepNames": ["dagger/dagger"]
     },
     {
       "description": "uv_build version is dictated by Dagger's Python SDK template — do not update independently",

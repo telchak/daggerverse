@@ -1,9 +1,9 @@
 ---
 type: Configuration
 title: "Renovate configuration"
-description: "Renovate bumps the Dagger version in CI (DAGGER_VERSION, runner labels), the README badge and the dagger-for-github snippets as one group read from Git tags, refreshes the uv and npm lockfiles every Monday, skips the generated code, and never bumps uv_build."
+description: "Renovate bumps the Dagger version in CI (DAGGER_VERSION, runner labels), the README badge and the dagger-for-github snippets read from Git tags, groups every update into one PR twice a month (the 1st and the 15th) and refreshes the uv and npm lockfiles once a month, skips the generated code, and never bumps uv_build."
 tags: [dependencies, renovate]
-generated: { by: claude-code/2.1.310, at: 2026-10-28T08:00:00Z }
+generated: { by: claude-code/2.1.310, at: 2026-11-03T10:00:00Z }
 stale_after: 2027-04-24T00:00:00Z
 sources:
   - id: renovate
@@ -46,8 +46,23 @@ File patterns use `managerFilePatterns`, which replaces `fileMatch`.[^renovate]
 | `README.md` files | the static shields badge `label=Dagger&message=v<ver>` (only the root README has one) |
 | `README.md` files, Daggie's `system_prompt.md` | `version: "<ver>"` under a `dagger/dagger-for-github@...` step's `with:` (the agents' Actions snippets and Daggie's examples) |
 
-All four are grouped as **"dagger engine"**, so one PR bumps the CLI, the runner label, the
-badge and the snippets together.[^renovate]
+All four land in the same grouped PR (below), so the CLI, the runner label, the badge and the
+snippets move together. Until 2026-11-03 they had a group of their own, "dagger engine".[^renovate]
+
+# One PR, twice a month
+
+Every PR push runs CI, and CI's agent tests call Gemini, which [bills per
+token](/decisions/gemini-as-ci-llm.md). Since 2026-11-03 Renovate batches its work:[^renovate]
+
+- `group:all` puts every update, majors included (`separateMajorMinor: false`), in one PR,
+  `renovate/all`. One failing update fails the whole PR; split it out by hand then.
+- `schedule: ["* 0-5 1,15 * *"]`, timezone Europe/Paris: Renovate creates or updates that PR only
+  on the 1st and the 15th, between midnight and 6am.
+- `updateNotScheduled: false`: outside that window it does not rebase or refresh an existing PR
+  either, which would otherwise rerun CI whenever `main` moves.
+
+Before, each dependency got its own PR (ten were open at once in October), and each one ran the
+full CI.
 
 # Not managed
 
@@ -63,7 +78,10 @@ badge and the snippets together.[^renovate]
 
 # Lockfile maintenance
 
-`lockFileMaintenance` is on, `before 6am on monday`: one PR refreshes every `uv.lock` (`uv lock
+`lockFileMaintenance` is on, on the 1st of each month between midnight and 6am (weekly on
+Mondays until 2026-11-03). Renovate always gives lock file maintenance a branch of its own, even
+with a group (its branch-name code separates it from same-group updates), so on the 1st two PRs
+open: the grouped one and this one. It refreshes every `uv.lock` (`uv lock
 --upgrade` through the pep621 manager) and `package-lock.json` outside the ignored paths.[^renovate]
 Before 2026-10-27 nothing refreshed them. Renovate saw only each module's `python >=3.13`
 constraint, so the uv lockfiles fell months behind, and 10 locked packages had published
