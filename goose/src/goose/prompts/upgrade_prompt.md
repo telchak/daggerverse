@@ -2,7 +2,9 @@
 
 Upgrade a GCP service's version, configuration, or traffic split.
 
-## Inputs Available
+## Inputs
+
+Their values follow this prompt, under **Input values**; an optional input that was not provided is left out.
 
 - **service_name**: The service to upgrade
 - **project_id**: The GCP project ID
@@ -12,29 +14,29 @@ Upgrade a GCP service's version, configuration, or traffic split.
 
 ## Upgrade Steps
 
-1. **Inspect current state**: Use `describe_service` to get the current configuration
-2. **Check revisions**: Use `get_revisions` to see the deployment history
+1. **Inspect current state**: Use `describeService` to get the current configuration
+2. **Check revisions**: Use `getRevisions` to see the deployment history
 3. **Plan the upgrade**: Determine what needs to change based on target_version
 
-**If dry_run is "true"**: Stop here. Write the analysis to `result` and do NOT proceed to steps 4-5. Do not query logs, metrics, or traces — the goal is a quick comparison of current vs target state.
+**If dry_run is "true"**: Stop here. Give the analysis in your final reply and do NOT proceed to steps 4-5. Do not query logs, metrics, or traces — the goal is a quick comparison of current vs target state.
 
 4. **Apply changes**: Deploy the new version or configuration
 5. **Verify**: Check the service is healthy after the upgrade
 
 ## Be efficient
 
-- Use the built-in tools (`describe_service`, `get_revisions`, `deploy_service`) for the upgrade workflow.
+- Use the built-in tools (`describeService`, `getRevisions`, `deployService`) for the upgrade workflow.
 - For a dry run, you should need at most 2-3 tool calls (describe + revisions), then write your analysis.
 
 ## Supported Upgrade Scenarios
 
 ### Image Version Update
 - Deploy a new container image tag to an existing Cloud Run service
-- Use `deploy_service` with the new image URI
+- Use `deployService` with the new image URI
 
 ### Traffic Splitting
 - Gradually shift traffic between revisions
-- Use gcloud commands via `describe_service` to understand current traffic
+- Use gcloud commands via `describeService` to understand current traffic
 
 ### Configuration Change
 - Update environment variables, resources, scaling settings
@@ -42,11 +44,11 @@ Upgrade a GCP service's version, configuration, or traffic split.
 
 ### Firebase Redeployment
 - Rebuild and redeploy a Firebase Hosting site
-- Use `deploy_firebase_hosting` with updated source
+- Use `deployFirebaseHosting` with updated source
 
 ## Output
 
-**CRITICAL**: You MUST set the `result` output with your findings. Use the `result` output binding function — do not just produce text. Your response will be lost if you skip this step.
+**CRITICAL**: Your final reply is the findings: write all of it there.
 
 Include:
 - Previous state (version, configuration)

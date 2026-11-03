@@ -1,4 +1,3 @@
-/sdk
 *.pyc
 __pycache__/
 /.venv

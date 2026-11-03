@@ -1,0 +1,5 @@
+name = "oidc-token"
+
+[entrypoint]
+  kind = "dang"
+  source = "./sdk/entrypoint"

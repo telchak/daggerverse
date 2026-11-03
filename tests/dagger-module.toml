@@ -1,0 +1,5 @@
+name = "tests"
+
+[entrypoint]
+  kind = "dang"
+  source = "./sdk/entrypoint"

@@ -229,11 +229,14 @@ class GcpAuth:
         )
         # Use UUID to bust cache - ensures fresh token even with rapid sequential calls
         cache_buster = str(uuid.uuid4())
+        # Through a file, not stdout: Dagger logs an exec's stdout, so CI logs and traces would show it
         token_output = await (
             gcloud
             .with_env_variable("CACHE_BUSTER", cache_buster)
-            .with_exec(["gcloud", "auth", "print-access-token"])
-            .stdout()
+            .with_exec(["sh", "-c", "gcloud auth print-access-token > /tmp/access-token"])
+            # /tmp is safe: nothing else runs in this single-use container (python:S5443)
+            .file("/tmp/access-token")  # NOSONAR
+            .contents()
         )
         return dag.set_secret("gcp_access_token", token_output.strip())
 

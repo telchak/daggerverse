@@ -1,0 +1,6 @@
+name = "monty"
+engineVersion = "v1.0.0-0"
+include = ["../_agent_base"]
+
+[runtime]
+  source = "dagger.io/sdk/python/runtime@v1"

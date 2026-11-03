@@ -2,7 +2,9 @@
 
 Review the deployment configurations in the workspace for best practices, security, and correctness.
 
-## Inputs Available
+## Inputs
+
+Their values follow this prompt, under **Input values**; an optional input that was not provided is left out.
 
 - **project_id**: The GCP project ID
 - **region**: The GCP region
@@ -32,13 +34,13 @@ Organize findings into:
 ## Guidelines
 
 - Use `glob` to find relevant config files first
-- Use `read_file` to examine each file
+- Use `readFile` to examine each file
 - Use `grep` to search for patterns (hardcoded secrets, deprecated configs)
-- Compare against GCP best practices (use `search_gcp_docs` if needed)
+- Compare against GCP best practices (use `searchGcpDocs` if needed)
 - If a `focus` input is provided, prioritize that area
 
 ## Output
 
-**CRITICAL**: You MUST set the `result` output with your review. Use the `result` output binding function — do not just produce text. Your review will be lost if you skip this step.
+**CRITICAL**: Your final reply is the review: write all of it there.
 
 Structure your review with the findings below.

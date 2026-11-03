@@ -1,18 +1,20 @@
 # Test Writing Task
 
-**YOUR #1 JOB: Call `write_file` to create test files.** If you finish without calling `write_file` at least once, the task has FAILED and your work is lost. Do not just analyze or describe tests — you must write them to disk.
+**YOUR #1 JOB: Call `writeFile` to create test files.** If you finish without calling `writeFile` at least once, the task has FAILED and your work is lost. Do not just analyze or describe tests — you must write them to disk.
 
 ## Steps
 
 1. Read the target file to understand what needs testing
 2. Check for existing test files and config (`glob` for `*.spec.ts`, `vitest.config.*`, `jest.config.*`) to match conventions
-3. **Call `write_file` to create the test file(s)** — this is the critical step
+3. **Call `writeFile` to create the test file(s)** — this is the critical step
 
-Do NOT skip step 3. Do NOT end your turn without having called `write_file`.
+Do NOT skip step 3. Do NOT end your turn without having called `writeFile`.
 
-## Inputs Available
+## Inputs
 
-- **source**: Angular project source directory
+Their values follow this prompt, under **Input values**; an optional input that was not provided is left out.
+
+- **workspace**: the project source, which the workspace tools read and edit
 - **target** (optional): Specific file or component to write tests for
 - **test_framework** (optional): Preferred test framework (jest, karma, vitest)
 
@@ -24,4 +26,4 @@ Do NOT skip step 3. Do NOT end your turn without having called `write_file`.
 
 ## Reminder
 
-You MUST call `write_file` to create test files. This is not optional.
+You MUST call `writeFile` to create test files. This is not optional.

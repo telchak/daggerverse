@@ -13,11 +13,12 @@ class DaggerMcp:
     """
 
     @function
-    def server(self) -> dagger.Service:
-        """The MCP server as a Dagger service.
+    def container(self) -> dagger.Container:
+        """The container the MCP server runs in, with `python main.py` as its default command.
 
-        Provides tools: learn_schema, run_query, learn_sdk, dagger_version.
-        Requires privileged nesting to access the Dagger engine.
+        Run it as a service with `server`, or start the server yourself on
+        stdio (e.g. one request per exec). Calls to the engine go through
+        Dagger-in-Dagger, which the 1.0 API enables by default.
         """
         return (
             dag.container()
@@ -35,5 +36,14 @@ class DaggerMcp:
             )
             .with_workdir("/app")
             .with_default_args(["python", "main.py"])
-            .as_service(experimental_privileged_nesting=True)
         )
+
+    @function
+    def server(self) -> dagger.Service:
+        """The MCP server as a Dagger service.
+
+        Provides tools: learn_schema, run_query, learn_sdk, dagger_version.
+        The server reaches the Dagger engine through Dagger-in-Dagger, which
+        the 1.0 API enables for every service by default.
+        """
+        return self.container().as_service()

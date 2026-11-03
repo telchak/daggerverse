@@ -1,4 +1,6 @@
-"""Speck — AI-powered spec-driven development agent."""
+"""
+Speck — AI-powered spec-driven development agent.
+"""
 
 from .main import Speck
 

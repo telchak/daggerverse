@@ -1,0 +1,5 @@
+name = "gcp-firebase"
+
+[entrypoint]
+  kind = "dang"
+  source = "./sdk/entrypoint"

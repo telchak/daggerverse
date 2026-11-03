@@ -84,7 +84,7 @@ class FirebaseScripts:
         project_id: Annotated[str | None, Doc("GCP project ID")] = None,
         # Script options
         working_dir: Annotated[str, Doc("Working directory relative to source root")] = ".",
-        node_version: Annotated[str, Doc("Node.js version")] = "20",
+        node_version: Annotated[str, Doc("Node.js version")] = "22",
         install_command: Annotated[str, Doc("Package install command")] = "npm ci",
         env: Annotated[list[str] | None, Doc("Environment variables (KEY=VALUE format)")] = None,
     ) -> str:

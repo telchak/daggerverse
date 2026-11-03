@@ -1,0 +1,92 @@
+# Workspace configuration for this repository (Dagger 1.0).
+#
+# Every module is a Python SDK scope: `dagger generate` regenerates each
+# module's committed sdk/ and clients/ directories, and `dagger check` fails
+# when they are stale. A module's dependencies are its scope's clients.
+
+[modules.dagger-python-sdk]
+source = "github.com/dagger/python-sdk"
+
+[sdks.python]
+module = "dagger-python-sdk"
+
+[sdks.python.scopes.calver]
+is-module = true
+
+[sdks.python.scopes.angular]
+is-module = true
+
+[sdks.python.scopes.dagger-mcp]
+is-module = true
+
+[sdks.python.scopes.gcp-artifact-registry]
+is-module = true
+
+[sdks.python.scopes.gcp-cloud-run]
+is-module = true
+
+[sdks.python.scopes.gcp-firebase]
+is-module = true
+
+[sdks.python.scopes.gcp-vertex-ai]
+is-module = true
+
+[sdks.python.scopes.health-check]
+is-module = true
+
+[sdks.python.scopes.oidc-token]
+is-module = true
+
+[sdks.python.scopes.python-build]
+is-module = true
+
+[sdks.python.scopes.semver]
+is-module = true
+
+[sdks.python.scopes.gcp-auth]
+clients = ["./oidc-token"]
+is-module = true
+
+# The tests module exercises every module through its generated clients.
+[sdks.python.scopes.tests]
+clients = ["./angular", "./angie", "./monty", "./python-build", "./calver", "./gcp-artifact-registry", "./gcp-auth", "./gcp-cloud-run", "./goose", "./gcp-firebase", "./gcp-vertex-ai", "./health-check", "./oidc-token", "./semver", "./dagger-mcp", "./daggie", "./speck"]
+is-module = true
+
+# The agents bind themselves to their LLM with `dag.current_node()`, which only
+# a module runtime can answer: code behind a generated entrypoint runs outside
+# any function call. `legacyRuntime` keeps them on the Python SDK's runtime.
+
+[sdks.python.scopes.goose]
+clients = ["./gcp-auth", "./gcp-cloud-run", "./gcp-artifact-registry", "./gcp-firebase", "./gcp-vertex-ai", "./health-check", "github.com/kpenfound/dag/github-issue@b316e472d3de5bb0e54fe3991be68dc85e33ef38"]
+is-module = true
+
+[sdks.python.scopes.goose.settings]
+legacyRuntime = true
+
+[sdks.python.scopes.angie]
+clients = ["./angular", "github.com/kpenfound/dag/github-issue@b316e472d3de5bb0e54fe3991be68dc85e33ef38"]
+is-module = true
+
+[sdks.python.scopes.angie.settings]
+legacyRuntime = true
+
+[sdks.python.scopes.monty]
+clients = ["./python-build", "github.com/kpenfound/dag/github-issue@b316e472d3de5bb0e54fe3991be68dc85e33ef38"]
+is-module = true
+
+[sdks.python.scopes.monty.settings]
+legacyRuntime = true
+
+[sdks.python.scopes.daggie]
+clients = ["./dagger-mcp", "github.com/kpenfound/dag/github-issue@b316e472d3de5bb0e54fe3991be68dc85e33ef38"]
+is-module = true
+
+[sdks.python.scopes.daggie.settings]
+legacyRuntime = true
+
+[sdks.python.scopes.speck]
+clients = ["github.com/kpenfound/dag/github-issue@b316e472d3de5bb0e54fe3991be68dc85e33ef38"]
+is-module = true
+
+[sdks.python.scopes.speck.settings]
+legacyRuntime = true

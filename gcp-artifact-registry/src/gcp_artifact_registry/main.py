@@ -86,7 +86,14 @@ class GcpArtifactRegistry:
             )
 
         if gcloud:
-            token = await gcloud.with_exec(["gcloud", "auth", "print-access-token"]).stdout()
+            # Through a file, not stdout: Dagger logs an exec's stdout, so CI logs and traces would show it
+            token = await (
+                gcloud
+                .with_exec(["sh", "-c", "gcloud auth print-access-token > /tmp/access-token"])
+                # /tmp is safe: nothing else runs in this single-use container (python:S5443)
+                .file("/tmp/access-token")  # NOSONAR
+                .contents()
+            )
             token_secret = dag.set_secret("gcp_access_token", token.strip())
             return await (
                 container

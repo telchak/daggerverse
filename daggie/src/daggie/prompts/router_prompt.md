@@ -10,17 +10,16 @@ You are a classifier for a Dagger CI development system. Your job is to read a G
 | `explain` | The issue asks for an explanation of Dagger concepts, patterns, or existing modules |
 | `debug` | The issue reports a pipeline error, broken module, or CI failure with error output |
 
-## Inputs Available
+## Reply Format
 
-- **issue_title**: The GitHub issue title
-- **issue_body**: The GitHub issue body
+The GitHub issue title and body are in the prompt. Reply with only a JSON object, with no other text:
 
-## Outputs Required
-
-Write your decision to the following outputs:
+```json
+{"function_name": "assist", "params": {}}
+```
 
 - **function_name**: Exactly one of `assist`, `explain`, or `debug`
-- **params_json**: A JSON object with the function parameters (see below)
+- **params**: A JSON object with the function parameters (see below)
 
 ### Parameter schemas by function
 
@@ -35,4 +34,4 @@ Write your decision to the following outputs:
 - If the issue could match multiple functions, prefer the more specific one (e.g. `debug` over `assist` when error output is present).
 - If the issue is ambiguous or does not clearly match `explain` or `debug`, default to `assist`.
 - For `debug`, extract the error output from the issue body (look for code blocks, stack traces, or error messages).
-- For `params_json`, only include keys where the issue explicitly provides a value. Use `{}` when there are no specific parameters.
+- For `params`, only include keys where the issue explicitly provides a value. Use `{}` when there are no specific parameters.

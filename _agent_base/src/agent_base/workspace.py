@@ -1,7 +1,9 @@
 """Workspace tool implementations shared across coding agents.
 
-All functions are pure — they take `source` as a parameter and return
-updated state rather than mutating instance fields.
+The tools act on the workspace the LLM is bound to: Dagger injects it into
+every `dagger.Workspace` argument of a tool and hides that argument from the
+model. A tool that returns a `dagger.Workspace` replaces the LLM's workspace,
+so the next tool call reads the edited files.
 """
 
 import dagger
@@ -9,13 +11,13 @@ from dagger import dag
 
 
 async def read_file_impl(
-    source: dagger.Directory,
+    ws: dagger.Workspace,
     file_path: str,
     offset: int = 0,
     limit: int = 0,
 ) -> str:
     """Read a file from the workspace with line numbers."""
-    contents = await source.file(file_path).contents()
+    contents = await ws.file(file_path).contents()
     lines = contents.splitlines()
 
     if offset > 0:
@@ -29,14 +31,14 @@ async def read_file_impl(
 
 
 async def edit_file_impl(
-    source: dagger.Directory,
+    ws: dagger.Workspace,
     file_path: str,
     old_string: str,
     new_string: str,
     replace_all: bool = False,
-) -> tuple[dagger.Directory, dagger.Changeset]:
-    """Edit a file by replacing a string. Returns (new_source, changeset)."""
-    contents = await source.file(file_path).contents()
+) -> dagger.Workspace:
+    """Edit a file by replacing a string. Returns the edited workspace."""
+    contents = await ws.file(file_path).contents()
 
     if old_string not in contents:
         msg = f"old_string not found in {file_path}"
@@ -47,33 +49,31 @@ async def edit_file_impl(
     else:
         new_contents = contents.replace(old_string, new_string, 1)
 
-    after = source.with_new_file(file_path, new_contents)
-    return after, after.changes(source)
+    return ws.with_new_file(file_path, new_contents)
 
 
 def write_file_impl(
-    source: dagger.Directory,
+    ws: dagger.Workspace,
     file_path: str,
     contents: str,
-) -> tuple[dagger.Directory, dagger.Changeset]:
-    """Create or overwrite a file. Returns (new_source, changeset)."""
-    after = source.with_new_file(file_path, contents)
-    return after, after.changes(source)
+) -> dagger.Workspace:
+    """Create or overwrite a file. Returns the edited workspace."""
+    return ws.with_new_file(file_path, contents)
 
 
 async def glob_impl(
-    source: dagger.Directory,
+    ws: dagger.Workspace,
     pattern: str,
 ) -> str:
     """Find files matching a glob pattern."""
-    entries = await source.glob(pattern)
+    entries = await ws.glob(pattern)
     if not entries:
         return "No files matched the pattern."
     return "\n".join(entries)
 
 
 async def grep_impl(
-    source: dagger.Directory,
+    ws: dagger.Workspace,
     pattern: str,
     paths: str = "",
     file_glob: str = "",
@@ -98,9 +98,9 @@ async def grep_impl(
     result = await (
         dag.container()
         .from_("alpine:latest")
-        .with_mounted_directory("/work", source)
+        .with_mounted_directory("/work", ws.directory("."))
         .with_workdir("/work")
-        .with_exec(cmd, expect=dagger.ExecExpect.ANY)
+        .with_exec(cmd, expect=dagger.ReturnType.ANY)
         .stdout()
     )
 

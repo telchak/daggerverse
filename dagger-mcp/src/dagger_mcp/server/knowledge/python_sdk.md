@@ -18,29 +18,42 @@
 | `File` | `dagger.File` |
 | `Secret` | `dagger.Secret` |
 | `Service` | `dagger.Service` |
+| `Workspace` | `dagger.Workspace` (auto-populated from the caller's workspace) |
+| `Changeset` | `dagger.Changeset` |
+| `Void` | `None` |
 
 ## Module Structure
 
 ```
 my-module/
-  dagger.json          # {"name": "my-module", "sdk": {"source": "python"}, "engineVersion": "v0.19.11"}
-  pyproject.toml       # dependencies
+  dagger-module.toml   # name + [entrypoint] (generated module) or [runtime] source = "python"
+  pyproject.toml       # dependencies; uv.lock is committed
   src/my_module/
-    __init__.py        # from .main import MyModule
-    main.py            # @object_type class MyModule
+    __init__.py        # @object_type class MyModule (or: from .main import MyModule)
+  sdk/                 # generated dagger-io library — committed
+  clients/             # generated clients for core and each dependency — committed
 ```
+
+The workspace's `dagger.toml` registers the module as a Python SDK scope
+(`[sdks.python.scopes."my-module"] is-module = true`, `clients = [...]` for
+dependencies). Run `dagger generate -y` after changing the module's API or its
+dependencies, and commit the result. A Dagger 0.x module uses `dagger.json`
+instead; Dagger 1.0 still loads it.
 
 ## Key Patterns
 
 ```python
 import dagger
-from dagger import dag, function, object_type, field, Doc, DefaultPath
-from typing import Annotated
+from dagger import check, dag, function, object_type
 
 @object_type
 class MyModule:
-    # Constructor field (set via CLI args)
-    source: Annotated[dagger.Directory, Doc("Project source"), DefaultPath("/")] = field()
+    source: dagger.Directory
+
+    @classmethod
+    def create(cls, ws: dagger.Workspace):
+        # The caller's workspace is injected; nothing is uploaded until used
+        return cls(source=ws.directory("/", exclude=["**/.git"]))
 
     @function
     async def build(self, target: str = "release") -> dagger.Container:
@@ -52,7 +65,16 @@ class MyModule:
             .with_workdir("/app")
             .with_exec(["pip", "install", "-r", "requirements.txt"])
         )
+
+    @function
+    @check
+    async def test(self) -> None:
+        """Run the tests: a check returns None and raises to fail."""
+        await self.build().with_exec(["pytest"]).sync()
 ```
+
+A `Workspace` argument is injected for CLI, `dagger check` and `dagger generate`
+calls, but not when another module calls the function: pass one explicitly.
 
 ## Async/Await
 

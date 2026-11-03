@@ -5,7 +5,11 @@ Google Cloud Vertex AI operations for deploying and managing ML models.
 ## Installation
 
 ```bash
-dagger install github.com/telchak/daggerverse/gcp-vertex-ai
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/gcp-vertex-ai@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/gcp-vertex-ai@<version> --sdk=python
 ```
 
 ## Functions
@@ -52,14 +56,14 @@ endpoints = await dag.gcp_vertex_ai().list_endpoints(gcloud=gcloud)
 
 ```bash
 # Deploy model (gcloud container passed from gcp-auth)
-dagger call deploy-model \
+dagger api call gcp-vertex-ai deploy-model \
   --gcloud=FROM_GCP_AUTH \
   --image-uri=us-central1-docker.pkg.dev/project/repo/image:tag \
   --model-name=my-model \
   --endpoint-name=my-endpoint
 
 # List models
-dagger call list-models --gcloud=FROM_GCP_AUTH
+dagger api call gcp-vertex-ai list-models --gcloud=FROM_GCP_AUTH
 ```
 
 ## License

@@ -60,7 +60,7 @@ This Dagger module provides utilities for authenticating with Google Cloud Platf
 From your Dagger module:
 
 ```bash
-dagger install ../daggerverse/gcp-auth --name=gcp-auth
+dagger module client add ../daggerverse/gcp-auth --sdk=python
 ```
 
 ### Basic Usage
@@ -70,7 +70,7 @@ from dagger import dag
 
 # Get authenticated gcloud container
 gcloud = dag.gcp_auth().gcloud_container(
-    credentials=env:GOOGLE_CREDENTIALS,
+    credentials=env://GOOGLE_CREDENTIALS,
     project_id="my-project",
     region="us-central1"
 )
@@ -151,11 +151,11 @@ jobs:
 
       - name: Deploy with Dagger
         run: |
-          dagger call gcloud-container-from-github-actions \
+          dagger api call gcp-auth gcloud-container-from-github-actions \
             --workload-identity-provider="projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider" \
             --project-id="my-project" \
-            --oidc-request-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
-            --oidc-request-url=env:ACTIONS_ID_TOKEN_REQUEST_URL \
+            --oidc-request-token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+            --oidc-request-url=env://ACTIONS_ID_TOKEN_REQUEST_URL \
             --service-account-email="github-actions-sa@my-project.iam.gserviceaccount.com" \
             with-exec --args="gcloud","run","deploy","my-service","--region=us-central1","--image=gcr.io/my-project/my-image"
 ```
@@ -176,11 +176,11 @@ For maximum flexibility across CI providers, use the `oidc-token` module to get 
 ```yaml
 - name: Deploy with Dagger
   run: |
-    dagger call gcloud-container-from-github-actions \
+    dagger api call gcp-auth gcloud-container-from-github-actions \
       --workload-identity-provider="projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider" \
       --project-id="my-project" \
-      --oidc-request-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
-      --oidc-request-url=env:ACTIONS_ID_TOKEN_REQUEST_URL \
+      --oidc-request-token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+      --oidc-request-url=env://ACTIONS_ID_TOKEN_REQUEST_URL \
       with-exec --args="gcloud","version"
 ```
 
@@ -192,9 +192,9 @@ deploy:
     GITLAB_OIDC_TOKEN:
       aud: //iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider
   script:
-    - dagger call -m oidc-token gitlab-token --ci-job-jwt=env:GITLAB_OIDC_TOKEN > /tmp/token
-    - dagger call gcloud-container-from-oidc-token \
-        --oidc-token=file:/tmp/token \
+    - dagger api call oidc-token gitlab-token --ci-job-jwt=env://GITLAB_OIDC_TOKEN > /tmp/token
+    - dagger api call gcp-auth gcloud-container-from-oidc-token \
+        --oidc-token=file:///tmp/token \
         --workload-identity-provider="projects/123456789/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider" \
         --project-id="my-project" \
         with-exec --args="gcloud","version"
@@ -209,8 +209,8 @@ jobs:
       - run:
           name: Deploy with Dagger
           command: |
-            dagger call gcloud-container-from-oidc-token \
-              --oidc-token=env:CIRCLE_OIDC_TOKEN \
+            dagger api call gcp-auth gcloud-container-from-oidc-token \
+              --oidc-token=env://CIRCLE_OIDC_TOKEN \
               --workload-identity-provider="projects/123456789/locations/global/workloadIdentityPools/circleci-pool/providers/circleci-provider" \
               --project-id="my-project" \
               with-exec --args="gcloud","version"
@@ -247,7 +247,7 @@ export GOOGLE_CREDENTIALS=$(cat key.json)
 ```python
 # Authenticate using service account key
 gcloud = dag.gcp_auth().gcloud_container(
-    credentials=env:GOOGLE_CREDENTIALS,
+    credentials=env://GOOGLE_CREDENTIALS,
     project_id="my-project"
 )
 ```
@@ -309,7 +309,7 @@ Add GCP credentials to any container.
 ```python
 authenticated = dag.gcp_auth().with_credentials(
     container=dag.container().from_("python:3.11"),
-    credentials=env:GOOGLE_CREDENTIALS,
+    credentials=env://GOOGLE_CREDENTIALS,
     credentials_path="/tmp/gcp-creds.json",  # Optional
     export_env_vars=True                      # Optional
 )
@@ -334,8 +334,8 @@ Configure any container with OIDC token credentials for GCP authentication. This
 ```python
 # Get OIDC token from your CI provider
 token = dag.oidc_token().github_token(
-    request_token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN,
-    request_url=env:ACTIONS_ID_TOKEN_REQUEST_URL,
+    request_token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN,
+    request_url=env://ACTIONS_ID_TOKEN_REQUEST_URL,
     audience="//iam.googleapis.com/projects/123456/locations/global/workloadIdentityPools/pool/providers/github"
 )
 
@@ -367,13 +367,13 @@ Get pre-authenticated gcloud SDK container using any OIDC token. This is the CI-
 ```python
 # Get OIDC token from your CI provider (GitHub, GitLab, CircleCI, etc.)
 token = dag.oidc_token().github_token(
-    request_token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN,
-    request_url=env:ACTIONS_ID_TOKEN_REQUEST_URL,
+    request_token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN,
+    request_url=env://ACTIONS_ID_TOKEN_REQUEST_URL,
     audience="//iam.googleapis.com/projects/123456/locations/global/workloadIdentityPools/pool/providers/github"
 )
 
 # Or for GitLab:
-# token = dag.oidc_token().gitlab_token(ci_job_jwt=env:CI_JOB_JWT_V2)
+# token = dag.oidc_token().gitlab_token(ci_job_jwt=env://CI_JOB_JWT_V2)
 
 # Get authenticated gcloud container
 gcloud = dag.gcp_auth().gcloud_container_from_oidc_token(
@@ -403,8 +403,8 @@ Get pre-authenticated gcloud SDK container using GitHub Actions OIDC. This is a 
 gcloud = dag.gcp_auth().gcloud_container_from_github_actions(
     workload_identity_provider="projects/123456/locations/global/workloadIdentityPools/pool/providers/github",
     project_id="my-project",
-    oidc_request_token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN,
-    oidc_request_url=env:ACTIONS_ID_TOKEN_REQUEST_URL,
+    oidc_request_token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN,
+    oidc_request_url=env://ACTIONS_ID_TOKEN_REQUEST_URL,
     service_account_email="sa@project.iam.gserviceaccount.com",  # Optional
     region="us-central1"                                          # Optional
 )
@@ -427,7 +427,7 @@ Get pre-authenticated gcloud SDK container.
 
 ```python
 gcloud = dag.gcp_auth().gcloud_container(
-    credentials=env:GOOGLE_CREDENTIALS,
+    credentials=env://GOOGLE_CREDENTIALS,
     project_id="my-project",
     region="us-central1",                     # Optional
     image="google/cloud-sdk:alpine",          # Optional
@@ -503,7 +503,7 @@ Validate credentials before use.
 
 ```python
 email = await dag.gcp_auth().verify_credentials(
-    credentials=env:GOOGLE_CREDENTIALS
+    credentials=env://GOOGLE_CREDENTIALS
 )
 print(f"Authenticated as: {email}")
 ```
@@ -519,7 +519,7 @@ Extract project ID from credentials.
 
 ```python
 project_id = await dag.gcp_auth().get_project_id(
-    credentials=env:GOOGLE_CREDENTIALS
+    credentials=env://GOOGLE_CREDENTIALS
 )
 ```
 
@@ -535,7 +535,7 @@ Configure Docker authentication for Artifact Registry.
 ```python
 docker_container = dag.gcp_auth().configure_docker_auth(
     container=dag.container().from_("docker:latest"),
-    credentials=env:GOOGLE_CREDENTIALS,
+    credentials=env://GOOGLE_CREDENTIALS,
     registries=["us-central1-docker.pkg.dev"]  # Optional
 )
 ```
@@ -554,8 +554,8 @@ Get a GCP access token from an OIDC token. Returns an access token for APIs that
 ```python
 # Get OIDC token from your CI provider
 token = dag.oidc_token().github_token(
-    request_token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN,
-    request_url=env:ACTIONS_ID_TOKEN_REQUEST_URL,
+    request_token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN,
+    request_url=env://ACTIONS_ID_TOKEN_REQUEST_URL,
     audience="//iam.googleapis.com/projects/123456/locations/global/workloadIdentityPools/pool/providers/github"
 )
 
@@ -570,7 +570,7 @@ access_token = dag.gcp_auth().access_token_from_oidc_token(
 # Use with Firebase CLI or any API that accepts Bearer tokens
 container = (
     dag.container()
-    .from_("node:20")
+    .from_("node:22")
     .with_secret_variable("FIREBASE_TOKEN", access_token)
     .with_exec(["npx", "firebase", "deploy", "--token", "$FIREBASE_TOKEN"])
 )
@@ -596,8 +596,8 @@ Convenience wrapper to get a GCP access token from GitHub Actions OIDC.
 access_token = dag.gcp_auth().access_token_from_github_actions(
     workload_identity_provider="projects/123456/locations/global/workloadIdentityPools/pool/providers/github",
     project_id="my-project",
-    oidc_request_token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN,
-    oidc_request_url=env:ACTIONS_ID_TOKEN_REQUEST_URL,
+    oidc_request_token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN,
+    oidc_request_url=env://ACTIONS_ID_TOKEN_REQUEST_URL,
     service_account_email="sa@project.iam.gserviceaccount.com"  # Optional
 )
 ```
@@ -617,13 +617,13 @@ This module includes runnable examples in Python, Go, and TypeScript. See the `e
 
 ```bash
 # Python examples
-cd examples/python && dagger functions
+dagger api functions -m ./examples/python
 
 # Go examples
-cd examples/go && dagger functions
+dagger api functions -m ./examples/go
 
 # TypeScript examples
-cd examples/typescript && dagger functions
+dagger api functions -m ./examples/typescript
 ```
 
 Each examples module demonstrates:
@@ -647,13 +647,13 @@ class MyPipeline:
     async def deploy(self):
         # Verify credentials first
         email = await dag.gcp_auth().verify_credentials(
-            credentials=env:GOOGLE_CREDENTIALS
+            credentials=env://GOOGLE_CREDENTIALS
         )
         print(f"✓ Authenticated as: {email}")
 
         # Get authenticated container
         gcloud = dag.gcp_auth().gcloud_container(
-            credentials=env:GOOGLE_CREDENTIALS,
+            credentials=env://GOOGLE_CREDENTIALS,
             project_id="my-project"
         )
 
@@ -668,9 +668,21 @@ This example demonstrates a complete CI/CD workflow using multiple daggerverse m
 **Install the modules:**
 
 ```bash
-dagger install github.com/telchak/daggerverse/gcp-auth
-dagger install github.com/telchak/daggerverse/gcp-artifact-registry
-dagger install github.com/telchak/daggerverse/gcp-cloud-run
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/gcp-auth@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/gcp-auth@<version> --sdk=python
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/gcp-artifact-registry@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/gcp-artifact-registry@<version> --sdk=python
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/gcp-cloud-run@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/gcp-cloud-run@<version> --sdk=python
 ```
 
 **Pipeline code:**
@@ -756,13 +768,13 @@ jobs:
 
       - name: Deploy with Dagger
         run: |
-          dagger call deploy-cloud-run-oidc \
+          dagger api call gcp-auth deploy-cloud-run-oidc \
             --source=. \
             --service-name=my-service \
             --project-id=my-project \
             --workload-identity-provider="projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider" \
-            --oidc-request-token=env:ACTIONS_ID_TOKEN_REQUEST_TOKEN \
-            --oidc-request-url=env:ACTIONS_ID_TOKEN_REQUEST_URL \
+            --oidc-request-token=env://ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+            --oidc-request-url=env://ACTIONS_ID_TOKEN_REQUEST_URL \
             --service-account-email="deployer@my-project.iam.gserviceaccount.com" \
             --region=us-central1 \
             --repository=my-repo
@@ -846,7 +858,7 @@ async def deploy_to_gke(
 ):
     # Get gcloud with kubectl
     gcloud = dag.gcp_auth().gcloud_container(
-        credentials=env:GOOGLE_CREDENTIALS,
+        credentials=env://GOOGLE_CREDENTIALS,
         project_id="my-project",
         region="us-central1",
         components=["kubectl", "gke-gcloud-auth-plugin"]
@@ -879,7 +891,7 @@ async def build_and_push(
     # Configure Docker auth
     docker = dag.gcp_auth().configure_docker_auth(
         container=dag.container().from_("docker:latest"),
-        credentials=env:GOOGLE_CREDENTIALS
+        credentials=env://GOOGLE_CREDENTIALS
     )
 
     # Push to Artifact Registry
@@ -1013,7 +1025,7 @@ gcloud projects add-iam-policy-binding PROJECT \
 ```python
 # Explicitly provide project_id
 gcloud = dag.gcp_auth().gcloud_container(
-    credentials=env:GOOGLE_CREDENTIALS,
+    credentials=env://GOOGLE_CREDENTIALS,
     project_id="my-explicit-project-id"  # Don't rely on credentials
 )
 ```

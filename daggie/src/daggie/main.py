@@ -3,16 +3,22 @@
 from typing import Annotated
 
 import dagger
-from dagger import DefaultPath, Doc, dag, field, function, object_type
+from dagger import DefaultPath, Doc, agent, dag, field, function, object_type
 
-from agent_base import constants, github_tools, llm_helpers, routing, workspace
+from agent_base import constants, github_tools, llm_helpers, mcp_stdio, routing, workspace
+from agent_base.mcp_stdio import McpServer
 
 _DAGGER_CONFIG_FILE = "DAGGER.md"
 _DAGGER_ACTION_FALLBACK_VERSION = "v8.4.1"
 
+# Module manifests: dagger-module.toml since Dagger 1.0, dagger.json before it
+_MODULE_MANIFESTS = ("dagger-module.toml", "dagger.json")
+
 # File patterns to read from cloned Dagger modules
 _MODULE_SOURCE_GLOBS = [
-    "dagger.json",
+    *_MODULE_MANIFESTS,
+    "*.dang",
+    "src/*/__init__.py",
     "src/**/main.py",
     "src/**/main.ts",
     "main.go",
@@ -40,6 +46,15 @@ def _parse_module_url(url: str) -> tuple[str, str, str]:
     return repo_url, branch, path
 
 
+def _reference_tree(repo_url: str, branch: str) -> dagger.Directory:
+    """A reference repository at the live head of a branch.
+
+    `no_lock` keeps these reads out of the caller's dagger.lock: a reference
+    module is read to learn from, not pinned as a dependency.
+    """
+    return dag.git(repo_url).branch(branch, no_lock=True).tree()
+
+
 async def _fetch_repo_tags(repo_url: str) -> list[str]:
     """Fetch all Git tags from a remote repository via git ls-remote."""
     try:
@@ -58,6 +73,22 @@ async def _fetch_repo_tags(repo_url: str) -> list[str]:
         return sorted(tags)
     except Exception:
         return []
+
+
+async def _module_dirs(tree: dagger.Directory) -> list[str]:
+    """Directories of a repository that hold a module manifest, in path order.
+
+    A 1.0 module commits its vendored SDK and generated clients, so manifests
+    under ``sdk/`` and ``clients/`` belong to generated code, not to modules.
+    """
+    dirs: set[str] = set()
+    for manifest in _MODULE_MANIFESTS:
+        for path in await tree.glob(f"**/{manifest}"):
+            parts = path.split("/")[:-1]
+            if "sdk" in parts or "clients" in parts:
+                continue
+            dirs.add("/".join(parts))
+    return sorted(dirs)
 
 
 async def _read_module_tree(tree: dagger.Directory) -> str:
@@ -87,11 +118,13 @@ class Daggie:
     and pipelines across all SDKs (Python, TypeScript, Go, Java).
 
     Accepts Git URLs of Dagger module repositories at runtime, clones them via
-    dag.git(), and auto-discovers all modules within (by finding dagger.json files).
+    dag.git(), and auto-discovers all modules within (by finding dagger-module.toml
+    or, for Dagger 0.x modules, dagger.json files).
     You can also point to a specific module with the url#branch:path format.
 
     Pass your project as --source and optionally reference Dagger modules via
-    --module-urls for the agent to learn from.
+    --module-urls for the agent to learn from, or install the module and run
+    `dagger agent` to work with Daggie interactively.
     """
 
     source: Annotated[
@@ -110,12 +143,6 @@ class Daggie:
         Doc("Self-improvement mode: 'off' (default), 'write' (update context file), 'commit' (update + git commit)"),
     ] = field(default="off")
 
-    # Private fields set during suggest_github_fix execution
-    _github_token: dagger.Secret | None = field(default=None, init=False)
-    _pr_repo: str = field(default="", init=False)
-    _pr_number: int = field(default=0, init=False)
-    _pr_commit_sha: str = field(default="", init=False)
-
     # --- Agent-specific configuration ---
 
     _CONTEXT_FILES = ("DAGGIE.md", _DAGGER_CONFIG_FILE, "AGENT.md", "CLAUDE.md")
@@ -124,6 +151,8 @@ class Daggie:
         "explain": {},
         "debug": {"error_output"},
     }
+    # Exposed fields are tools too in Dagger 1.0; hide them from the LLM
+    _FIELDS = ["source", "module_urls", "self_improve"]
     # Agent-specific entrypoints to block (in addition to shared BLOCKED_ENTRYPOINTS)
     # NOTE: Only block functions that exist on Daggie. Blocking non-existent
     # functions (write_tests, build, upgrade) makes the LLM aware of them and
@@ -141,23 +170,41 @@ class Daggie:
         "review": False,
     }
 
-    def _mcp_servers(self, task: str = "assist") -> dict[str, dagger.Service]:
+    def _dagger_mcp(self) -> McpServer:
+        return McpServer(
+            name="dagger",
+            container=dag.dagger_mcp().container(),
+            command=["python", "main.py"],
+            # Queries read the live engine; the server calls it through Dagger-in-Dagger
+            live=True,
+            dagger_access=True,
+        )
+
+    def _mcp_servers(self, task: str = "assist") -> list[McpServer]:
         if not self._TASK_MCP_TOOLS.get(task, False):
-            return {}
-        return {"dagger": dag.dagger_mcp().server()}
+            return []
+        return [self._dagger_mcp()]
+
+    def _mcp_server(self, name: str) -> McpServer:
+        if name != "dagger":
+            raise ValueError(f"unknown MCP server {name!r}; the server is 'dagger'")
+        return self._dagger_mcp()
 
     def _load_prompt(self, filename: str) -> dagger.File:
         return dag.current_module().source().file(f"src/daggie/prompts/{filename}")
+
+    def _blocked(self, *extra: str) -> list[str]:
+        return [*self._BLOCKED_ENTRYPOINTS, *self._BLOCKED_EXTRA, *self._FIELDS, *extra]
 
     async def _load_module_sources(self) -> str:
         """Clone and read all referenced Dagger modules.
 
         When a URL points to a repository root (no path), auto-discovers
-        all Dagger modules by finding dagger.json files in the tree.
+        all Dagger modules by finding their manifests in the tree.
         When a URL includes a path, reads only that specific module.
 
         Also fetches Git tags from each repository so the agent knows
-        available versions for toolchain/dependency pinning.
+        available versions for module and dependency pinning.
         """
         if not self.module_urls:
             return ""
@@ -166,7 +213,7 @@ class Daggie:
         for url in self.module_urls:
             try:
                 repo_url, branch, path = _parse_module_url(url)
-                tree = dag.git(repo_url).branch(branch).tree()
+                tree = _reference_tree(repo_url, branch)
 
                 # Fetch available version tags from the repository
                 tags = await _fetch_repo_tags(repo_url)
@@ -182,12 +229,11 @@ class Daggie:
                         sections.append(f"## Reference Module: {url} ({path})\n\n{module_docs}{tags_section}")
                 else:
                     # No path — auto-discover all modules in the repo
-                    dagger_jsons = await tree.glob("**/dagger.json")
+                    module_dirs = await _module_dirs(tree)
                     # Add tags once at the repo level, before individual modules
                     if tags_section:
                         sections.append(f"## Repository: {repo_url}{tags_section}")
-                    for dj_path in dagger_jsons:
-                        module_dir = "/".join(dj_path.split("/")[:-1]) if "/" in dj_path else ""
+                    for module_dir in module_dirs:
                         module_tree = tree.directory(module_dir) if module_dir else tree
                         module_docs = await _read_module_tree(module_tree)
                         if module_docs:
@@ -215,34 +261,15 @@ class Daggie:
 
         return "\n\n---\n\n# Pre-loaded Module References\n\n" + "\n\n---\n\n".join(sections)
 
-    async def _build_llm(self, env, prompt_file, source=None, task: str = "assist", extra_blocked=None):
-        # Load module sources and inject as context
-        module_context = await self._load_module_sources()
-        context_md = await llm_helpers.read_context_file(
-            source or self.source, self._CONTEXT_FILES,
+    async def _build_llm(self, prompt_file, source, task: str = "assist", inputs=None, extra_blocked=()):
+        return await llm_helpers.build_llm(
+            source, "system_prompt.md", prompt_file, self._load_prompt,
+            self._CONTEXT_FILES, self._mcp_servers(task), self._blocked(*extra_blocked),
+            inputs=inputs, self_improve=self.self_improve,
             extra_read_files=(_DAGGER_CONFIG_FILE,),
+            extra_context=await self._load_module_sources(),
+            retry_note=getattr(self, "_retry_note", ""),
         )
-        system_prompt = await self._load_prompt("system_prompt.md").contents()
-
-        if self.self_improve != "off":
-            agent_file = self._CONTEXT_FILES[0]
-            system_prompt += llm_helpers._SELF_IMPROVE_PROMPT.format(agent_file=agent_file)
-
-        full_system = system_prompt + context_md + module_context
-
-        llm = (
-            dag.llm()
-            .with_env(env.with_current_module())
-            .with_system_prompt(full_system)
-        )
-
-        for name, service in self._mcp_servers(task).items():
-            llm = llm.with_mcp_server(name, service)
-
-        for fn in self._BLOCKED_ENTRYPOINTS + self._BLOCKED_EXTRA + (extra_blocked or []):
-            llm = llm.with_blocked_function(self._CLASS_NAME, fn)
-
-        return llm.with_prompt_file(self._load_prompt(prompt_file))
 
     async def _post_process_workspace(self, workspace: dagger.Directory) -> dagger.Directory:
         if self.self_improve == "commit":
@@ -251,26 +278,13 @@ class Daggie:
             )
         return workspace
 
-    async def _build_suggest_fix_llm(self, env, source=None):
-        module_context = await self._load_module_sources()
-        context_md = await llm_helpers.read_context_file(
-            source or self.source, self._CONTEXT_FILES,
+    async def _build_suggest_fix_llm(self, source, inputs):
+        return await llm_helpers.build_suggest_fix_llm(
+            source, self._load_prompt, self._CONTEXT_FILES,
+            self._blocked("task", *constants.BLOCKED_DESTRUCTIVE), inputs,
             extra_read_files=(_DAGGER_CONFIG_FILE,),
+            extra_context=await self._load_module_sources(),
         )
-        system_prompt = await self._load_prompt("system_prompt.md").contents()
-        full_system = system_prompt + context_md + module_context
-
-        llm = (
-            dag.llm()
-            .with_env(env.with_current_module())
-            .with_system_prompt(full_system)
-        )
-
-        for fn in self._BLOCKED_ENTRYPOINTS + self._BLOCKED_EXTRA + ["task"] + constants.BLOCKED_DESTRUCTIVE:
-            if fn != "suggest_github_pr_code_comment":
-                llm = llm.with_blocked_function(self._CLASS_NAME, fn)
-
-        return llm.with_prompt_file(self._load_prompt("suggest_fix_prompt.md"))
 
     # --- Agent entrypoints ---
 
@@ -295,14 +309,11 @@ class Daggie:
             msg = "Provide either --assignment or --assignment-file"
             raise ValueError(msg)
 
-        ws = source or self.source
-        env = (
-            dag.env()
-            .with_workspace(ws)
-            .with_string_input("assignment", assignment, "The coding task to accomplish")
+        llm = await self._build_llm(
+            "assist_prompt.md", source or self.source, task="assist",
+            inputs={"assignment": assignment},
         )
-        result = (await self._build_llm(env, "assist_prompt.md", ws, task="assist")).env().workspace()
-        return await self._post_process_workspace(result)
+        return await self._post_process_workspace(llm_helpers.edited_directory(llm))
 
     @function
     async def explain(
@@ -315,20 +326,17 @@ class Daggie:
         Reads reference modules and source code to provide clear explanations
         with code examples. Returns the explanation as text.
         """
-        ws = source or self.source
-        env = (
-            dag.env()
-            .with_workspace(ws)
-            .with_string_input("question", question, "The question to answer")
-            .with_string_output("result", "The explanation")
+        llm = await self._build_llm(
+            "explain_prompt.md", source or self.source, task="explain",
+            inputs={"question": question},
+            extra_blocked=constants.BLOCKED_DESTRUCTIVE,
         )
-        work = await self._build_llm(env, "explain_prompt.md", ws, task="explain")
-        return await llm_helpers.get_result_or_last_reply(work)
+        return await llm_helpers.reply(llm)
 
     @function
     async def debug(
         self,
-        error_output: Annotated[str, Doc("Pipeline error output (stderr/stdout from dagger call)")],
+        error_output: Annotated[str, Doc("Pipeline error output (stderr/stdout from dagger api call)")],
         source: Annotated[dagger.Directory | None, Doc("Source directory with the broken module (optional)")] = None,
     ) -> dagger.Directory:
         """Diagnose and fix Dagger pipeline errors.
@@ -336,19 +344,11 @@ class Daggie:
         Analyzes error output, reads relevant source files, identifies the
         root cause, and applies fixes. Returns the modified workspace directory.
         """
-        ws = source or self.source
-        # Truncate error output (keep tail — most relevant)
-        max_error_chars = 8000
-        if len(error_output) > max_error_chars:
-            error_output = "...(truncated)\n" + error_output[-max_error_chars:]
-
-        env = (
-            dag.env()
-            .with_workspace(ws)
-            .with_string_input("error_output", error_output, "The pipeline error output to diagnose")
+        llm = await self._build_llm(
+            "debug_prompt.md", source or self.source, task="debug",
+            inputs={"error_output": github_tools.truncate_error_output(error_output)},
         )
-        result = (await self._build_llm(env, "debug_prompt.md", ws, task="debug")).env().workspace()
-        return await self._post_process_workspace(result)
+        return await self._post_process_workspace(llm_helpers.edited_directory(llm))
 
     @function
     async def review(
@@ -360,20 +360,24 @@ class Daggie:
         """Review Dagger module code for quality, best practices, and correctness.
 
         Checks function signatures, caching strategies, error handling,
-        SDK patterns, and dagger.json configuration. Returns structured feedback.
+        SDK patterns, and module and workspace configuration. Returns structured feedback.
         """
-        ws = source or self.source
-        env = (
-            dag.env()
-            .with_workspace(ws)
-            .with_string_output("result", "The code review result")
+        llm = await self._build_llm(
+            "review_prompt.md", source or self.source, task="review",
+            inputs={"diff": diff, "focus": focus},
+            extra_blocked=constants.BLOCKED_DESTRUCTIVE,
         )
-        if diff:
-            env = env.with_string_input("diff", diff, "Git diff or PR diff to review")
-        if focus:
-            env = env.with_string_input("focus", focus, "Specific area to focus the review on")
-        work = await self._build_llm(env, "review_prompt.md", ws, task="review")
-        return await llm_helpers.get_result_or_last_reply(work)
+        return await llm_helpers.reply(llm)
+
+    @function
+    @agent
+    async def agent(self, base: dagger.LLM, ws: dagger.Workspace) -> dagger.LLM:
+        """Daggie for `dagger agent`: Dagger know-how and tools on the session's workspace."""
+        return await llm_helpers.build_agent(
+            base, ws, self._load_prompt, self._CONTEXT_FILES,
+            self._mcp_servers("assist"), self._blocked(),
+            extra_read_files=(_DAGGER_CONFIG_FILE,),
+        )
 
     # --- Domain tool ---
 
@@ -384,12 +388,13 @@ class Daggie:
     ) -> str:
         """Read a Dagger module from a Git repository.
 
-        Clones the repo, reads dagger.json and main source files,
-        and returns formatted module documentation. Use this to learn
-        from existing Dagger modules when implementing new ones.
+        Clones the repo, reads the module manifest (dagger-module.toml or
+        dagger.json) and main source files, and returns formatted module
+        documentation. Use this to learn from existing Dagger modules when
+        implementing new ones.
         """
         repo_url, branch, path = _parse_module_url(url)
-        tree = dag.git(repo_url).branch(branch).tree()
+        tree = _reference_tree(repo_url, branch)
         if path:
             tree = tree.directory(path)
 
@@ -416,30 +421,9 @@ class Daggie:
         Reads the error output, explores source files, and posts GitHub
         "suggested changes" that developers can apply with one click.
         """
-        ws = source or self.source
-        if source:
-            self.source = source
         return await github_tools.suggest_github_fix_impl(
             self._build_suggest_fix_llm, github_token, pr_number, repo,
-            commit_sha, error_output, self, ws,
-        )
-
-    @function
-    async def suggest_github_pr_code_comment(
-        self,
-        path: Annotated[str, Doc("File path relative to repo root")],
-        line: Annotated[int, Doc("Line number to suggest a change on")],
-        suggestion: Annotated[str, Doc("Replacement code (no ```suggestion fences, just the raw code)")],
-        comment: Annotated[str, Doc("Explanation of the fix")] = "",
-    ) -> str:
-        """Post an inline code suggestion on a GitHub pull request.
-
-        The suggestion will appear as a GitHub "suggested change" that
-        developers can apply with one click.
-        """
-        return await github_tools.suggest_github_pr_code_comment_impl(
-            self._github_token, self._pr_repo, self._pr_number,
-            self._pr_commit_sha, path, line, suggestion, comment,
+            commit_sha, error_output, source or self.source,
         )
 
     @function
@@ -476,56 +460,55 @@ class Daggie:
     @function
     async def read_file(
         self,
+        ws: dagger.Workspace,
         file_path: Annotated[str, Doc("Path to the file relative to the workspace root")],
         offset: Annotated[int, Doc("Line number to start reading from (1-based)")] = 0,
         limit: Annotated[int, Doc("Maximum number of lines to read")] = 0,
     ) -> str:
         """Read a file from the workspace with line numbers."""
-        return await workspace.read_file_impl(self.source, file_path, offset, limit)
+        return await workspace.read_file_impl(ws, file_path, offset, limit)
 
     @function
     async def edit_file(
         self,
+        ws: dagger.Workspace,
         file_path: Annotated[str, Doc("Path to the file relative to the workspace root")],
         old_string: Annotated[str, Doc("The exact string to find and replace")],
         new_string: Annotated[str, Doc("The replacement string")],
         replace_all: Annotated[bool, Doc("Replace all occurrences (default: first only)")] = False,
-    ) -> dagger.Changeset:
+    ) -> dagger.Workspace:
         """Edit a file by replacing a string. The old_string must match exactly.
 
-        Returns a changeset showing the diff.
+        Returns the edited workspace.
         """
-        self.source, changeset = await workspace.edit_file_impl(
-            self.source, file_path, old_string, new_string, replace_all,
-        )
-        return changeset
+        return await workspace.edit_file_impl(ws, file_path, old_string, new_string, replace_all)
 
     @function
-    async def write_file(
+    def write_file(
         self,
+        ws: dagger.Workspace,
         file_path: Annotated[str, Doc("Path to the file relative to the workspace root")],
         contents: Annotated[str, Doc("The full file contents to write")],
-    ) -> dagger.Changeset:
+    ) -> dagger.Workspace:
         """Create or overwrite a file in the workspace.
 
-        Returns a changeset showing the diff.
+        Returns the edited workspace.
         """
-        self.source, changeset = workspace.write_file_impl(
-            self.source, file_path, contents,
-        )
-        return changeset
+        return workspace.write_file_impl(ws, file_path, contents)
 
     @function
     async def glob(
         self,
-        pattern: Annotated[str, Doc("Glob pattern (e.g. 'src/**/*.py', '**/*.go', '**/dagger.json')")],
+        ws: dagger.Workspace,
+        pattern: Annotated[str, Doc("Glob pattern (e.g. 'src/**/*.py', '**/*.go', '**/dagger-module.toml')")],
     ) -> str:
         """Find files in the workspace matching a glob pattern."""
-        return await workspace.glob_impl(self.source, pattern)
+        return await workspace.glob_impl(ws, pattern)
 
     @function
     async def grep(
         self,
+        ws: dagger.Workspace,
         pattern: Annotated[str, Doc("Search pattern (regex supported)")],
         paths: Annotated[str, Doc("Comma-separated paths to search in (optional)")] = "",
         file_glob: Annotated[str, Doc("Glob pattern to filter files (e.g. '*.py')")] = "",
@@ -533,13 +516,24 @@ class Daggie:
         limit: Annotated[int, Doc("Maximum number of matching lines to return")] = 100,
     ) -> str:
         """Search file contents in the workspace using grep."""
-        return await workspace.grep_impl(self.source, pattern, paths, file_glob, insensitive, limit)
+        return await workspace.grep_impl(ws, pattern, paths, file_glob, insensitive, limit)
+
+    @function
+    async def mcp(
+        self,
+        server: Annotated[str, Doc("MCP server name, as listed in the system prompt (e.g. 'dagger')")],
+        tool: Annotated[str, Doc("Name of the server's tool to call (e.g. 'learn_schema')")],
+        arguments: Annotated[str, Doc("The tool's arguments, as a JSON object")] = "{}",
+    ) -> str:
+        """Call a tool of one of the MCP servers listed in the system prompt."""
+        return await mcp_stdio.call(self._mcp_server(server), tool, arguments)
 
     # --- Task sub-agent ---
 
     @function
     async def task(
         self,
+        ws: dagger.Workspace,
         description: Annotated[str, Doc("Short description of the sub-task")],
         prompt: Annotated[str, Doc("Detailed prompt for the sub-agent")],
     ) -> str:
@@ -549,10 +543,9 @@ class Daggie:
         Use this for research, analysis, or exploring documentation.
         """
         llm = await llm_helpers.build_task_llm(
-            self.source, self._load_prompt, self._CONTEXT_FILES,
-            self._mcp_servers(task="review"), self._CLASS_NAME,
-            self._BLOCKED_ENTRYPOINTS + self._BLOCKED_EXTRA,
-            constants.BLOCKED_DESTRUCTIVE,
+            ws, self._load_prompt, self._CONTEXT_FILES,
+            self._mcp_servers(task="review"),
+            self._blocked("task", *constants.BLOCKED_DESTRUCTIVE),
             description, prompt,
         )
-        return await llm_helpers.get_result_or_last_reply(llm)
+        return await llm_helpers.reply(llm)

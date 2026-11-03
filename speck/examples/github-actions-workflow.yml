@@ -47,7 +47,7 @@ jobs:
             decompose \
             --issue-id=${{ github.event.issue.number }} \
             --repository="https://github.com/${{ github.repository }}" \
-            --github-token=env:GITHUB_TOKEN \
+            --github-token=env://GITHUB_TOKEN \
             --create-pr \
             --include-tests \
             --include-review \

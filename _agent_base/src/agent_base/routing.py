@@ -4,25 +4,53 @@ import json
 import re
 
 import dagger
-from dagger import dag
+
+# Appended to the task prompt when the first attempt changed no file. A retry
+# must differ from the first attempt: Dagger caches an identical LLM chain and
+# would hand back the same, unchanged workspace.
+RETRY_NOTE = (
+    "## Previous attempt\n\n"
+    "A previous attempt at this task finished without changing any file. "
+    "Make the changes in the workspace with `editFile` or `writeFile`; "
+    "describing them in your reply is not enough."
+)
+
+_FENCED_JSON = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
 
 
-def parse_router_response(params_json: str | None) -> tuple[dict, str | None]:
-    """Parse JSON from router LLM output with fallback for malformed responses.
+def extract_json_object(text: str | None) -> dict | None:
+    """Parse the JSON object an LLM was asked to reply with.
 
-    Returns (params_dict, fallback_function_name). fallback_function_name is
-    "assist" if parsing failed entirely, None if parsing succeeded.
+    Accepts a bare object, one inside a ``` fence, or one surrounded by prose.
+    Returns None when no object can be parsed.
     """
-    try:
-        return json.loads(params_json), None
-    except (json.JSONDecodeError, TypeError):
-        match = re.search(r"\{[^}]*\}", params_json or "")
-        if match:
-            try:
-                return json.loads(match.group()), None
-            except json.JSONDecodeError:
-                return {}, "assist"
-        return {}, "assist"
+    if not text:
+        return None
+    candidates = [text.strip(), *_FENCED_JSON.findall(text)]
+    start, end = text.find("{"), text.rfind("}")
+    if 0 <= start < end:
+        candidates.append(text[start:end + 1])
+    for candidate in candidates:
+        try:
+            value = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
+
+
+def parse_router_reply(reply: str | None, default: str = "assist") -> tuple[str, dict]:
+    """Read the router's `{"function_name": ..., "params": {...}}` reply.
+
+    Falls back to (`default`, {}) when the reply holds no usable object.
+    """
+    data = extract_json_object(reply)
+    if data is None:
+        return default, {}
+    function_name = str(data.get("function_name") or "").strip().lower() or default
+    params = data.get("params")
+    return function_name, params if isinstance(params, dict) else {}
 
 
 async def _workspace_has_changes(original: dagger.Directory, result: dagger.Directory) -> bool:
@@ -60,9 +88,14 @@ async def execute_routed_function(
         result = await _call_function(agent_ref, function_name, params, body, workspace)
 
         # If the workspace wasn't modified, retry once — LLMs sometimes
-        # produce text instead of calling write_file on the first attempt.
+        # produce text instead of calling writeFile on the first attempt.
+        # The agent's _build_llm appends this note to the task prompt.
         if workspace and not await _workspace_has_changes(workspace, result):
-            result = await _call_function(agent_ref, function_name, params, body, workspace)
+            agent_ref._retry_note = RETRY_NOTE
+            try:
+                result = await _call_function(agent_ref, function_name, params, body, workspace)
+            finally:
+                agent_ref._retry_note = ""
 
         return result
     except Exception as exc:

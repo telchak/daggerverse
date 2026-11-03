@@ -23,28 +23,47 @@
 
 ```
 my-module/
-  dagger.json         # {"name": "my-module", "sdk": {"source": "typescript"}, "engineVersion": "v0.19.11"}
+  dagger-module.toml   # name, engineVersion, [runtime] source = "typescript"
   package.json
-  tsconfig.json
-  dagger/src/
+  tsconfig.json        # maps @dagger.io/dagger to the generated sdk/
+  sdk/                 # generated typed client — committed
+  src/
     index.ts           # Main module class
 ```
+
+The workspace's `dagger.toml` registers the module as a TypeScript SDK scope.
+Run `dagger generate -y` after API or dependency changes and commit the
+result. A Dagger 0.x module uses `dagger.json` instead; Dagger 1.0 still loads it.
 
 ## Key Patterns
 
 ```typescript
-import { dag, object, func, Directory, Container } from "@dagger.io/dagger"
+import { dag, object, func, check, Container, Directory, Workspace } from "@dagger.io/dagger"
 
 @object()
 class MyModule {
+  source: Directory
+
+  // ws is auto-populated from the current workspace
+  constructor(ws: Workspace) {
+    this.source = ws.directory("/")
+  }
+
   @func()
-  async build(source: Directory, target: string = "release"): Promise<Container> {
+  build(target: string = "release"): Container {
     return dag
       .container()
       .from("node:22-slim")
-      .withDirectory("/app", source)
+      .withDirectory("/app", this.source)
       .withWorkdir("/app")
       .withExec(["npm", "install"])
+  }
+
+  // A check takes no required arguments and returns nothing
+  @check()
+  @func()
+  async test(): Promise<void> {
+    await this.build().withExec(["npm", "test"]).sync()
   }
 }
 ```

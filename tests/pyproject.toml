@@ -2,11 +2,35 @@
 name = "tests"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["dagger-io"]
+dependencies = ["dagger-io", "dagger-clients-core", "dagger-clients-angular", "dagger-clients-angie", "dagger-clients-monty", "dagger-clients-python-build", "dagger-clients-calver", "dagger-clients-gcp-artifact-registry", "dagger-clients-gcp-auth", "dagger-clients-gcp-cloud-run", "dagger-clients-goose", "dagger-clients-gcp-firebase", "dagger-clients-gcp-vertex-ai", "dagger-clients-health-check", "dagger-clients-oidc-token", "dagger-clients-semver", "dagger-clients-dagger-mcp", "dagger-clients-daggie", "dagger-clients-speck"]
 
 [build-system]
 requires = ["uv_build>=0.8.4,<0.9.0"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
-dagger-io = { path = "sdk", editable = true }
+dagger-io = { workspace = true }
+dagger-clients-core = { workspace = true }
+dagger-clients-angular = { workspace = true }
+dagger-clients-angie = { workspace = true }
+dagger-clients-monty = { workspace = true }
+dagger-clients-python-build = { workspace = true }
+dagger-clients-calver = { workspace = true }
+dagger-clients-gcp-artifact-registry = { workspace = true }
+dagger-clients-gcp-auth = { workspace = true }
+dagger-clients-gcp-cloud-run = { workspace = true }
+dagger-clients-goose = { workspace = true }
+dagger-clients-gcp-firebase = { workspace = true }
+dagger-clients-gcp-vertex-ai = { workspace = true }
+dagger-clients-health-check = { workspace = true }
+dagger-clients-oidc-token = { workspace = true }
+dagger-clients-semver = { workspace = true }
+dagger-clients-dagger-mcp = { workspace = true }
+dagger-clients-daggie = { workspace = true }
+dagger-clients-speck = { workspace = true }
+
+[tool.uv.workspace]
+members = ["sdk", "clients/core", "clients/angular", "clients/angie", "clients/monty", "clients/python-build", "clients/calver", "clients/gcp-artifact-registry", "clients/gcp-auth", "clients/gcp-cloud-run", "clients/goose", "clients/gcp-firebase", "clients/gcp-vertex-ai", "clients/health-check", "clients/oidc-token", "clients/semver", "clients/dagger-mcp", "clients/daggie", "clients/speck"]
+
+[tool.dagger]
+global-client = true

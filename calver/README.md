@@ -14,7 +14,11 @@ Calendar Versioning (CalVer) utilities for Dagger pipelines.
 ## Installation
 
 ```bash
-dagger install github.com/telchak/daggerverse/calver
+# Install into your workspace (dagger.toml)
+dagger module install github.com/telchak/daggerverse/calver@<version>
+
+# Or add it as a dependency of your own module, from the module's directory
+dagger module client add github.com/telchak/daggerverse/calver@<version> --sdk=python
 ```
 
 ## Quick Start
@@ -23,27 +27,27 @@ dagger install github.com/telchak/daggerverse/calver
 
 ```bash
 # Generate current date version (YYYY.MM.DD)
-dagger -m calver call generate
+dagger api call calver generate
 # Output: 2025.11.15
 
 # Zero-padded format
-dagger -m calver call generate --format="YYYY.0M.0D"
+dagger api call calver generate --format="YYYY.0M.0D"
 # Output: 2025.11.15
 
 # With micro version
-dagger -m calver call generate --format="YYYY.MM.DD" --micro=1
+dagger api call calver generate --format="YYYY.MM.DD" --micro=1
 # Output: 2025.11.15.1
 
 # Monthly versioning with auto-incrementing MICRO
-dagger -m calver call generate --format="YYYY.MM.MICRO" --micro=5
+dagger api call calver generate --format="YYYY.MM.MICRO" --micro=5
 # Output: 2025.11.5
 
 # Auto-increment from git history (include prefix in format)
-dagger -m calver call generate --source=. --format="v.YYYY.MM.MICRO"
+dagger api call calver generate --source=. --format="v.YYYY.MM.MICRO"
 # Output: v.2025.11.3 (if v.2025.11.0, v.2025.11.1, v.2025.11.2 exist)
 
 # Short year format
-dagger -m calver call generate --format="YY.0M"
+dagger api call calver generate --format="YY.0M"
 # Output: 25.11
 ```
 
@@ -67,15 +71,15 @@ dagger -m calver call generate --format="YY.0M"
 
 ```bash
 # 1. Simple date-based version
-dagger call generate --format="YYYY.0M.0D"
+dagger api call calver generate --format="YYYY.0M.0D"
 # Output: 2025.11.15
 
 # 2. Manual MICRO version
-dagger call generate --format="YYYY.MM.MICRO" --micro=5
+dagger api call calver generate --format="YYYY.MM.MICRO" --micro=5
 # Output: 2025.11.5
 
 # 3. Auto-increment MICRO from git (prefix in format)
-dagger call generate --source=. --format="v.YYYY.MM.MICRO"
+dagger api call calver generate --source=. --format="v.YYYY.MM.MICRO"
 # Output: v.2025.11.3 (if tags v.2025.11.0, v.2025.11.1, v.2025.11.2 exist)
 ```
 
@@ -214,19 +218,19 @@ The dynamic approach supports **any combination**:
 
 ```bash
 # ISO 8601 date format
-dagger call generate --format="YYYY-0M-0D"
+dagger api call calver generate --format="YYYY-0M-0D"
 # Output: 2025-11-15
 
 # Semantic versioning style
-dagger call generate --format="YY.0M.MICRO" --micro=3
+dagger api call calver generate --format="YY.0M.MICRO" --micro=3
 # Output: 25.11.3
 
 # Custom prefix
-dagger call generate --format="v.YYYY.MM.DD"
+dagger api call calver generate --format="v.YYYY.MM.DD"
 # Output: v.2025.11.15
 
 # Compact format
-dagger call generate --format="YYYYMMDD"
+dagger api call calver generate --format="YYYYMMDD"
 # Output: 20251115
 ```
 
@@ -280,10 +284,10 @@ The `examples/` directory contains concise, runnable examples in Python and Go:
 
 ```bash
 # Python example (48 lines)
-cd examples/python && dagger functions
+dagger api functions -m ./examples/python
 
 # Go example (56 lines)
-cd examples/go && dagger functions
+dagger api functions -m ./examples/go
 ```
 
 Each example demonstrates a complete release workflow:

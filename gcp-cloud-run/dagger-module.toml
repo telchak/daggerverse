@@ -1,0 +1,5 @@
+name = "gcp-cloud-run"
+
+[entrypoint]
+  kind = "dang"
+  source = "./sdk/entrypoint"

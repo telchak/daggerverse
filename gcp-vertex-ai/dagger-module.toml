@@ -1,0 +1,5 @@
+name = "gcp-vertex-ai"
+
+[entrypoint]
+  kind = "dang"
+  source = "./sdk/entrypoint"

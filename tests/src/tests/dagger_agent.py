@@ -8,16 +8,19 @@ import dagger
 from dagger import dag
 
 _DAGGER_JSON = "dagger.json"
+# Module manifests: dagger-module.toml (Dagger 1.0) or dagger.json (0.x)
+_MANIFESTS = ("dagger-module.toml", _DAGGER_JSON)
 
 
-def test_dagger_mcp_server() -> str:
-    """Test that the dagger-mcp module produces a valid service."""
-    # Verify the server function returns a service without error.
-    # The service itself requires privileged nesting to actually respond,
-    # but confirming the pipeline builds is sufficient.
+async def test_dagger_mcp_server() -> str:
+    """Test that the dagger-mcp module builds its server container and service."""
+    files = await dag.dagger_mcp().container().directory("/app").entries()
+    if "main.py" not in files:
+        raise ValueError(f"dagger-mcp container has no /app/main.py: {files}")
+    # The service is lazy: building it is enough here; the agents start it.
     dag.dagger_mcp().server()
 
-    return "PASS: dagger-mcp server() returns a valid service"
+    return "PASS: dagger-mcp container holds the server, server() returns a service"
 
 
 async def test_daggie_assist() -> str:
@@ -39,8 +42,8 @@ async def test_daggie_assist() -> str:
         assignment=(
             "Create a Dagger module for this Python project that builds a container "
             "image. The module should have a 'build' function that installs dependencies "
-            "from requirements.txt and copies the app source. Write the dagger.json, "
-            "main source file, and __init__.py."
+            "from requirements.txt and copies the app source. Write the dagger-module.toml, "
+            "the dagger.toml that registers it, the main source file, and __init__.py."
         ),
     )
 
@@ -50,10 +53,10 @@ async def test_daggie_assist() -> str:
 
     # Check that some Dagger-related files were created
     all_files = await result.glob("**/*")
-    has_dagger_json = any(_DAGGER_JSON in f for f in all_files)
+    has_manifest = any(manifest in f for f in all_files for manifest in _MANIFESTS)
     has_source = "app.py" in entries
 
-    return f"PASS: assist (files={len(entries)}, dagger_json={has_dagger_json}, has_source={has_source})"
+    return f"PASS: assist (files={len(entries)}, manifest={has_manifest}, has_source={has_source})"
 
 
 async def test_daggie_explain() -> str:
@@ -61,7 +64,7 @@ async def test_daggie_explain() -> str:
     agent = dag.daggie()
 
     result = await agent.explain(
-        question="What is a Dagger module and how does dagger.json configure it? Explain the key fields.",
+        question="What is a Dagger module, and how do dagger.toml and dagger-module.toml configure it? Explain the key fields.",
     )
 
     if not result:
@@ -70,7 +73,7 @@ async def test_daggie_explain() -> str:
     result_lower = result.lower()
     has_relevant_content = any(
         keyword in result_lower
-        for keyword in (_DAGGER_JSON, "module", "sdk", "function", "engine")
+        for keyword in ("dagger.toml", "dagger-module.toml", "module", "sdk", "function", "engine")
     )
 
     return f"PASS: explain ({len(result)} chars, relevant={has_relevant_content})"

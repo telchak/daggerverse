@@ -2,7 +2,9 @@
 
 Decompose the provided specification and plan into a structured JSON task list.
 
-## Inputs Available
+## Inputs
+
+Their values follow this prompt, under **Input values**; an optional input that was not provided is left out.
 
 - **spec**: Feature specification (markdown)
 - **plan**: Technical implementation plan (markdown)
@@ -12,7 +14,7 @@ Decompose the provided specification and plan into a structured JSON task list.
 - **include_tests**: Whether to generate test tasks (`true` or `false`)
 - **include_review**: Whether to generate review tasks (`true` or `false`)
 - **create_pr**: Whether to generate PR branch names on phases (`true` or `false`)
-- **source**: Project source directory
+- **workspace**: the project source, which the workspace tools read and edit
 
 ## Approach
 
@@ -68,7 +70,7 @@ Use the exact model IDs from `model_table` in the `suggested_model` field of eac
 
 ## Output Format
 
-Write a valid JSON object to the `result` output. The JSON must conform exactly to this schema:
+Reply with a valid JSON object and nothing else. The JSON must conform exactly to this schema:
 
 ```json
 {

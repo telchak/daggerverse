@@ -1,0 +1,5 @@
+name = "dagger-mcp"
+
+[entrypoint]
+  kind = "dang"
+  source = "./sdk/entrypoint"

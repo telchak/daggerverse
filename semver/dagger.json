@@ -1,8 +1,0 @@
-{
-  "name": "semver",
-  "description": "Semantic Versioning utilities with Conventional Commits support for automated releases",
-  "engineVersion": "v0.21.10",
-  "sdk": {
-    "source": "python"
-  }
-}

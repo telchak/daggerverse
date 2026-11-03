@@ -2,9 +2,11 @@
 
 Review the Python project source code for quality, best practices, and potential issues.
 
-## Inputs Available
+## Inputs
 
-- **source**: Python project source directory
+Their values follow this prompt, under **Input values**; an optional input that was not provided is left out.
+
+- **workspace**: the project source, which the workspace tools read and edit
 - **diff** (optional): Git diff or PR diff to focus the review on
 - **focus** (optional): Specific area to focus on (e.g. "performance", "security", "type safety")
 
@@ -54,7 +56,7 @@ Review the Python project source code for quality, best practices, and potential
 
 ## Output
 
-**CRITICAL**: You MUST set the `result` output with your review. Use the `result` output binding function — do not just produce text. Your review will be lost if you skip this step.
+**CRITICAL**: Your final reply is the review: write all of it there.
 
 Structure your review as follows:
 

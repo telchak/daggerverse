@@ -2,10 +2,12 @@
 
 Generate a structured feature specification from the **feature_description** input.
 
-## Inputs Available
+## Inputs
+
+Their values follow this prompt, under **Input values**; an optional input that was not provided is left out.
 
 - **feature_description**: Natural language description of what to build (may come from a prompt or a GitHub issue)
-- **source**: Project source directory (explore it to understand existing code and patterns)
+- **workspace**: the project source, which the workspace tools read and edit
 
 ## Approach
 
@@ -65,4 +67,4 @@ Explicitly list what this feature does NOT cover.
 
 ## Output
 
-Write the full specification to the `result` output as markdown.
+Reply with the full specification as markdown.

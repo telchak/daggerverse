@@ -1,80 +1,103 @@
 """GitHub integration implementations shared across coding agents."""
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 import dagger
 from dagger import dag
 
+from . import llm_helpers, routing
+
+MAX_SUGGESTIONS = 5
+_MAX_ERROR_CHARS = 8000
+
+
+def truncate_error_output(error_output: str) -> str:
+    """Keep the tail of a long error output, where the failure usually is."""
+    if len(error_output) > _MAX_ERROR_CHARS:
+        return "...(truncated)\n" + error_output[-_MAX_ERROR_CHARS:]
+    return error_output
+
+
+def parse_suggestions(reply: str) -> tuple[str, list[dict]]:
+    """Read the `{"summary": ..., "suggestions": [...]}` reply of a suggest-fix LLM.
+
+    Returns the summary and at most MAX_SUGGESTIONS well-formed suggestions,
+    each with `path`, `line`, `suggestion` and `comment`. A reply without a
+    JSON object is returned whole as the summary.
+    """
+    data = routing.extract_json_object(reply)
+    if data is None:
+        return reply.strip(), []
+
+    suggestions = []
+    for item in data.get("suggestions") or []:
+        if not isinstance(item, dict):
+            continue
+        path = item.get("path")
+        suggestion = item.get("suggestion")
+        try:
+            line = int(item.get("line"))
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(path, str) or not path or not isinstance(suggestion, str):
+            continue
+        suggestions.append({
+            "path": path,
+            "line": line,
+            "suggestion": suggestion,
+            "comment": str(item.get("comment") or ""),
+        })
+    return str(data.get("summary") or "").strip(), suggestions[:MAX_SUGGESTIONS]
+
+
+def suggestion_body(suggestion: str, comment: str = "") -> str:
+    """Body of a GitHub "suggested change" review comment."""
+    body = f"{comment}\n\n" if comment else ""
+    return body + f"```suggestion\n{suggestion}\n```"
+
 
 async def suggest_github_fix_impl(
-    build_suggest_fix_llm_fn: Callable,
+    build_suggest_fix_llm_fn: Callable[[dagger.Directory, dict[str, str]], Awaitable[dagger.LLM]],
     github_token: dagger.Secret,
     pr_number: int,
     repo: str,
     commit_sha: str,
     error_output: str,
-    agent_ref,
     workspace: dagger.Directory,
 ) -> str:
-    """Analyze a CI failure and post inline code suggestions on a GitHub PR."""
-    # Store PR state on the agent for the suggestion tool
-    agent_ref._github_token = github_token
-    agent_ref._pr_repo = repo
-    agent_ref._pr_number = pr_number
-    agent_ref._pr_commit_sha = commit_sha
+    """Analyze a CI failure and post inline code suggestions on a GitHub PR.
 
-    # Truncate error output (keep tail — most relevant)
-    max_error_chars = 8000
-    if len(error_output) > max_error_chars:
-        error_output = "...(truncated)\n" + error_output[-max_error_chars:]
-
-    env = (
-        dag.env()
-        .with_string_input("error_output", error_output, "The CI error output to analyze")
-        .with_string_input("pr_number", str(pr_number), "The pull request number")
-        .with_string_input("repo", repo, "The GitHub repository URL")
-        .with_string_input("commit_sha", commit_sha, "The HEAD commit SHA of the PR")
-        .with_string_output("result", "Summary of suggestions posted")
-    )
-
-    if workspace:
-        env = env.with_workspace(workspace)
-
-    work = await build_suggest_fix_llm_fn(env, workspace)
-    from . import llm_helpers
-    return await llm_helpers.get_result_or_last_reply(work)
-
-
-async def suggest_github_pr_code_comment_impl(
-    github_token: dagger.Secret | None,
-    pr_repo: str,
-    pr_number: int,
-    pr_commit_sha: str,
-    path: str,
-    line: int,
-    suggestion: str,
-    comment: str = "",
-) -> str:
-    """Post an inline code suggestion on a GitHub pull request."""
-    if not github_token or not pr_repo:
-        raise ValueError("suggest_github_pr_code_comment can only be used during suggest_github_fix")
-
-    body = ""
-    if comment:
-        body += f"{comment}\n\n"
-    body += f"```suggestion\n{suggestion}\n```"
+    The LLM reads the workspace and replies with its suggestions as JSON; this
+    function posts them. A tool cannot post them itself: in Dagger 1.0 the
+    tools of an LLM run on the object as the agent was called, which does not
+    carry the GitHub token passed to this entrypoint.
+    """
+    inputs = {
+        "error_output": truncate_error_output(error_output),
+        "pr_number": str(pr_number),
+        "repo": repo,
+        "commit_sha": commit_sha,
+    }
+    llm = await build_suggest_fix_llm_fn(workspace, inputs)
+    summary, suggestions = parse_suggestions(await llm_helpers.reply(llm))
 
     gh = dag.github_issue(token=github_token)
-    await gh.write_pull_request_code_comment(
-        repo=pr_repo,
-        issue_id=pr_number,
-        commit=pr_commit_sha,
-        body=body,
-        path=path,
-        side="RIGHT",
-        line=line,
-    )
-    return f"Posted suggestion on {path}:{line}"
+    posted = []
+    for item in suggestions:
+        await gh.write_pull_request_code_comment(
+            repo=repo,
+            issue_id=pr_number,
+            commit=commit_sha,
+            body=suggestion_body(item["suggestion"], item["comment"]),
+            path=item["path"],
+            side="RIGHT",
+            line=item["line"],
+        )
+        posted.append(f"- Posted suggestion on {item['path']}:{item['line']}")
+
+    if not posted:
+        return summary or "No suggestions posted."
+    return "\n".join(filter(None, [summary, *posted]))
 
 
 async def develop_github_issue_impl(
@@ -99,29 +122,12 @@ async def develop_github_issue_impl(
 
     # Classify the issue to pick the best agent function
     router_prompt = await load_prompt_fn("router_prompt.md").contents()
-
-    router_env = (
-        dag.env()
-        .with_string_input("issue_title", title, "The GitHub issue title")
-        .with_string_input("issue_body", body, "The GitHub issue body")
-        .with_string_output("function_name", "The function to call: assist, upgrade, build, or write_tests")
-        .with_string_output("params_json", "JSON object with function parameters")
-    )
-
     router = (
         dag.llm()
-        .with_env(router_env)
         .with_system_prompt(router_prompt)
         .with_prompt(f"## GitHub Issue: {title}\n\n{body}")
     )
-
-    function_name = (await router.env().output("function_name").as_string()).strip().lower()
-    params_json = await router.env().output("params_json").as_string()
-
-    from .routing import parse_router_response
-    params, fallback = parse_router_response(params_json)
-    if fallback:
-        function_name = fallback
+    function_name, params = routing.parse_router_reply(await llm_helpers.reply(router))
 
     # Filter params to expected keys per function to prevent TypeErrors
     allowed = allowed_keys.get(function_name, set())

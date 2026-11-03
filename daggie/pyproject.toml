@@ -2,12 +2,21 @@
 name = "daggie"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["dagger-io", "agent-base"]
+dependencies = ["dagger-io", "agent-base", "dagger-clients-core", "dagger-clients-dagger-mcp", "dagger-clients-github-issue"]
 
 [build-system]
 requires = ["uv_build>=0.8.4,<0.9.0"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
-dagger-io = { path = "sdk", editable = true }
+dagger-io = { workspace = true }
 agent-base = { path = "../_agent_base", editable = true }
+dagger-clients-core = { workspace = true }
+dagger-clients-dagger-mcp = { workspace = true }
+dagger-clients-github-issue = { workspace = true }
+
+[tool.uv.workspace]
+members = ["sdk", "clients/core", "clients/dagger-mcp", "clients/github-issue"]
+
+[tool.dagger]
+global-client = true

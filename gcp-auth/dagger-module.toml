@@ -1,0 +1,5 @@
+name = "gcp-auth"
+
+[entrypoint]
+  kind = "dang"
+  source = "./sdk/entrypoint"

@@ -2,17 +2,19 @@
 
 Answer the question in the **question** input clearly and thoroughly.
 
-## Inputs Available
+## Inputs
+
+Their values follow this prompt, under **Input values**; an optional input that was not provided is left out.
 
 - **question**: The question to answer
-- **source** (optional): Project source directory to reference
+- **workspace**: the project source, which the workspace tools read and edit
 - Pre-loaded module references (in system prompt, if provided)
 
 ## Approach
 
-1. If source is available, use `glob` and `read_file` to examine relevant Dagger files
+1. If source is available, use `glob` and `readFile` to examine relevant Dagger files
 2. Review any pre-loaded module references for concrete examples
-3. Use `read_module` to fetch additional modules if more examples would help
+3. Use `readModule` to fetch additional modules if more examples would help
 4. Explain clearly with code examples from real modules when possible
 
 ## Explanation Guidelines
@@ -25,4 +27,4 @@ Answer the question in the **question** input clearly and thoroughly.
 
 ## Output
 
-**CRITICAL**: You MUST set the `result` output with your explanation. Use the `result` output binding function — do not just produce text. Your explanation will be lost if you skip this step.
+**CRITICAL**: Your final reply is the explanation: write all of it there.
