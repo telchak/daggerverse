@@ -205,7 +205,7 @@ Always use the official `dagger/dagger-for-github` action for CI — never insta
 ```yaml
 - uses: dagger/dagger-for-github@v8.4.1
   with:
-    version: "1.0.0-beta.23"
+    version: "1.0.0-beta.27"
     verb: check
 ```
 
@@ -213,7 +213,7 @@ Always use the official `dagger/dagger-for-github` action for CI — never insta
 ```yaml
 - uses: dagger/dagger-for-github@v8.4.1
   with:
-    version: "1.0.0-beta.23"
+    version: "1.0.0-beta.27"
     verb: call
     args: >-
       --allow-llm=all
@@ -244,13 +244,13 @@ jobs:
         id: checks
         uses: dagger/dagger-for-github@v8.4.1
         with:
-          version: "1.0.0-beta.23"
+          version: "1.0.0-beta.27"
           verb: check
       - name: Suggest fix on failure
         if: failure() && github.event_name == 'pull_request'
         uses: dagger/dagger-for-github@v8.4.1
         with:
-          version: "1.0.0-beta.23"
+          version: "1.0.0-beta.27"
           verb: call
           args: --allow-llm=all -m github.com/org/coding-agent@v1.0.0 --source=./app suggest-github-fix ...
         env:
@@ -265,7 +265,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: dagger/dagger-for-github@v8.4.1
         with:
-          version: "1.0.0-beta.23"
+          version: "1.0.0-beta.27"
           verb: call
           args: my-deploy-module cloud-run --source=./backend ...
 ```
