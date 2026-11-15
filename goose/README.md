@@ -233,7 +233,7 @@ jobs:
         uses: dagger/dagger-for-github@v8.4.1
         with:
           verb: call
-          version: "1.0.0-beta.23"
+          version: "1.0.0-beta.27"
           module: github.com/telchak/daggerverse/goose
           args: >-
             suggest-github-fix
